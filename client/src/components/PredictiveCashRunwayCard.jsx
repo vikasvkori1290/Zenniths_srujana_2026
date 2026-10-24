@@ -144,11 +144,11 @@ export default function PredictiveCashRunwayCard() {
             }`}
           >
             {analytics.runwayStatus === 'SAFE' ? (
-              <ShieldCheck className="w-6 h-6 stroke-[2]" />
+              <ShieldCheck className="w-6 h-6 stroke-2" />
             ) : analytics.runwayStatus === 'CAUTION' ? (
-              <AlertTriangle className="w-6 h-6 stroke-[2]" />
+              <AlertTriangle className="w-6 h-6 stroke-2" />
             ) : (
-              <Flame className="w-6 h-6 stroke-[2]" />
+              <Flame className="w-6 h-6 stroke-2" />
             )}
           </div>
         </div>

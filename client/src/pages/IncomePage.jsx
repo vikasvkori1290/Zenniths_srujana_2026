@@ -72,6 +72,7 @@ export default function IncomePage() {
   // Sync to localStorage
   useEffect(() => {
     localStorage.setItem('aurum_today_income', JSON.stringify(todayIncome));
+    window.dispatchEvent(new Event('aurum_income_updated'));
     window.dispatchEvent(new Event('storage'));
   }, [todayIncome]);
 
@@ -81,7 +82,7 @@ export default function IncomePage() {
   };
 
   const totalTodayIncome = todayIncome.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const dailyTarget = profile.dailyGoal || 20000;
+  const dailyTarget = profile.dailyGoal || 10000;
   const goalPercentage = Math.min(Math.round((totalTodayIncome / dailyTarget) * 100), 100);
   const remainingTarget = Math.max(0, dailyTarget - totalTodayIncome);
 

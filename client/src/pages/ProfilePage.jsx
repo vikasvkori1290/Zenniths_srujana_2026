@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   User,
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getFixedExpensesDueWithin15Days } from '../services/expenseSync';
+import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
@@ -108,6 +109,39 @@ export default function ProfilePage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // Sync with global storage and expense update events
+  useEffect(() => {
+    const refreshData = () => {
+      try {
+        const savedInc = localStorage.getItem('aurum_today_income');
+        if (savedInc) setTodayIncome(JSON.parse(savedInc));
+
+        const savedFix = localStorage.getItem('aurum_fixed_expenses');
+        if (savedFix) setFixedExpenses(JSON.parse(savedFix));
+
+        const savedUp = localStorage.getItem('aurum_upcoming_expenses');
+        if (savedUp) setUpcomingExpenses(JSON.parse(savedUp));
+
+        const savedKhata = localStorage.getItem('aurum_ekhata_customers') || localStorage.getItem('aurum_ekhata_data');
+        if (savedKhata) setEKhataCustomers(JSON.parse(savedKhata));
+      } catch (e) {}
+    };
+
+    window.addEventListener('aurum_income_updated', refreshData);
+    window.addEventListener('aurum_fixed_expenses_updated', refreshData);
+    window.addEventListener('aurum_expenses_updated', refreshData);
+    window.addEventListener('aurum_ekhata_updated', refreshData);
+    window.addEventListener('storage', refreshData);
+
+    return () => {
+      window.removeEventListener('aurum_income_updated', refreshData);
+      window.removeEventListener('aurum_fixed_expenses_updated', refreshData);
+      window.removeEventListener('aurum_expenses_updated', refreshData);
+      window.removeEventListener('aurum_ekhata_updated', refreshData);
+      window.removeEventListener('storage', refreshData);
+    };
+  }, []);
+
   const totalTodayIncome = todayIncome.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const totalMonthlyFixed = fixedExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const fixedDueWithin15 = getFixedExpensesDueWithin15Days(fixedExpenses);
@@ -115,7 +149,18 @@ export default function ProfilePage() {
     upcomingExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0) +
     fixedDueWithin15.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const totalUdhar = eKhataCustomers.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
-  const goalPercentage = Math.min(Math.round((totalTodayIncome / (profile.dailyGoal || 20000)) * 100), 100);
+  const goalPercentage = Math.min(Math.round((totalTodayIncome / (profile.dailyGoal || 10000)) * 100), 100);
+
+  // Compute live analytics matching the exact same engine on Home
+  const analytics = useMemo(() => {
+    return calculatePredictiveCashRunway({
+      startingBalance: 40000,
+      todayIncomeList: todayIncome,
+      fixedExpensesList: fixedExpenses,
+      upcomingExpensesList: upcomingExpenses,
+      eKhataCustomersList: eKhataCustomers,
+    });
+  }, [todayIncome, fixedExpenses, upcomingExpenses, eKhataCustomers]);
 
   const handleSaveProfile = (e) => {
     e.preventDefault();
@@ -149,11 +194,11 @@ export default function ProfilePage() {
       path: '/#runway',
       tag: 'AI Forecast',
       tagColor: 'bg-amber-100 text-amber-800 border-amber-300',
-      description: 'Dynamic burn rate engine, 23-day runway prediction, and What-If Udhar recovery simulator.',
+      description: 'Dynamic burn rate engine, projected runway horizon, and What-If Udhar recovery simulator.',
       icon: TrendingUp,
       accent: 'amber',
-      metric: '23 Days Safe',
-      submetric: 'Burn: ₹1,653/day',
+      metric: `~${analytics.runwayDays} Days Safe`,
+      submetric: `Burn: ₹${analytics.dailyBurnRate.toLocaleString()}/day`,
     },
     {
       title: 'Upcoming Payables (15d)',
@@ -393,10 +438,10 @@ export default function ProfilePage() {
               </div>
               <div className="mt-2">
                 <span className="text-2xl font-black text-black font-['Outfit']">
-                  23 Days
+                  ~{analytics.runwayDays} Days
                 </span>
                 <div className="flex items-center justify-between text-[11px] mt-1 text-neutral-500 font-medium">
-                  <span>Burn: ₹1,653/day</span>
+                  <span>Burn: ₹{analytics.dailyBurnRate.toLocaleString()}/day</span>
                   <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
                 </div>
               </div>
@@ -433,7 +478,7 @@ export default function ProfilePage() {
             >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] uppercase font-bold tracking-wider text-neutral-500">
-                  Customer Udhar to Collect
+                  Customer Udhar (15D Span)
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Wallet className="w-4 h-4" />
@@ -444,7 +489,7 @@ export default function ProfilePage() {
                   ₹{totalUdhar.toLocaleString()}
                 </span>
                 <div className="flex items-center justify-between text-[11px] mt-1 text-blue-600 font-semibold">
-                  <span>{eKhataCustomers.length} debtor accounts</span>
+                  <span>{eKhataCustomers.length} debtor accounts (due in &le;15d span)</span>
                   <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
                 </div>
               </div>

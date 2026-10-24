@@ -97,12 +97,20 @@ export default function UpcomingExpensesSection() {
   useEffect(() => {
     localStorage.setItem('aurum_upcoming_expenses', JSON.stringify(upcomingExpenses));
     window.dispatchEvent(new Event('aurum_expenses_updated'));
+    window.dispatchEvent(new Event('storage'));
   }, [upcomingExpenses]);
 
   // Sync fixed expenses due within 15 days whenever profile or fixed expenses change
   useEffect(() => {
     const handleRefresh = () => {
       setFixedExpensesDue(getFixedExpensesDueWithin15Days());
+      const saved = localStorage.getItem('aurum_upcoming_expenses');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setUpcomingExpenses(parsed);
+        } catch (e) {}
+      }
     };
     window.addEventListener('aurum_fixed_expenses_updated', handleRefresh);
     window.addEventListener('aurum_expenses_updated', handleRefresh);
