@@ -8,7 +8,8 @@ export const connectDB = async () => {
 
   try {
     const conn = await mongoose.connect(mongoURI, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 8000,
+      family: 4, // Force IPv4 to prevent Windows SSL alert 80 on Atlas
     });
 
     console.log(`[Database] MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);

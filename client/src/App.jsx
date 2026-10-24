@@ -1,53 +1,105 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import FinanceHeader from './components/FinanceHeader';
-import EKhataPage from './components/EKhataPage';
-import ProfileDashboard from './components/ProfileDashboard';
-import UpcomingExpensesSection from './components/UpcomingExpensesSection';
-import EKhataReceivablesSection from './components/EKhataReceivablesSection';
-import PredictiveCashRunwayCard from './components/PredictiveCashRunwayCard';
-import LoginPage from './components/LoginPage';
+import HomePage from './pages/HomePage';
+import IncomePage from './pages/IncomePage';
+import FixedExpensesPage from './pages/FixedExpensesPage';
+import EKhataLedgerPage from './pages/EKhataLedgerPage';
+import ProfilePage from './pages/ProfilePage';
+import AuthPage from './pages/AuthPage';
 import { useAuth } from './context/AuthContext';
+
+/**
+ * Route protection wrapper:
+ * Redirects unauthenticated visitors to /login
+ */
+function ProtectedRoute({ children }) {
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+}
 
 export default function App() {
   const { isAuthenticated } = useAuth();
-  const [activePage, setActivePage] = useState('dashboard'); // 'dashboard', 'ekhata', 'profile', 'login'
-
-  // If user is explicitly logged out, render the Login page
-  if (!isAuthenticated || activePage === 'login') {
-    return (
-      <div className="min-h-screen bg-neutral-50 text-neutral-900 flex flex-col selection:bg-amber-300 selection:text-black">
-        <FinanceHeader activePage="login" setActivePage={setActivePage} />
-        <main className="flex-1 flex items-center justify-center p-4">
-          <LoginPage onLoginSuccess={() => setActivePage('dashboard')} />
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-white text-neutral-900 flex flex-col selection:bg-amber-300 selection:text-black">
-      {/* Sleek White, Black, Yellow & Golden Navbar */}
-      <FinanceHeader activePage={activePage} setActivePage={setActivePage} />
+      {/* Sleek Navigation Bar */}
+      <FinanceHeader />
 
-      {/* Main Page Area */}
+      {/* Routed Main Content */}
       <main className="flex-1 w-full bg-white">
-        {activePage === 'profile' ? (
-          <ProfileDashboard setActivePage={setActivePage} />
-        ) : activePage === 'ekhata' ? (
-          <EKhataPage />
-        ) : (
-          /* Home / Overview Page */
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-            {/* 1. Predictive Cash Runway & Burn Rate Analytics Engine */}
-            <PredictiveCashRunwayCard />
+        <Routes>
+          {/* Public Authentication Route */}
+          <Route
+            path="/login"
+            element={isAuthenticated ? <Navigate to="/" replace /> : <AuthPage />}
+          />
 
-            {/* 2. Upcoming Expenses & Scheduled Payables (Near-term liabilities) */}
-            <UpcomingExpensesSection />
+          {/* 1. Home Page: Runway, Payables & Receivables all together */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <HomePage />
+              </ProtectedRoute>
+            }
+          />
 
-            {/* 3. eKhata Customer Receivables (Near-term cash inflows & undated udhar) */}
-            <EKhataReceivablesSection setActivePage={setActivePage} />
-          </div>
-        )}
+          {/* 2. Today's Live Income Page */}
+          <Route
+            path="/income"
+            element={
+              <ProtectedRoute>
+                <IncomePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 3. Monthly Fixed Expenses Page */}
+          <Route
+            path="/fixed-expenses"
+            element={
+              <ProtectedRoute>
+                <FixedExpensesPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 4. eKhata Smart Voice Ledger Page */}
+          <Route
+            path="/ekhata"
+            element={
+              <ProtectedRoute>
+                <EKhataLedgerPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 5. Merchant Profile & Executive Financial Overview */}
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Direct redirects */}
+          <Route path="/overview" element={<Navigate to="/profile" replace />} />
+          <Route path="/runway" element={<Navigate to="/#runway" replace />} />
+          <Route path="/upcoming-expenses" element={<Navigate to="/#payables" replace />} />
+          <Route path="/receivables" element={<Navigate to="/#receivables" replace />} />
+
+          {/* Fallback route */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
     </div>
   );
