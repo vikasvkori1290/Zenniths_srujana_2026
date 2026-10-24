@@ -2,10 +2,7 @@ import React from 'react';
 import {
   TrendingUp,
   BookOpen,
-  Sparkles,
-  ArrowRight,
   ShieldCheck,
-  Building2,
 } from 'lucide-react';
 
 export default function FinanceHeader({ activePage, setActivePage }) {
@@ -32,7 +29,7 @@ export default function FinanceHeader({ activePage, setActivePage }) {
           </div>
         </div>
 
-        {/* Center / Navigation Sections */}
+        {/* Center / Navigation Sections (Overview & eKhata only, Profile button removed) */}
         <nav className="flex items-center space-x-2">
           {/* Dashboard / Overview button */}
           <button
@@ -46,7 +43,7 @@ export default function FinanceHeader({ activePage, setActivePage }) {
             Overview
           </button>
 
-          {/* eKhata Button (Requested in Navbar) */}
+          {/* eKhata Button */}
           <button
             onClick={() => setActivePage('ekhata')}
             className={`px-4 py-1.5 rounded-xl text-xs font-black flex items-center space-x-2 transition-all cursor-pointer shadow-sm ${
@@ -67,9 +64,19 @@ export default function FinanceHeader({ activePage, setActivePage }) {
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
             <span>Voice Ledger Active</span>
           </div>
-          <div className="w-8 h-8 rounded-xl bg-neutral-100 text-black font-bold text-xs flex items-center justify-center border border-neutral-200">
+
+          {/* Profile Icon Named VK (Clicking opens Profile Dashboard) */}
+          <button
+            onClick={() => setActivePage(activePage === 'profile' ? 'ekhata' : 'profile')}
+            title="Profile Dashboard (VK)"
+            className={`w-9 h-9 rounded-xl font-black text-xs flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+              activePage === 'profile'
+                ? 'bg-black text-yellow-300 ring-2 ring-yellow-400 shadow-md scale-105'
+                : 'bg-black text-yellow-300 border-2 border-yellow-400 hover:scale-105'
+            }`}
+          >
             VK
-          </div>
+          </button>
         </div>
       </div>
     </header>
