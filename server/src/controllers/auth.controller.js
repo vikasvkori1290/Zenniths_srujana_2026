@@ -1,0 +1,281 @@
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import User from '../models/user.model.js';
+import { isDbConnected } from '../config/db.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'aurumflow_jwt_secret_2026_secure_key';
+
+// In-memory fallback database for local development if MongoDB is not running
+const inMemoryUsers = new Map();
+
+// Pre-seed Demo Merchant
+const seedDemoMerchant = async () => {
+  const hashedPassword = await bcrypt.hash('password123', 10);
+  inMemoryUsers.set('demo@aurumflow.com', {
+    id: 'user-demo-1',
+    _id: 'user-demo-1',
+    name: 'Vikas Kori',
+    email: 'demo@aurumflow.com',
+    password: hashedPassword,
+    businessName: 'Aurum Enterprise Hub',
+    businessType: 'Retail & Wholesale',
+    dailyGoal: 25000,
+    phone: '+91 98765 43210',
+    role: 'merchant',
+    createdAt: new Date().toISOString(),
+  });
+};
+seedDemoMerchant();
+
+const generateToken = (user) => {
+  return jwt.sign(
+    {
+      id: user._id || user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role || 'merchant',
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+};
+
+/**
+ * Register a new merchant
+ * POST /api/v1/auth/register
+ */
+export const register = async (req, res) => {
+  try {
+    const { name, email, password, businessName, businessType, dailyGoal, phone } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and password are required',
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long',
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (isDbConnected()) {
+      const existing = await User.findOne({ email: normalizedEmail });
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          message: 'An account with this email already exists',
+        });
+      }
+
+      const newUser = await User.create({
+        name: name.trim(),
+        email: normalizedEmail,
+        password,
+        businessName: businessName?.trim() || 'My Business Store',
+        businessType: businessType || 'Retail',
+        dailyGoal: Number(dailyGoal) || 20000,
+        phone: phone?.trim() || '+91 98765 43210',
+      });
+
+      const token = generateToken(newUser);
+
+      return res.status(201).json({
+        success: true,
+        message: 'Merchant registered successfully',
+        token,
+        user: newUser,
+      });
+    } else {
+      // In-memory fallback
+      if (inMemoryUsers.has(normalizedEmail)) {
+        return res.status(409).json({
+          success: false,
+          message: 'An account with this email already exists',
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const userObj = {
+        id: 'usr-' + Date.now(),
+        _id: 'usr-' + Date.now(),
+        name: name.trim(),
+        email: normalizedEmail,
+        password: hashedPassword,
+        businessName: businessName?.trim() || 'My Business Store',
+        businessType: businessType || 'Retail',
+        dailyGoal: Number(dailyGoal) || 20000,
+        phone: phone?.trim() || '+91 98765 43210',
+        role: 'merchant',
+        createdAt: new Date().toISOString(),
+      };
+
+      inMemoryUsers.set(normalizedEmail, userObj);
+      const token = generateToken(userObj);
+
+      const safeUser = { ...userObj };
+      delete safeUser.password;
+
+      return res.status(201).json({
+        success: true,
+        message: 'Merchant registered successfully (local store active)',
+        token,
+        user: safeUser,
+      });
+    }
+  } catch (err) {
+    console.error('[Auth Register Error]:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Registration failed',
+    });
+  }
+};
+
+/**
+ * Login merchant
+ * POST /api/v1/auth/login
+ */
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide both email and password',
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (isDbConnected()) {
+      const user = await User.findOne({ email: normalizedEmail });
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid email or password',
+        });
+      }
+
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid email or password',
+        });
+      }
+
+      const token = generateToken(user);
+      return res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        token,
+        user,
+      });
+    } else {
+      // In-memory fallback
+      const user = inMemoryUsers.get(normalizedEmail);
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid email or password',
+        });
+      }
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid email or password',
+        });
+      }
+
+      const token = generateToken(user);
+      const safeUser = { ...user };
+      delete safeUser.password;
+
+      return res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        token,
+        user: safeUser,
+      });
+    }
+  } catch (err) {
+    console.error('[Auth Login Error]:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Login failed',
+    });
+  }
+};
+
+/**
+ * 1-Click Instant Demo Login
+ * POST /api/v1/auth/demo
+ */
+export const demoLogin = async (req, res) => {
+  try {
+    const demoUser = inMemoryUsers.get('demo@aurumflow.com');
+    const token = generateToken(demoUser);
+    const safeUser = { ...demoUser };
+    delete safeUser.password;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Demo merchant logged in successfully',
+      token,
+      user: safeUser,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: 'Demo login failed',
+    });
+  }
+};
+
+/**
+ * Get current authenticated user
+ * GET /api/v1/auth/me
+ */
+export const getMe = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (isDbConnected()) {
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+      return res.status(200).json({ success: true, user });
+    } else {
+      for (const [, val] of inMemoryUsers) {
+        if (val.id === userId || val._id === userId) {
+          const safeUser = { ...val };
+          delete safeUser.password;
+          return res.status(200).json({ success: true, user: safeUser });
+        }
+      }
+      return res.status(200).json({
+        success: true,
+        user: {
+          id: userId,
+          name: req.user.name || 'Merchant',
+          email: req.user.email,
+          businessName: 'Aurum Enterprise Hub',
+          businessType: 'Retail',
+          dailyGoal: 20000,
+        },
+      });
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to retrieve profile' });
+  }
+};
