@@ -67,7 +67,7 @@ export default function FinanceHeader({ activePage, setActivePage }) {
 
           {/* Profile Icon Named VK (Clicking opens Profile Dashboard) */}
           <button
-            onClick={() => setActivePage(activePage === 'profile' ? 'ekhata' : 'profile')}
+            onClick={() => setActivePage(activePage === 'profile' ? 'dashboard' : 'profile')}
             title="Profile Dashboard (VK)"
             className={`w-9 h-9 rounded-xl font-black text-xs flex items-center justify-center transition-all cursor-pointer shadow-sm ${
               activePage === 'profile'

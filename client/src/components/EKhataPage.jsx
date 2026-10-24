@@ -106,6 +106,7 @@ export default function EKhataPage() {
   // Sync state to localStorage
   useEffect(() => {
     localStorage.setItem('aurum_ekhata_data', JSON.stringify(khataList));
+    window.dispatchEvent(new Event('aurum_ekhata_updated'));
   }, [khataList]);
 
   useEffect(() => {

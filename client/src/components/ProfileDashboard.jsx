@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getFixedExpensesDueWithin15Days } from '../services/expenseSync';
 import {
   User,
   IndianRupee,
@@ -265,18 +266,59 @@ export default function ProfileDashboard({ setActivePage }) {
   });
 
   // Load eKhata customer credits to show total cash to receive
-  const [eKhataCustomers, setEKhataCustomers] = useState([]);
-
-  useEffect(() => {
-    const savedKhata = localStorage.getItem('aurum_ekhata_data');
-    if (savedKhata) {
+  const [eKhataCustomers, setEKhataCustomers] = useState(() => {
+    const saved = localStorage.getItem('aurum_ekhata_data');
+    if (saved) {
       try {
-        const parsed = JSON.parse(savedKhata);
-        if (Array.isArray(parsed)) {
-          setEKhataCustomers(parsed.filter((c) => Number(c.totalAmount) > 0));
-        }
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch (e) {}
     }
+    return [];
+  });
+
+  useEffect(() => {
+    const handleKhataSync = () => {
+      const saved = localStorage.getItem('aurum_ekhata_data');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setEKhataCustomers(parsed);
+        } catch (e) {}
+      }
+    };
+    window.addEventListener('aurum_ekhata_updated', handleKhataSync);
+    return () => window.removeEventListener('aurum_ekhata_updated', handleKhataSync);
+  }, []);
+
+  // Sync with upcoming expenses stored in localStorage
+  useEffect(() => {
+    const handleSync = () => {
+      const saved = localStorage.getItem('aurum_upcoming_expenses');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setUpcomingExpenses(parsed);
+        } catch (e) {}
+      }
+    };
+    window.addEventListener('aurum_expenses_updated', handleSync);
+    return () => window.removeEventListener('aurum_expenses_updated', handleSync);
+  }, []);
+
+  // Listen for fixed expenses updates (e.g. if marked paid from Home page)
+  useEffect(() => {
+    const syncFixed = () => {
+      const saved = localStorage.getItem('aurum_fixed_expenses');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setFixedExpenses(parsed);
+        } catch (e) {}
+      }
+    };
+    window.addEventListener('aurum_fixed_expenses_updated', syncFixed);
+    return () => window.removeEventListener('aurum_fixed_expenses_updated', syncFixed);
   }, []);
 
   // Save changes to localStorage
@@ -290,11 +332,9 @@ export default function ProfileDashboard({ setActivePage }) {
 
   useEffect(() => {
     localStorage.setItem('aurum_fixed_expenses', JSON.stringify(fixedExpenses));
+    window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
+    window.dispatchEvent(new Event('aurum_expenses_updated'));
   }, [fixedExpenses]);
-
-  useEffect(() => {
-    localStorage.setItem('aurum_upcoming_expenses', JSON.stringify(upcomingExpenses));
-  }, [upcomingExpenses]);
 
   useEffect(() => {
     localStorage.setItem('aurum_other_receivables', JSON.stringify(otherReceivables));
@@ -305,7 +345,12 @@ export default function ProfileDashboard({ setActivePage }) {
   // ----------------------------------------------------
   const totalTodayIncome = todayIncome.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const totalMonthlyFixed = fixedExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const totalUpcoming = upcomingExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  // Auto-sync fixed expenses due within 15 days
+  const fixedDueWithin15 = getFixedExpensesDueWithin15Days(fixedExpenses);
+  const totalUpcoming =
+    upcomingExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0) +
+    fixedDueWithin15.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
   const eKhataTotalReceivable = eKhataCustomers.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
   const otherTotalReceivable = otherReceivables.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -625,15 +670,22 @@ export default function ProfileDashboard({ setActivePage }) {
                 </span>
               </div>
 
-              <div className="bg-white/95 rounded-2xl p-3 sm:p-4 border border-neutral-200 shadow-xs">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-500 block">
-                  Upcoming Due
-                </span>
+              <div
+                onClick={() => setActivePage('dashboard')}
+                className="bg-white/95 rounded-2xl p-3 sm:p-4 border border-neutral-200 shadow-xs hover:border-amber-400 cursor-pointer transition-all group"
+                title="Click to view Upcoming Expenses on Home Page"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-500 block">
+                    Upcoming Due
+                  </span>
+                  <ArrowRight className="w-3 h-3 text-neutral-400 group-hover:text-amber-600 transition-colors" />
+                </div>
                 <span className="text-base sm:text-lg font-black text-amber-700 font-['Outfit'] block mt-0.5">
                   ₹{totalUpcoming.toLocaleString()}
                 </span>
-                <span className="text-[10px] text-amber-600 font-medium block mt-1">
-                  Due in next 15 days
+                <span className="text-[10px] text-amber-600 font-medium block mt-1 group-hover:underline">
+                  View on Home Page &rarr;
                 </span>
               </div>
 
@@ -888,109 +940,7 @@ export default function ProfileDashboard({ setActivePage }) {
         </section>
 
         {/* ========================================================= */}
-        {/* 3. UPCOMING EXPENSES (JUST BELOW MONTHLY FIXED EXPENSES)   */}
-        {/* ========================================================= */}
-        <section className="bg-white rounded-3xl p-6 sm:p-8 border border-neutral-200/90 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-neutral-100 gap-4">
-            <div>
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center border border-rose-500/20">
-                  <Calendar className="w-4 h-4" />
-                </div>
-                <h2 className="text-lg sm:text-xl font-black text-black font-['Outfit'] tracking-tight">
-                  Upcoming Expenses & Scheduled Payables
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-                  Near-term Liabilities
-                </span>
-              </div>
-              <p className="text-xs text-neutral-500 mt-1">
-                Vendor dues, raw material purchases, tax deadlines, and one-off upcoming bills due soon.
-              </p>
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <div className="text-right hidden sm:block">
-                <span className="text-[10px] uppercase font-bold text-neutral-400 block">Upcoming Dues</span>
-                <span className="text-xl font-black text-rose-600 font-['Outfit']">
-                  ₹{totalUpcoming.toLocaleString()}
-                </span>
-              </div>
-              <button
-                onClick={() => setModalType('upcoming')}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-black bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 transition-all flex items-center space-x-1.5 shadow-xs"
-              >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span>+ Schedule Upcoming Expense</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Table / Cards of Upcoming Expenses */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-neutral-200 text-neutral-500 font-bold uppercase text-[10px] tracking-wider bg-neutral-50/50">
-                  <th className="py-3 px-4">Expense / Purpose</th>
-                  <th className="py-3 px-4">Payee / Vendor</th>
-                  <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4">Due Date</th>
-                  <th className="py-3 px-4">Urgency</th>
-                  <th className="py-3 px-4 text-right">Amount Due</th>
-                  <th className="py-3 px-4 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {upcomingExpenses.map((item) => (
-                  <tr key={item.id} className="hover:bg-neutral-50/60 transition-colors group">
-                    <td className="py-3.5 px-4 font-bold text-black">
-                      {item.title}
-                    </td>
-                    <td className="py-3.5 px-4 text-neutral-600 font-medium">
-                      {item.payee}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 font-semibold text-[10px] border border-neutral-200">
-                        {item.category}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-neutral-700 font-semibold font-mono">
-                      {item.dueDate}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                          item.urgency === 'Urgent'
-                            ? 'bg-rose-100 text-rose-800 border-rose-300'
-                            : item.urgency === 'High'
-                            ? 'bg-amber-100 text-amber-800 border-amber-300'
-                            : 'bg-neutral-100 text-neutral-700 border-neutral-200'
-                        }`}
-                      >
-                        {item.urgency}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-black text-rose-600 font-['Outfit'] text-sm">
-                      ₹{Number(item.amount).toLocaleString()}
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <button
-                        onClick={() => handleDeleteUpcoming(item.id)}
-                        className="p-1 rounded hover:bg-rose-50 text-neutral-300 hover:text-rose-500 transition-colors"
-                        title="Remove expense"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* ========================================================= */}
-        {/* 4. CASH TO RECEIVE (CUSTOMER UDHAR & PENDING INFLOWS)     */}
+        {/* 3. CASH TO RECEIVE (CUSTOMER UDHAR & PENDING INFLOWS)     */}
         {/* ========================================================= */}
         <section className="bg-white rounded-3xl p-6 sm:p-8 border border-neutral-200/90 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-neutral-100 gap-4">
@@ -1361,117 +1311,7 @@ export default function ProfileDashboard({ setActivePage }) {
         </div>
       )}
 
-      {/* 3. Add Upcoming Expense Modal */}
-      {modalType === 'upcoming' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white w-full max-w-md rounded-3xl p-6 sm:p-7 shadow-2xl border border-neutral-200">
-            <div className="flex items-center justify-between pb-4 mb-4 border-b border-neutral-100">
-              <h3 className="text-base font-black text-black font-['Outfit']">
-                Schedule Upcoming Expense
-              </h3>
-              <button
-                onClick={() => setModalType(null)}
-                className="p-1 rounded-lg text-neutral-400 hover:text-black hover:bg-neutral-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <form onSubmit={handleAddUpcomingExpense} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wide mb-1">
-                  Expense Description *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Raw Material Batch #43, GST Payment"
-                  value={upcomingForm.title}
-                  onChange={(e) => setUpcomingForm({ ...upcomingForm, title: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-xs text-black focus:outline-none font-medium"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wide mb-1">
-                    Payee / Vendor
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Vendor Name"
-                    value={upcomingForm.payee}
-                    onChange={(e) => setUpcomingForm({ ...upcomingForm, payee: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-xs text-black focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wide mb-1">
-                    Amount (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    placeholder="Amount"
-                    value={upcomingForm.amount}
-                    onChange={(e) => setUpcomingForm({ ...upcomingForm, amount: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-sm font-bold text-black focus:outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wide mb-1">
-                    Due Date
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={upcomingForm.dueDate}
-                    onChange={(e) => setUpcomingForm({ ...upcomingForm, dueDate: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl border border-neutral-300 text-xs text-black focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wide mb-1">
-                    Urgency
-                  </label>
-                  <select
-                    value={upcomingForm.urgency}
-                    onChange={(e) => setUpcomingForm({ ...upcomingForm, urgency: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-300 text-xs text-black focus:outline-none"
-                  >
-                    <option value="Urgent">Urgent</option>
-                    <option value="High">High</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Low">Low</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-neutral-100 flex items-center justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setModalType(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-neutral-600 hover:bg-neutral-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-bold text-black bg-rose-300 hover:bg-rose-400 border border-rose-400"
-                >
-                  Schedule Expense
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* 4. Add Receivable Modal */}
       {modalType === 'receivable' && (
