@@ -6,7 +6,9 @@ import IncomePage from './pages/IncomePage';
 import FixedExpensesPage from './pages/FixedExpensesPage';
 import EKhataLedgerPage from './pages/EKhataLedgerPage';
 import ProfilePage from './pages/ProfilePage';
+import PredictionPage from './pages/PredictionPage';
 import AuthPage from './pages/AuthPage';
+
 import { useAuth } from './context/AuthContext';
 
 /**
@@ -91,7 +93,18 @@ export default function App() {
             }
           />
 
+          {/* 6. AI Financial Prediction Page (NVIDIA Nemotron 70B) */}
+          <Route
+            path="/prediction"
+            element={
+              <ProtectedRoute>
+                <PredictionPage />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Direct redirects */}
+
           <Route path="/overview" element={<Navigate to="/profile" replace />} />
           <Route path="/runway" element={<Navigate to="/#runway" replace />} />
           <Route path="/upcoming-expenses" element={<Navigate to="/#payables" replace />} />

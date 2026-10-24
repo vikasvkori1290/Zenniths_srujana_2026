@@ -12,7 +12,9 @@ import {
   Menu,
   X,
   ArrowUpRight,
+  Sparkles,
 } from 'lucide-react';
+
 import { useAuth } from '../context/AuthContext';
 
 export default function FinanceHeader() {
@@ -42,6 +44,7 @@ export default function FinanceHeader() {
     { name: 'Home', path: '/' },
     { name: 'Income', path: '/income' },
     { name: 'Fixed Expenses', path: '/fixed-expenses' },
+    { name: 'Prediction', path: '/prediction', isAi: true },
   ];
 
   return (
@@ -72,14 +75,26 @@ export default function FinanceHeader() {
               to={link.path}
               end={link.path === '/'}
               className={({ isActive }) =>
-                `px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  isActive
-                    ? 'bg-neutral-100 text-black border border-neutral-300 shadow-2xs'
-                    : 'text-neutral-500 hover:text-black hover:bg-neutral-50'
-                }`
+                link.isAi
+                  ? `px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1.5 transition-all shadow-2xs ${
+                      isActive
+                        ? 'bg-emerald-600 text-white border border-emerald-700 shadow-md ring-2 ring-emerald-400/40'
+                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300'
+                    }`
+                  : `px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      isActive
+                        ? 'bg-neutral-100 text-black border border-neutral-300 shadow-2xs'
+                        : 'text-neutral-500 hover:text-black hover:bg-neutral-50'
+                    }`
               }
             >
-              {link.name}
+              {link.isAi && <Sparkles className="w-3.5 h-3.5 text-emerald-600" />}
+              <span>{link.name}</span>
+              {link.isAi && (
+                <span className="text-[9px] font-black bg-emerald-200/80 text-emerald-900 px-1.5 py-0.2 rounded-md">
+                  NVIDIA
+                </span>
+              )}
             </NavLink>
           ))}
 
@@ -99,6 +114,7 @@ export default function FinanceHeader() {
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
           </NavLink>
         </nav>
+
 
         {/* Right Info / User context */}
         <div className="flex items-center space-x-3 text-xs">
@@ -163,6 +179,14 @@ export default function FinanceHeader() {
                       <CreditCard className="w-3.5 h-3.5 text-neutral-400" />
                       <span>Monthly Fixed Expenses</span>
                     </Link>
+                    <Link
+                      to="/prediction"
+                      onClick={() => setIsDropdownOpen(false)}
+                      className="w-full text-left px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50/70 hover:bg-emerald-100/80 flex items-center space-x-2 rounded-lg my-0.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Nemotron AI Prediction</span>
+                    </Link>
                     <button
                       onClick={handleLogout}
                       className="w-full text-left px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center space-x-2 cursor-pointer"
@@ -170,6 +194,7 @@ export default function FinanceHeader() {
                       <LogOut className="w-3.5 h-3.5" />
                       <span>Log Out</span>
                     </button>
+
                   </div>
                 </div>
               )}

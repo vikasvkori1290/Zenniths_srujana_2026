@@ -235,6 +235,44 @@ AurumFlow enables non-tech-savvy shopkeepers to record credit transactions hands
 5. **Offline Smart Heuristic Fallback**:
    * If offline or API rate-limited, local regex and grammar rules parse Hinglish phrases (e.g. *"Ramesh ko 500 udhar diya"*, *"Suresh se 200 mila"*, *"ID 3 hatao"*).
 
+### 11. NVIDIA Nemotron AI CFO & Predictive Business Intelligence (`/prediction`)
+
+The platform features an enterprise-grade AI Financial Intelligence Advisor powered by **NVIDIA Nemotron 70B** (`nvidia/llama-3.1-nemotron-70b-instruct`) via **NVIDIA NIM** (`https://integrate.api.nvidia.com/v1`):
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    NVIDIA NEMOTRON 70B AI CFO PIPELINE                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  1. Business Model Classification:                                          │
+│     - Retail Kirana & Provisions (Fast FMCG velocity, 8-12% margins)        │
+│     - Pharmacy & Healthcare (Strict expiry, regulated credit)               │
+│     - Wholesale FMCG (Bulk ticket sizes, high Udhar volume)                 │
+│     - Hardware & Electricals (Slow 60d turn, contractor credit lag)         │
+│     - Textiles & Apparel (Seasonal working capital lockup)                  │
+│                                                                             │
+│  2. Telemetry Ingestion Payload:                                            │
+│     - Daily Sales: Realized (₹8,000), Cash (₹5,000), UPI (₹3,000)           │
+│     - Daily Payables: Fixed Burn (₹1,000/d) + 15d Payables (₹1,333/d)       │
+│     - Udhar Credit: ₹10,000 pending across customer accounts                │
+│     - Net Cash Rate: +₹6,334/day (Surplus) | Runway: 41 Days (SAFE)         │
+│                                                                             │
+│  3. NVIDIA NIM Llama-3.1 Nemotron 70B Model Inference:                      │
+│     - Working capital cycle & margin diagnostic                             │
+│     - Cash velocity comparison: Inflow (₹8,667/d) vs Burn (₹2,333/d)        │
+│     - 15-day liability cliff & bottleneck identification                    │
+│                                                                             │
+│  4. Conversational "AI Talk" & Voice Synthesis:                             │
+│     - Direct spoken CFO assessment: "Namaste Vikas! Here is my talk..."     │
+│     - Integrated Browser Speech Synthesis (🔊 Play / Pause / Resume)        │
+│                                                                             │
+│  5. Prioritized Tactical Action Plan:                                       │
+│     - 4-5 prioritized recommendations with estimated cash impact & urgency  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+* **Interactive Voice "AI Talk"**: Merchants can listen to Nemotron read its strategic evaluation aloud using browser speech synthesis, complete with an animated audio waveform.
+* **Resilient Dual-Tier Inference**: The backend accepts `NVIDIA_API_KEY` from `server/.env` or direct UI input; if omitted or rate-limited, it automatically fails over to the high-speed LPU engine so the merchant experiences zero downtime.
+
 ---
 
 ## 🗺️ Information Architecture & Routing
@@ -242,6 +280,7 @@ AurumFlow enables non-tech-savvy shopkeepers to record credit transactions hands
 | Route | View Component | Core Business Capabilities |
 | :--- | :--- | :--- |
 | **`/`** | [`HomePage.jsx`](client/src/pages/HomePage.jsx) | **The Core Cash Operations Hub**: Combines **Predictive Runway Engine**, **Upcoming Payables (15d)**, and **Customer Udhar Receivables** on one screen. |
+| **`/prediction`** | [`PredictionPage.jsx`](client/src/pages/PredictionPage.jsx) | **NVIDIA Nemotron AI CFO**: Deep business-type working capital diagnosis, daily sales vs payables velocity analysis, conversational AI talk, and interactive voice narration. |
 | **`/income`** | [`IncomePage.jsx`](client/src/pages/IncomePage.jsx) | **Daily Sales Tracking**: Real-time sales breakdown (Cash, UPI QR, Invoices) and interactive target achievement progress bar. |
 | **`/fixed-expenses`** | [`FixedExpensesPage.jsx`](client/src/pages/FixedExpensesPage.jsx) | **Recurring Commitments**: Store lease, machinery loan EMIs, staff salaries, electricity bills, and receipt voucher uploads. |
 | **`/ekhata`** | [`EKhataLedgerPage.jsx`](client/src/pages/EKhataLedgerPage.jsx) | **AI Voice Ledger**: Multilingual speech parsing, customer transaction histories, and 1-click WhatsApp payment reminders. |
@@ -252,10 +291,13 @@ AurumFlow enables non-tech-savvy shopkeepers to record credit transactions hands
 
 ## 🛠️ Technology Stack
 
-* **Frontend**: React 19, Vite, Tailwind CSS v4, Lucide Icons, React Router v7
+* **Frontend**: React 19, Vite, Tailwind CSS v4, Lucide Icons, React Router v7, Web Speech Synthesis API
 * **Backend**: Node.js (ESM), Express.js, MongoDB Atlas (Mongoose)
-* **AI & Voice Engine**: Groq LPU (Whisper Large v3 for audio speech-to-text, LLaMA 3.3 70B for intent parsing)
+* **AI & LLM Engines**:
+  * **NVIDIA NIM**: `nvidia/llama-3.1-nemotron-70b-instruct` (Predictive Financial Intelligence & CFO Talk)
+  * **Groq Cloud LPU**: Whisper Large v3 (Multilingual voice ledger) & LPU Inference Engine
 * **Security & Auth**: JWT (JSON Web Tokens), Bcrypt password hashing, Helmet, CORS, Environment Isolation
+
 
 ---
 
@@ -274,8 +316,10 @@ NODE_ENV=development
 MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/aurumflow?retryWrites=true&w=majority
 JWT_SECRET=your_super_secret_jwt_key
 GROQ_API_KEY=gsk_your_groq_api_key_here
+NVIDIA_API_KEY=nvapi_your_nvidia_nim_key_here
 CLIENT_URL=http://localhost:5173
 ```
+
 
 ### 3. Installation
 ```bash
