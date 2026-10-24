@@ -107,7 +107,7 @@ export default function EKhataPage() {
   const [selectedCustomerHistory, setSelectedCustomerHistory] = useState(null);
   const [manualText, setManualText] = useState('');
   const [editingCustomer, setEditingCustomer] = useState(null);
-  const [transactionCustomer, setTransactionCustomer] = useState(null);
+  const [editTab, setEditTab] = useState('TXN'); // 'TXN' or 'DETAILS'
 
   // Transaction states for simple New Transaction modal
   const [newTxType, setNewTxType] = useState('ADD'); // 'ADD' or 'PAY'
@@ -663,7 +663,7 @@ Thank you for your business! 🙏
   // Simple New Transaction handler
   const handleSaveSimpleTransaction = (e) => {
     if (e) e.preventDefault();
-    if (!transactionCustomer) return;
+    if (!editingCustomer) return;
 
     const val = Number(newTxAmount);
     if (!val || val <= 0) {
@@ -673,8 +673,8 @@ Thank you for your business! 🙏
 
     const isCredit = newTxType === 'ADD';
     const updatedTotal = isCredit
-      ? transactionCustomer.totalAmount + val
-      : Math.max(0, transactionCustomer.totalAmount - val);
+      ? editingCustomer.totalAmount + val
+      : Math.max(0, editingCustomer.totalAmount - val);
 
     const dateStr = `Today at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     const noteText = newTxNote.trim() || (isCredit ? `+₹${val} credit added` : `-₹${val} payment received`);
@@ -686,18 +686,18 @@ Thank you for your business! 🙏
     };
 
     const updatedCustomer = {
-      ...transactionCustomer,
+      ...editingCustomer,
       totalAmount: updatedTotal,
       status: updatedTotal === 0 ? 'Settled' : 'Pending',
       lastUpdated: dateStr,
-      history: [newHistoryEntry, ...(transactionCustomer.history || [])],
+      history: [newHistoryEntry, ...(editingCustomer.history || [])],
     };
 
     setKhataList((prev) =>
       prev.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c))
     );
 
-    setTransactionCustomer(null);
+    setEditingCustomer(null);
     setNewTxAmount('');
     setNewTxNote('');
     showFeedback(
@@ -1228,13 +1228,6 @@ Thank you for your business! 🙏
                               <span className="font-bold text-black group-hover:text-amber-600 transition-colors">
                                 {customer.name}
                               </span>
-                              <button
-                                onClick={() => setEditingCustomer(customer)}
-                                className="p-0.5 rounded text-neutral-400 hover:text-black hover:bg-neutral-100 transition-colors cursor-pointer"
-                                title="Edit Customer Details (Phone, Name, Due Date)"
-                              >
-                                <Edit3 className="w-3 h-3 text-neutral-500" />
-                              </button>
                             </div>
                             <div className="flex items-center space-x-1.5 text-[10px] text-neutral-500 font-mono mt-0.5">
                               <span>ID: #{customer.idNumber}</span>
@@ -1304,34 +1297,24 @@ Thank you for your business! 🙏
                             <span>Notify</span>
                           </button>
 
-                          {/* + Add New Transaction Button (Direct 1-Click Action) */}
+                          {/* Single Edit Button */}
                           <button
                             onClick={() => {
-                              setTransactionCustomer(customer);
+                              setEditingCustomer({ ...customer });
+                              setEditTab('TXN');
                               setNewTxType('ADD');
                               setNewTxAmount('');
                               setNewTxNote('');
                             }}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1 transition-all cursor-pointer shadow-2xs hover:opacity-90"
+                            className="px-3 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs hover:opacity-90"
                             style={{
                               backgroundColor: '#3D2E18',
                               color: '#F9DEBF',
                             }}
-                            title={`Add New Transaction for ${customer.name}`}
-                          >
-                            <Plus className="w-3 h-3 stroke-[2.5]" />
-                            <span>+ Txn</span>
-                          </button>
-
-                          {/* Edit Customer Details Button */}
-                          <button
-                            onClick={() => {
-                              setEditingCustomer({ ...customer });
-                            }}
-                            className="p-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 hover:text-black transition-colors cursor-pointer"
-                            title="Edit Customer Details (Phone, Name, Due Date)"
+                            title={`Edit ${customer.name} & Transactions`}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit</span>
                           </button>
 
                           {/* View Audit Logs Button */}
@@ -1526,8 +1509,8 @@ Thank you for your business! 🙏
           </div>
         )}
 
-        {/* 1. SIMPLE NEW TRANSACTION MODAL (#3D2E18, #F9DEBF, #8A91A0) */}
-        {transactionCustomer && (
+        {/* SINGLE EDIT MODAL (SIMPLE NEW TRANSACTION & CUSTOMER DETAILS) */}
+        {editingCustomer && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
             <div
               className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border"
@@ -1540,223 +1523,14 @@ Thank you for your business! 🙏
                     className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shadow-xs"
                     style={{ backgroundColor: '#3D2E18', color: '#F9DEBF' }}
                   >
-                    {transactionCustomer.name.charAt(0)}
+                    {editingCustomer.name ? editingCustomer.name.charAt(0) : 'C'}
                   </div>
                   <div>
                     <h3 className="font-black font-['Outfit'] text-base" style={{ color: '#3D2E18' }}>
-                      New Transaction
+                      {editingCustomer.name} (ID #{editingCustomer.idNumber})
                     </h3>
                     <p className="text-xs font-medium" style={{ color: '#8A91A0' }}>
-                      {transactionCustomer.name} (ID #{transactionCustomer.idNumber})
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setTransactionCustomer(null)}
-                  className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
-                  style={{ color: '#8A91A0' }}
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Current Balance Pill */}
-              <div
-                className="p-3 rounded-2xl border flex items-center justify-between"
-                style={{
-                  backgroundColor: '#F9DEBF',
-                  borderColor: '#3D2E18',
-                }}
-              >
-                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#3D2E18' }}>
-                  Current Due Amount
-                </span>
-                <span className="text-lg font-black font-mono" style={{ color: '#3D2E18' }}>
-                  ₹{Number(transactionCustomer.totalAmount || 0).toLocaleString()}
-                </span>
-              </div>
-
-              {/* Transaction Form */}
-              <form onSubmit={handleSaveSimpleTransaction} className="space-y-4">
-                {/* Toggle: Add Credit vs Payment Received */}
-                <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-neutral-100">
-                  <button
-                    type="button"
-                    onClick={() => setNewTxType('ADD')}
-                    className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
-                    style={{
-                      backgroundColor: newTxType === 'ADD' ? '#3D2E18' : 'transparent',
-                      color: newTxType === 'ADD' ? '#F9DEBF' : '#8A91A0',
-                    }}
-                  >
-                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>+ Add Credit</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewTxType('PAY')}
-                    className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
-                    style={{
-                      backgroundColor: newTxType === 'PAY' ? '#3D2E18' : 'transparent',
-                      color: newTxType === 'PAY' ? '#F9DEBF' : '#8A91A0',
-                    }}
-                  >
-                    <MinusCircle className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>- Payment Received</span>
-                  </button>
-                </div>
-
-                {/* Amount Input */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
-                    Amount (₹) *
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-2.5 font-mono text-base font-bold" style={{ color: '#3D2E18' }}>
-                      ₹
-                    </span>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      autoFocus
-                      placeholder="0"
-                      value={newTxAmount}
-                      onChange={(e) => setNewTxAmount(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2.5 rounded-xl text-lg font-mono font-bold outline-none border transition-all"
-                      style={{
-                        borderColor: '#3D2E18',
-                        color: '#3D2E18',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Quick Amount Chips */}
-                <div>
-                  <span className="text-[10px] font-bold uppercase block mb-1" style={{ color: '#8A91A0' }}>
-                    Quick Select:
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[50, 100, 200, 500, 1000].map((amt) => (
-                      <button
-                        key={amt}
-                        type="button"
-                        onClick={() => setNewTxAmount(String(amt))}
-                        className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer"
-                        style={{
-                          backgroundColor: Number(newTxAmount) === amt ? '#3D2E18' : '#F9DEBF',
-                          color: Number(newTxAmount) === amt ? '#F9DEBF' : '#3D2E18',
-                          borderColor: '#3D2E18',
-                        }}
-                      >
-                        ₹{amt}
-                      </button>
-                    ))}
-                    {newTxType === 'PAY' && transactionCustomer.totalAmount > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setNewTxAmount(String(transactionCustomer.totalAmount))}
-                        className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer"
-                        style={{
-                          backgroundColor: Number(newTxAmount) === transactionCustomer.totalAmount ? '#3D2E18' : '#F9DEBF',
-                          color: Number(newTxAmount) === transactionCustomer.totalAmount ? '#F9DEBF' : '#3D2E18',
-                          borderColor: '#3D2E18',
-                        }}
-                      >
-                        Full Due (₹{transactionCustomer.totalAmount})
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Note / Description */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
-                    Note (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder={newTxType === 'ADD' ? 'e.g. Rice, oil, groceries credit' : 'e.g. Cash received / UPI'}
-                    value={newTxNote}
-                    onChange={(e) => setNewTxNote(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl text-xs outline-none border transition-all"
-                    style={{
-                      borderColor: '#8A91A0',
-                      color: '#3D2E18',
-                    }}
-                  />
-                </div>
-
-                {/* Projected New Balance */}
-                {newTxAmount && Number(newTxAmount) > 0 && (
-                  <div
-                    className="p-3 rounded-xl border flex items-center justify-between text-xs font-medium"
-                    style={{
-                      backgroundColor: '#F9DEBF',
-                      borderColor: '#3D2E18',
-                      color: '#3D2E18',
-                    }}
-                  >
-                    <span>New Balance after this txn:</span>
-                    <span className="font-mono font-black text-sm">
-                      ₹{(newTxType === 'ADD'
-                        ? transactionCustomer.totalAmount + Number(newTxAmount)
-                        : Math.max(0, transactionCustomer.totalAmount - Number(newTxAmount))
-                      ).toLocaleString()}
-                    </span>
-                  </div>
-                )}
-
-                {/* Buttons */}
-                <div className="pt-2 border-t flex items-center justify-end space-x-2" style={{ borderColor: '#F9DEBF' }}>
-                  <button
-                    type="button"
-                    onClick={() => setTransactionCustomer(null)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                    style={{ color: '#8A91A0' }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer hover:opacity-90 flex items-center space-x-1.5"
-                    style={{
-                      backgroundColor: '#3D2E18',
-                      color: '#F9DEBF',
-                    }}
-                  >
-                    <Check className="w-4 h-4 stroke-[2.5]" />
-                    <span>Save Transaction</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* 2. SIMPLE EDIT CUSTOMER DETAILS MODAL (#3D2E18, #F9DEBF, #8A91A0) */}
-        {editingCustomer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
-            <div
-              className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border"
-              style={{ borderColor: '#F9DEBF' }}
-            >
-              <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: '#F9DEBF' }}>
-                <div className="flex items-center space-x-2.5">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shadow-xs"
-                    style={{ backgroundColor: '#3D2E18', color: '#F9DEBF' }}
-                  >
-                    <Edit3 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-black font-['Outfit'] text-base" style={{ color: '#3D2E18' }}>
-                      Edit Customer Details
-                    </h3>
-                    <p className="text-xs font-medium" style={{ color: '#8A91A0' }}>
-                      Customer #{editingCustomer.idNumber} • Total Due: ₹{editingCustomer.totalAmount}
+                      Current Total Due: <strong className="font-mono font-bold" style={{ color: '#3D2E18' }}>₹{Number(editingCustomer.totalAmount || 0).toLocaleString()}</strong>
                     </p>
                   </div>
                 </div>
@@ -1770,95 +1544,185 @@ Thank you for your business! 🙏
                 </button>
               </div>
 
-              {editingCustomer._sendWhatsAppAfterSave && (
-                <div
-                  className="p-3 rounded-xl border text-xs flex items-center space-x-2"
+              {/* Two Clean Tabs: 1. New Transaction / 2. Customer Details */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setEditTab('TXN')}
+                  className="py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
                   style={{
-                    backgroundColor: '#F9DEBF',
-                    borderColor: '#3D2E18',
-                    color: '#3D2E18',
+                    backgroundColor: editTab === 'TXN' ? '#3D2E18' : 'transparent',
+                    color: editTab === 'TXN' ? '#F9DEBF' : '#8A91A0',
                   }}
                 >
-                  <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#3D2E18' }} />
-                  <span>
-                    Add a phone number below to immediately send the WhatsApp due reminder!
-                  </span>
-                </div>
-              )}
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>New Transaction</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditTab('DETAILS')}
+                  className="py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
+                  style={{
+                    backgroundColor: editTab === 'DETAILS' ? '#3D2E18' : 'transparent',
+                    color: editTab === 'DETAILS' ? '#F9DEBF' : '#8A91A0',
+                  }}
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Customer Details</span>
+                </button>
+              </div>
 
-              <form onSubmit={handleSaveCustomer} className="space-y-4 text-xs">
-                <div>
-                  <label className="block font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
-                    Customer Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editingCustomer.name}
-                    onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl text-black font-semibold text-xs outline-none border transition-all"
-                    style={{ borderColor: '#3D2E18' }}
-                    placeholder="Customer Name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
-                    WhatsApp / Mobile Number *
-                  </label>
-                  <div className="relative">
-                    <Phone className="w-3.5 h-3.5 absolute left-3 top-2.5" style={{ color: '#8A91A0' }} />
-                    <input
-                      type="text"
-                      required
-                      value={editingCustomer.phone === 'Not Added' ? '' : editingCustomer.phone}
-                      onChange={(e) => setEditingCustomer({ ...editingCustomer, phone: e.target.value })}
-                      className="w-full pl-8 pr-3 py-2 rounded-xl text-black font-mono text-xs outline-none border transition-all"
-                      style={{ borderColor: '#3D2E18' }}
-                      placeholder="e.g. +91 98765 43210 or 9876543210"
-                    />
+              {/* TAB 1: SIMPLE NEW TRANSACTION */}
+              {editTab === 'TXN' && (
+                <form onSubmit={handleSaveSimpleTransaction} className="space-y-4">
+                  {/* Current Balance Banner */}
+                  <div
+                    className="p-3 rounded-2xl border flex items-center justify-between"
+                    style={{
+                      backgroundColor: '#F9DEBF',
+                      borderColor: '#3D2E18',
+                    }}
+                  >
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#3D2E18' }}>
+                      Current Due Balance
+                    </span>
+                    <span className="text-lg font-black font-mono" style={{ color: '#3D2E18' }}>
+                      ₹{Number(editingCustomer.totalAmount || 0).toLocaleString()}
+                    </span>
                   </div>
-                  <p className="text-[10px] mt-1" style={{ color: '#8A91A0' }}>
-                    Required for 1-tap WhatsApp payment reminders.
-                  </p>
-                </div>
 
-                <div>
-                  <label className="block font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
-                    Promised Due Date
-                  </label>
-                  <input
-                    type="text"
-                    value={editingCustomer.dueDate || ''}
-                    onChange={(e) => setEditingCustomer({ ...editingCustomer, dueDate: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl text-black text-xs outline-none border transition-all"
-                    style={{ borderColor: '#8A91A0' }}
-                    placeholder="e.g. 30 November"
-                  />
-                </div>
-
-                <div className="pt-3 border-t flex items-center justify-between" style={{ borderColor: '#F9DEBF' }}>
-                  {editingCustomer.phone && editingCustomer.phone !== 'Not Added' && (
+                  {/* Toggle: Add Credit vs Payment Received */}
+                  <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-neutral-100">
                     <button
                       type="button"
-                      onClick={() => {
-                        sendWhatsAppMessage(editingCustomer);
-                        setEditingCustomer(null);
+                      onClick={() => setNewTxType('ADD')}
+                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
+                      style={{
+                        backgroundColor: newTxType === 'ADD' ? '#3D2E18' : 'transparent',
+                        color: newTxType === 'ADD' ? '#F9DEBF' : '#8A91A0',
                       }}
-                      className="px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center space-x-1 cursor-pointer transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>+ Add Credit</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewTxType('PAY')}
+                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
+                      style={{
+                        backgroundColor: newTxType === 'PAY' ? '#3D2E18' : 'transparent',
+                        color: newTxType === 'PAY' ? '#F9DEBF' : '#8A91A0',
+                      }}
+                    >
+                      <MinusCircle className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>- Payment Received</span>
+                    </button>
+                  </div>
+
+                  {/* Amount Input */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
+                      Amount (₹) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-2.5 font-mono text-base font-bold" style={{ color: '#3D2E18' }}>
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        autoFocus
+                        placeholder="0"
+                        value={newTxAmount}
+                        onChange={(e) => setNewTxAmount(e.target.value)}
+                        className="w-full pl-8 pr-3 py-2.5 rounded-xl text-lg font-mono font-bold outline-none border transition-all"
+                        style={{
+                          borderColor: '#3D2E18',
+                          color: '#3D2E18',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Amount Chips */}
+                  <div>
+                    <span className="text-[10px] font-bold uppercase block mb-1" style={{ color: '#8A91A0' }}>
+                      Quick Select:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[50, 100, 200, 500, 1000].map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setNewTxAmount(String(amt))}
+                          className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer"
+                          style={{
+                            backgroundColor: Number(newTxAmount) === amt ? '#3D2E18' : '#F9DEBF',
+                            color: Number(newTxAmount) === amt ? '#F9DEBF' : '#3D2E18',
+                            borderColor: '#3D2E18',
+                          }}
+                        >
+                          ₹{amt}
+                        </button>
+                      ))}
+                      {newTxType === 'PAY' && editingCustomer.totalAmount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setNewTxAmount(String(editingCustomer.totalAmount))}
+                          className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer"
+                          style={{
+                            backgroundColor: Number(newTxAmount) === editingCustomer.totalAmount ? '#3D2E18' : '#F9DEBF',
+                            color: Number(newTxAmount) === editingCustomer.totalAmount ? '#F9DEBF' : '#3D2E18',
+                            borderColor: '#3D2E18',
+                          }}
+                        >
+                          Full Due (₹{editingCustomer.totalAmount})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Note / Description */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
+                      Note (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={newTxType === 'ADD' ? 'e.g. Groceries credit, supplies' : 'e.g. Cash received / UPI'}
+                      value={newTxNote}
+                      onChange={(e) => setNewTxNote(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl text-xs outline-none border transition-all"
+                      style={{
+                        borderColor: '#8A91A0',
+                        color: '#3D2E18',
+                      }}
+                    />
+                  </div>
+
+                  {/* Projected New Balance */}
+                  {newTxAmount && Number(newTxAmount) > 0 && (
+                    <div
+                      className="p-3 rounded-xl border flex items-center justify-between text-xs font-medium"
                       style={{
                         backgroundColor: '#F9DEBF',
                         borderColor: '#3D2E18',
                         color: '#3D2E18',
                       }}
-                      title="Fetch WhatsApp with Due & UPI Details"
                     >
-                      <WhatsAppIcon className="w-3.5 h-3.5" />
-                      <span>Fetch WhatsApp</span>
-                    </button>
+                      <span>New Balance after this txn:</span>
+                      <span className="font-mono font-black text-sm">
+                        ₹{(newTxType === 'ADD'
+                          ? editingCustomer.totalAmount + Number(newTxAmount)
+                          : Math.max(0, editingCustomer.totalAmount - Number(newTxAmount))
+                        ).toLocaleString()}
+                      </span>
+                    </div>
                   )}
 
-                  <div className="flex items-center space-x-2 ml-auto">
+                  {/* Buttons */}
+                  <div className="pt-2 border-t flex items-center justify-end space-x-2" style={{ borderColor: '#F9DEBF' }}>
                     <button
                       type="button"
                       onClick={() => setEditingCustomer(null)}
@@ -1869,17 +1733,116 @@ Thank you for your business! 🙏
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all hover:opacity-90"
+                      className="px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer hover:opacity-90 flex items-center space-x-1.5"
                       style={{
                         backgroundColor: '#3D2E18',
                         color: '#F9DEBF',
                       }}
                     >
-                      Save Customer Details
+                      <Check className="w-4 h-4 stroke-[2.5]" />
+                      <span>Save Transaction</span>
                     </button>
                   </div>
-                </div>
-              </form>
+                </form>
+              )}
+
+              {/* TAB 2: CUSTOMER CONTACT DETAILS */}
+              {editTab === 'DETAILS' && (
+                <form onSubmit={handleSaveCustomer} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
+                      Customer Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editingCustomer.name}
+                      onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl text-black font-semibold text-xs outline-none border transition-all"
+                      style={{ borderColor: '#3D2E18' }}
+                      placeholder="Customer Name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
+                      WhatsApp / Mobile Number *
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-3.5 h-3.5 absolute left-3 top-2.5" style={{ color: '#8A91A0' }} />
+                      <input
+                        type="text"
+                        required
+                        value={editingCustomer.phone === 'Not Added' ? '' : editingCustomer.phone}
+                        onChange={(e) => setEditingCustomer({ ...editingCustomer, phone: e.target.value })}
+                        className="w-full pl-8 pr-3 py-2 rounded-xl text-black font-mono text-xs outline-none border transition-all"
+                        style={{ borderColor: '#3D2E18' }}
+                        placeholder="e.g. +91 98765 43210 or 9876543210"
+                      />
+                    </div>
+                    <p className="text-[10px] mt-1" style={{ color: '#8A91A0' }}>
+                      Required for 1-tap WhatsApp payment reminders.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
+                      Promised Due Date
+                    </label>
+                    <input
+                      type="text"
+                      value={editingCustomer.dueDate || ''}
+                      onChange={(e) => setEditingCustomer({ ...editingCustomer, dueDate: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl text-black text-xs outline-none border transition-all"
+                      style={{ borderColor: '#8A91A0' }}
+                      placeholder="e.g. 30 November"
+                    />
+                  </div>
+
+                  <div className="pt-3 border-t flex items-center justify-between" style={{ borderColor: '#F9DEBF' }}>
+                    {editingCustomer.phone && editingCustomer.phone !== 'Not Added' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sendWhatsAppMessage(editingCustomer);
+                          setEditingCustomer(null);
+                        }}
+                        className="px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center space-x-1 cursor-pointer transition-colors"
+                        style={{
+                          backgroundColor: '#F9DEBF',
+                          borderColor: '#3D2E18',
+                          color: '#3D2E18',
+                        }}
+                        title="Fetch WhatsApp with Due & UPI Details"
+                      >
+                        <WhatsAppIcon className="w-3.5 h-3.5" />
+                        <span>Fetch WhatsApp</span>
+                      </button>
+                    )}
+
+                    <div className="flex items-center space-x-2 ml-auto">
+                      <button
+                        type="button"
+                        onClick={() => setEditingCustomer(null)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        style={{ color: '#8A91A0' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all hover:opacity-90"
+                        style={{
+                          backgroundColor: '#3D2E18',
+                          color: '#F9DEBF',
+                        }}
+                      >
+                        Save Customer Details
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}
