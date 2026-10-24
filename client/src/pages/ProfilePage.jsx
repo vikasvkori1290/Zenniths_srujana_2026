@@ -47,7 +47,7 @@ export default function ProfilePage() {
       upiId: 'vikas.kori@okhdfcbank',
       role: 'Owner & Primary Operator',
       currency: '₹',
-      dailyGoal: 20000,
+      dailyGoal: 10000,
       joinedDate: 'January 2026',
     };
   });
@@ -59,7 +59,7 @@ export default function ProfilePage() {
         return JSON.parse(saved);
       } catch (e) {}
     }
-    return [{ amount: 8400 }, { amount: 6250 }, { amount: 420 }, { amount: 3380 }];
+    return [{ amount: 5000 }, { amount: 3000 }];
   });
 
   const [fixedExpenses] = useState(() => {
@@ -69,7 +69,12 @@ export default function ProfilePage() {
         return JSON.parse(saved);
       } catch (e) {}
     }
-    return [{ amount: 22000, dueDay: 5 }, { amount: 14500, dueDay: 10 }, { amount: 4800, dueDay: 18 }, { amount: 6500, dueDay: 7 }, { amount: 1800, dueDay: 22 }];
+    return [
+      { amount: 10000, dueDay: 5 },
+      { amount: 10000, dueDay: 10 },
+      { amount: 7000, dueDay: 7 },
+      { amount: 3000, dueDay: 18 },
+    ];
   });
 
   const [upcomingExpenses] = useState(() => {
@@ -79,7 +84,7 @@ export default function ProfilePage() {
         return JSON.parse(saved);
       } catch (e) {}
     }
-    return [{ amount: 12500 }, { amount: 7800 }, { amount: 3200 }, { amount: 2450 }];
+    return [];
   });
 
   const [eKhataCustomers] = useState(() => {
@@ -89,7 +94,7 @@ export default function ProfilePage() {
         return JSON.parse(saved);
       } catch (e) {}
     }
-    return [{ totalAmount: 4200 }, { totalAmount: 1850 }, { totalAmount: 6400 }, { totalAmount: 950 }, { totalAmount: 7700 }];
+    return [];
   });
 
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);

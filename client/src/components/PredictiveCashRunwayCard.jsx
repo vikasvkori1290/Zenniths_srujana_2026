@@ -76,8 +76,8 @@ export default function PredictiveCashRunwayCard() {
       0
     );
     const simulatedStartingCash = simulateAllCollections
-      ? 45000 + totalPendingUdhar
-      : 45000;
+      ? 40000 + totalPendingUdhar
+      : 40000;
 
     return calculatePredictiveCashRunway({
       startingBalance: simulatedStartingCash,

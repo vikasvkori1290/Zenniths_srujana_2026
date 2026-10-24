@@ -8,7 +8,7 @@ const DEFAULT_DEMO_USER = {
   email: 'demo@aurumflow.com',
   businessName: 'Aurum Enterprise Hub',
   businessType: 'Retail & Wholesale',
-  dailyGoal: 25000,
+  dailyGoal: 10000,
   phone: '+91 98765 43210',
   role: 'merchant',
 };

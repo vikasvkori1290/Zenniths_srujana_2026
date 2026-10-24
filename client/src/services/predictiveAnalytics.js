@@ -4,7 +4,7 @@
  */
 
 export function calculatePredictiveCashRunway({
-  startingBalance = 45000,
+  startingBalance = 40000,
   todayIncomeList = [],
   fixedExpensesList = [],
   upcomingExpensesList = [],
@@ -44,7 +44,7 @@ export function calculatePredictiveCashRunway({
   const dailyCollectionVelocity = Math.round(totalEligibleReceivables / 15);
 
   // Average daily income (minimum floor of daily goal or today's trend)
-  const baselineDailyIncome = Math.max(totalTodayIncome, 12000);
+  const baselineDailyIncome = Math.max(totalTodayIncome, 8000);
   const totalDailyInflow = baselineDailyIncome + dailyCollectionVelocity;
 
   // 5. Net Daily Cash Flow

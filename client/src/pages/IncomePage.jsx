@@ -27,7 +27,7 @@ export default function IncomePage() {
       } catch (e) {}
     }
     return {
-      dailyGoal: 20000,
+      dailyGoal: 10000,
     };
   });
 
@@ -42,34 +42,18 @@ export default function IncomePage() {
       {
         id: 'inc-1',
         source: 'Counter Cash Sales',
-        amount: 8400,
+        amount: 5000,
         mode: 'Cash',
-        time: '10:30 AM',
+        time: '11:00 AM',
         category: 'In-Store Retail',
       },
       {
         id: 'inc-2',
         source: 'UPI QR Payment (PhonePe / GPay)',
-        amount: 6250,
+        amount: 3000,
         mode: 'UPI',
-        time: '01:15 PM',
+        time: '02:30 PM',
         category: 'Digital Collections',
-      },
-      {
-        id: 'inc-3',
-        source: 'Khata Repayment (Rahul Sharma)',
-        amount: 420,
-        mode: 'UPI',
-        time: '03:45 PM',
-        category: 'eKhata Received',
-      },
-      {
-        id: 'inc-4',
-        source: 'Wholesale Supply Order #108',
-        amount: 3380,
-        mode: 'Bank Transfer',
-        time: '05:10 PM',
-        category: 'B2B Client Invoice',
       },
     ];
   });
