@@ -26,8 +26,21 @@ import {
   Edit3,
   MinusCircle,
   XCircle,
+  X,
+  Phone,
+  CreditCard,
+  Send,
+  UserPlus,
 } from 'lucide-react';
 import { parseLocalSmartIntent, parseWithGroqAI, checkGroqStatus } from '../services/voiceParser';
+
+function WhatsAppIcon({ className = 'w-3.5 h-3.5' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+    </svg>
+  );
+}
 
 export default function EKhataPage() {
   // Customer Khata Ledger
@@ -93,6 +106,25 @@ export default function EKhataPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerHistory, setSelectedCustomerHistory] = useState(null);
   const [manualText, setManualText] = useState('');
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [editTab, setEditTab] = useState('TXN'); // 'TXN' or 'DETAILS'
+
+  // Transaction states for simple New Transaction modal
+  const [newTxType, setNewTxType] = useState('ADD'); // 'ADD' or 'PAY'
+  const [newTxAmount, setNewTxAmount] = useState('');
+  const [newTxNote, setNewTxNote] = useState('');
+
+  // Add New Customer Modal states
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({
+    name: '',
+    phone: '',
+    amount: '',
+    dueDate: '30 November',
+    note: 'Initial credit balance',
+    notifyImmediately: false,
+  });
+  const [isDictatingCustomer, setIsDictatingCustomer] = useState(false);
 
   const recognitionRef = useRef(null);
 
@@ -222,9 +254,9 @@ export default function EKhataPage() {
     }
   };
 
-  const showFeedback = (msg, type = 'success') => {
-    setFeedbackMessage({ text: msg, type });
-    setTimeout(() => setFeedbackMessage(null), 5000);
+  const showFeedback = (msg, type = 'success', actionLink = null) => {
+    setFeedbackMessage({ text: msg, type, actionLink });
+    setTimeout(() => setFeedbackMessage(null), 6000);
   };
 
   // Main Execution with Groq Voice CRUD Pipeline (Context-Aware with currentCustomers)
@@ -553,6 +585,341 @@ export default function EKhataPage() {
     );
   };
 
+  const normalizeSpokenNumbers = (str) => {
+    if (!str) return '';
+    const wordMap = {
+      zero: '0',
+      one: '1',
+      two: '2',
+      three: '3',
+      four: '4',
+      five: '5',
+      six: '6',
+      seven: '7',
+      eight: '8',
+      nine: '9',
+    };
+    let result = str.toLowerCase();
+    Object.keys(wordMap).forEach((word) => {
+      result = result.replace(new RegExp(`\\b${word}\\b`, 'g'), wordMap[word]);
+    });
+    return result;
+  };
+
+  const cleanPhoneNumber = (rawPhone) => {
+    if (!rawPhone || rawPhone === 'Not Added') return '';
+    const digits = rawPhone.replace(/[^0-9]/g, '');
+    if (digits.length === 10) return `91${digits}`; // Prepend 91 for 10-digit Indian numbers
+    if (digits.startsWith('0') && digits.length === 11) return `91${digits.slice(1)}`;
+    return digits;
+  };
+
+  const sendWhatsAppMessage = (customer) => {
+    const cleanPhone = cleanPhoneNumber(customer.phone);
+    if (!cleanPhone) {
+      showFeedback(`Please add a valid phone number for ${customer.name}.`, 'error');
+      return;
+    }
+
+    // Read merchant UPI ID & store name from profile
+    let merchantUpi = 'vikas.kori@okhdfcbank';
+    let storeName = 'AURUMFLOW / Zenniths Enterprise';
+    try {
+      const savedProfile = localStorage.getItem('aurum_profile_info');
+      if (savedProfile) {
+        const parsed = JSON.parse(savedProfile);
+        if (parsed.upiId) merchantUpi = parsed.upiId;
+        if (parsed.businessName) storeName = parsed.businessName;
+      }
+    } catch (e) {}
+
+    const messageText = `Namaste ${customer.name} ji, 🙏
+
+This is a payment due reminder from *${storeName}*.
+
+📋 *eKhata Outstanding Balance Details*:
+• *Customer Name*: ${customer.name}
+• *Customer ID*: #${customer.idNumber}
+• *Total Due Amount*: ₹${Number(customer.totalAmount).toLocaleString('en-IN')}
+• *Due Date*: ${customer.dueDate || 'Immediate'}
+• *Payment Status*: Pending
+
+💳 *Easy Payment via UPI*:
+• *Merchant UPI ID*: *${merchantUpi}*
+• *Pay via GPay / PhonePe / Paytm*: Send ₹${customer.totalAmount} to *${merchantUpi}*
+• *Direct UPI Link*: upi://pay?pa=${merchantUpi}&pn=${encodeURIComponent(storeName)}&am=${customer.totalAmount}&cu=INR
+
+Kindly clear your pending balance at your earliest convenience. Once paid, please reply with the payment confirmation.
+
+Thank you for your business! 🙏
+*- ${storeName} / eKhata Ledger*`;
+
+    const encoded = encodeURIComponent(messageText);
+
+    // Direct WhatsApp desktop / mobile app protocol
+    const appUrl = `whatsapp://send?phone=${cleanPhone}&text=${encoded}`;
+    // Universal web link fallback (only opened when user clicks fallback link)
+    const webUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encoded}`;
+
+    // Direct app trigger via hidden anchor targeting WhatsApp application directly
+    const a = document.createElement('a');
+    a.href = appUrl;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+    }, 500);
+
+    showFeedback(
+      `🚀 Fetching WhatsApp application for ${customer.name} with UPI: ${merchantUpi}!`,
+      'success',
+      { url: webUrl, label: 'Open in WhatsApp Web' }
+    );
+  };
+
+  const handleWhatsAppNotify = (customer) => {
+    const clean = cleanPhoneNumber(customer.phone);
+    if (!clean) {
+      setEditingCustomer({
+        ...customer,
+        _sendWhatsAppAfterSave: true,
+      });
+      showFeedback(`Please add a phone number for ${customer.name} to send WhatsApp reminder.`, 'warning');
+      return;
+    }
+    sendWhatsAppMessage(customer);
+  };
+
+  const handleSaveCustomer = (e) => {
+    e.preventDefault();
+    if (!editingCustomer || !editingCustomer.name.trim()) return;
+
+    const dateStr = `Today at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const updatedPhone = editingCustomer.phone?.trim() || 'Not Added';
+    const updatedDueDate = editingCustomer.dueDate?.trim() || 'Not Specified';
+    const updatedAmount = Number(editingCustomer.totalAmount) || 0;
+
+    const updatedCustomer = {
+      ...editingCustomer,
+      name: editingCustomer.name.trim(),
+      phone: updatedPhone,
+      dueDate: updatedDueDate,
+      totalAmount: updatedAmount,
+      status: updatedAmount === 0 ? 'Settled' : 'Pending',
+      lastUpdated: dateStr,
+      history: [
+        {
+          amount: 0,
+          date: dateStr,
+          note: `Customer details updated (Phone: ${updatedPhone}, Due: ${updatedDueDate})`,
+        },
+        ...editingCustomer.history,
+      ],
+    };
+
+    setKhataList((prev) =>
+      prev.map((c) => (c.id === editingCustomer.id ? updatedCustomer : c))
+    );
+
+    const shouldSend = editingCustomer._sendWhatsAppAfterSave;
+    setEditingCustomer(null);
+    showFeedback(`Updated details for ${updatedCustomer.name}!`, 'success');
+
+    if (shouldSend) {
+      sendWhatsAppMessage(updatedCustomer);
+    }
+  };
+
+  // Simple New Transaction handler
+  const handleSaveSimpleTransaction = (e) => {
+    if (e) e.preventDefault();
+    if (!editingCustomer) return;
+
+    const val = Number(newTxAmount);
+    if (!val || val <= 0) {
+      showFeedback('Please enter a valid transaction amount greater than ₹0.', 'error');
+      return;
+    }
+
+    const isCredit = newTxType === 'ADD';
+    const updatedTotal = isCredit
+      ? editingCustomer.totalAmount + val
+      : Math.max(0, editingCustomer.totalAmount - val);
+
+    const dateStr = `Today at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const noteText = newTxNote.trim() || (isCredit ? `+₹${val} credit added` : `-₹${val} payment received`);
+
+    const newHistoryEntry = {
+      amount: isCredit ? val : -val,
+      date: dateStr,
+      note: noteText,
+    };
+
+    const updatedCustomer = {
+      ...editingCustomer,
+      totalAmount: updatedTotal,
+      status: updatedTotal === 0 ? 'Settled' : 'Pending',
+      lastUpdated: dateStr,
+      history: [newHistoryEntry, ...(editingCustomer.history || [])],
+    };
+
+    setKhataList((prev) =>
+      prev.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c))
+    );
+
+    setEditingCustomer(null);
+    setNewTxAmount('');
+    setNewTxNote('');
+    showFeedback(
+      `Recorded ${isCredit ? `+₹${val}` : `-₹${val}`} transaction for ${updatedCustomer.name}! New Total Due: ₹${updatedTotal.toLocaleString()}`,
+      'success'
+    );
+  };
+
+  // Voice dictation for Add Customer modal
+  const handleDictateNewCustomer = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      showFeedback('Voice dictation requires Web Speech API support in your browser (Chrome/Edge recommended).', 'error');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      setIsDictatingCustomer(true);
+      showFeedback('🎙️ Listening... Say e.g. "Customer Ramesh, phone 9876543210, amount 500, due 30 November"', 'info');
+    };
+
+    recognition.onresult = (event) => {
+      setIsDictatingCustomer(false);
+      const rawTranscript = event.results[0][0].transcript;
+      const normalized = normalizeSpokenNumbers(rawTranscript);
+      showFeedback(`🎙️ Heard: "${rawTranscript}"`, 'info');
+
+      // 1. Extract phone number (e.g. 9876543210 or +91 98765 43210 or 10 digits in sequence)
+      let phoneFound = '';
+      const phoneMatch = normalized.match(/(?:\+?91[\s-]?)?([6-9]\d{9})/);
+      if (phoneMatch) {
+        phoneFound = `+91 ${phoneMatch[1]}`;
+      } else {
+        const spacedDigits = normalized.match(/\b(?:\d[\s-]?){10}\b/);
+        if (spacedDigits) {
+          const clean = spacedDigits[0].replace(/[\s-]/g, '');
+          phoneFound = `+91 ${clean}`;
+        }
+      }
+
+      // 2. Extract amount
+      let amountFound = '';
+      const amountMatch = normalized.match(/(?:rs\.?|rupees|amount|₹|balance)?\s*(\d+)\s*(?:rs\.?|rupees)?/i);
+      if (amountMatch) {
+        amountFound = amountMatch[1];
+      }
+
+      // 3. Extract due date
+      let dueFound = '';
+      const dueMatch = normalized.match(/(?:due\s*(?:date)?|on|by|before)\s*(\d{1,2}\s+(?:january|february|march|april|may|june|july|august|september|october|november|december|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep|oct))/i);
+      if (dueMatch) {
+        dueFound = dueMatch[1];
+      } else if (normalized.includes('tomorrow')) {
+        dueFound = 'Tomorrow';
+      } else if (normalized.includes('next week')) {
+        dueFound = 'Next Week';
+      }
+
+      // 4. Extract customer name
+      let nameFound = '';
+      const nameMatch = normalized.match(/(?:customer|name|to|for|person|add)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)?)/i);
+      if (nameMatch) {
+        nameFound = nameMatch[1].replace(/(?:phone|mobile|amount|due|date|rupees|rs|number|tomorrow)/gi, '').trim();
+      } else {
+        const words = rawTranscript.split(' ').filter((w) => !['add', 'new', 'customer', 'rs', 'rupees', 'due'].includes(w.toLowerCase()));
+        if (words.length > 0 && isNaN(words[0])) {
+          nameFound = words[0];
+        }
+      }
+
+      setNewCustomerForm((prev) => ({
+        ...prev,
+        name: nameFound ? nameFound.charAt(0).toUpperCase() + nameFound.slice(1) : prev.name,
+        phone: phoneFound || prev.phone,
+        amount: amountFound || prev.amount,
+        dueDate: dueFound || prev.dueDate,
+        note: `Voice created: "${rawTranscript}"`,
+      }));
+
+      showFeedback(`✅ Auto-filled from voice: "${rawTranscript}"! You can edit details manually and click Create.`, 'success');
+    };
+
+    recognition.onerror = () => {
+      setIsDictatingCustomer(false);
+      showFeedback('Voice listening stopped. You can also enter details manually.', 'warning');
+    };
+
+    recognition.onend = () => {
+      setIsDictatingCustomer(false);
+    };
+
+    recognition.start();
+  };
+
+  // Create new customer manually / via voice
+  const handleCreateNewCustomer = (e) => {
+    e.preventDefault();
+    if (!newCustomerForm.name.trim()) {
+      showFeedback('Customer name is required.', 'error');
+      return;
+    }
+
+    const maxId = khataList.reduce((max, c) => Math.max(max, c.idNumber || 0), 0);
+    const assignedIdNumber = maxId + 1;
+    const amountVal = Number(newCustomerForm.amount) || 0;
+    const dateStr = `Today at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+    const newCustomer = {
+      id: `cust-${Date.now()}`,
+      idNumber: assignedIdNumber,
+      name: newCustomerForm.name.trim(),
+      phone: newCustomerForm.phone.trim() || 'Not Added',
+      dueDate: newCustomerForm.dueDate.trim() || 'Not Specified',
+      totalAmount: amountVal,
+      status: amountVal === 0 ? 'Settled' : 'Pending',
+      lastUpdated: dateStr,
+      history: [
+        {
+          amount: amountVal,
+          date: dateStr,
+          note: newCustomerForm.note.trim() || 'Initial customer creation',
+        },
+      ],
+    };
+
+    setKhataList([newCustomer, ...khataList]);
+    setIsAddCustomerModalOpen(false);
+
+    const shouldNotify = newCustomerForm.notifyImmediately;
+
+    setNewCustomerForm({
+      name: '',
+      phone: '',
+      amount: '',
+      dueDate: '30 November',
+      note: 'Initial credit balance',
+      notifyImmediately: false,
+    });
+
+    showFeedback(`✅ Successfully created Customer #${assignedIdNumber} (${newCustomer.name}) with ₹${amountVal.toLocaleString()} due!`, 'success');
+
+    if (shouldNotify && newCustomer.phone && newCustomer.phone !== 'Not Added') {
+      setTimeout(() => sendWhatsAppMessage(newCustomer), 300);
+    }
+  };
+
   const isGroqActive = Boolean(
     (backendGroqStatus && backendGroqStatus.active) ||
     (groqKey && groqKey.trim())
@@ -653,9 +1020,20 @@ export default function EKhataPage() {
             }`}
           >
             <div className="flex items-center space-x-2">
-              <Sparkles className="w-4 h-4 text-amber-600" />
+              <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
               <span>{feedbackMessage.text}</span>
             </div>
+            {feedbackMessage.actionLink && (
+              <a
+                href={feedbackMessage.actionLink.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5 shrink-0 ml-3 transition-colors shadow-xs"
+              >
+                <span>{feedbackMessage.actionLink.label}</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
           </div>
         )}
 
@@ -851,15 +1229,31 @@ export default function EKhataPage() {
               </span>
             </div>
 
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-3" />
-              <input
-                type="text"
-                placeholder="Search by customer or due date..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-neutral-200 text-xs text-black focus:border-yellow-400 outline-none"
-              />
+            <div className="flex items-center space-x-2 w-full sm:w-auto">
+              <div className="relative w-full sm:w-60">
+                <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-3" />
+                <input
+                  type="text"
+                  placeholder="Search customer or due date..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-neutral-200 text-xs text-black focus:border-yellow-400 outline-none"
+                />
+              </div>
+
+              {/* + Add Customer Button (Manually with Voice) */}
+              <button
+                type="button"
+                onClick={() => setIsAddCustomerModalOpen(true)}
+                className="gold-button-gradient px-3.5 py-1.5 rounded-xl text-xs font-bold text-black border border-yellow-400 flex items-center space-x-1.5 shrink-0 shadow-xs cursor-pointer hover:scale-[1.02] transition-transform"
+                title="Add New Customer Manually or Dictate via Voice"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span className="hidden xs:inline">+ Add Customer</span>
+                <span className="p-0.5 rounded bg-black/10">
+                  <Mic className="w-3 h-3 text-black" />
+                </span>
+              </button>
             </div>
           </div>
 
@@ -901,12 +1295,30 @@ export default function EKhataPage() {
                             {customer.name.charAt(0)}
                           </div>
                           <div>
-                            <span className="font-bold text-black group-hover:text-amber-600 transition-colors">
-                              {customer.name}
-                            </span>
-                            <span className="block text-[10px] text-neutral-500 font-mono">
-                              ID: #{customer.idNumber} &bull; {customer.history.length} transactions
-                            </span>
+                            <div className="flex items-center space-x-1.5">
+                              <span className="font-bold text-black group-hover:text-amber-600 transition-colors">
+                                {customer.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1.5 text-[10px] text-neutral-500 font-mono mt-0.5">
+                              <span>ID: #{customer.idNumber}</span>
+                              <span>&bull;</span>
+                              <span className="flex items-center space-x-1">
+                                <Phone className="w-2.5 h-2.5 text-neutral-400" />
+                                {customer.phone && customer.phone !== 'Not Added' ? (
+                                  <span className="text-neutral-700 font-semibold">{customer.phone}</span>
+                                ) : (
+                                  <button
+                                    onClick={() => setEditingCustomer(customer)}
+                                    className="text-amber-600 hover:underline font-bold cursor-pointer"
+                                  >
+                                    + Add Phone
+                                  </button>
+                                )}
+                              </span>
+                              <span>&bull;</span>
+                              <span>{customer.history.length} txns</span>
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -944,19 +1356,52 @@ export default function EKhataPage() {
                       </td>
 
                       <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end space-x-2">
+                        <div className="flex items-center justify-end space-x-1.5">
+                          {/* WhatsApp Due Notification Button */}
+                          <button
+                            onClick={() => handleWhatsAppNotify(customer)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold flex items-center space-x-1.5 transition-all shadow-2xs group/btn cursor-pointer"
+                            title={`Fetch WhatsApp application for ${customer.name}`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <WhatsAppIcon className="w-3.5 h-3.5 text-emerald-600 group-hover/btn:scale-110 transition-transform" />
+                            <span>Notify</span>
+                          </button>
+
+                          {/* Single Edit Button */}
+                          <button
+                            onClick={() => {
+                              setEditingCustomer({ ...customer });
+                              setEditTab('TXN');
+                              setNewTxType('ADD');
+                              setNewTxAmount('');
+                              setNewTxNote('');
+                            }}
+                            className="px-3 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs hover:opacity-90"
+                            style={{
+                              backgroundColor: '#3D2E18',
+                              color: '#F9DEBF',
+                            }}
+                            title={`Edit ${customer.name} & Transactions`}
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </button>
+
+                          {/* View Audit Logs Button */}
                           <button
                             onClick={() => setSelectedCustomerHistory(customer)}
-                            className="p-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 hover:text-black transition-colors"
+                            className="p-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 hover:text-black transition-colors cursor-pointer"
                             title="View Audit Logs"
                           >
                             <History className="w-3.5 h-3.5" />
                           </button>
 
+                          {/* Settle Button */}
                           {customer.totalAmount > 0 && (
                             <button
                               onClick={() => handleSettle(customer.id)}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-semibold flex items-center space-x-1 transition-colors"
+                              className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
                               title="Mark as fully settled"
                             >
                               <CheckCircle2 className="w-3 h-3" />
@@ -964,9 +1409,10 @@ export default function EKhataPage() {
                             </button>
                           )}
 
+                          {/* Delete Button */}
                           <button
                             onClick={() => handleDelete(customer.id, customer.name)}
-                            className="p-1.5 rounded-lg hover:bg-rose-50 text-neutral-400 hover:text-rose-600 transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-rose-50 text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer"
                             title="Delete customer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1130,6 +1576,549 @@ export default function EKhataPage() {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* SINGLE EDIT MODAL (SIMPLE NEW TRANSACTION & CUSTOMER DETAILS) */}
+        {editingCustomer && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+            <div
+              className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border"
+              style={{ borderColor: '#F9DEBF' }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: '#F9DEBF' }}>
+                <div className="flex items-center space-x-2.5">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shadow-xs"
+                    style={{ backgroundColor: '#3D2E18', color: '#F9DEBF' }}
+                  >
+                    {editingCustomer.name ? editingCustomer.name.charAt(0) : 'C'}
+                  </div>
+                  <div>
+                    <h3 className="font-black font-['Outfit'] text-base" style={{ color: '#3D2E18' }}>
+                      {editingCustomer.name} (ID #{editingCustomer.idNumber})
+                    </h3>
+                    <p className="text-xs font-medium" style={{ color: '#8A91A0' }}>
+                      Current Total Due: <strong className="font-mono font-bold" style={{ color: '#3D2E18' }}>₹{Number(editingCustomer.totalAmount || 0).toLocaleString()}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingCustomer(null)}
+                  className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
+                  style={{ color: '#8A91A0' }}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Two Clean Tabs: 1. New Transaction / 2. Customer Details */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setEditTab('TXN')}
+                  className="py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
+                  style={{
+                    backgroundColor: editTab === 'TXN' ? '#3D2E18' : 'transparent',
+                    color: editTab === 'TXN' ? '#F9DEBF' : '#8A91A0',
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>New Transaction</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditTab('DETAILS')}
+                  className="py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
+                  style={{
+                    backgroundColor: editTab === 'DETAILS' ? '#3D2E18' : 'transparent',
+                    color: editTab === 'DETAILS' ? '#F9DEBF' : '#8A91A0',
+                  }}
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Customer Details</span>
+                </button>
+              </div>
+
+              {/* TAB 1: SIMPLE NEW TRANSACTION */}
+              {editTab === 'TXN' && (
+                <form onSubmit={handleSaveSimpleTransaction} className="space-y-4">
+                  {/* Current Balance Banner */}
+                  <div
+                    className="p-3 rounded-2xl border flex items-center justify-between"
+                    style={{
+                      backgroundColor: '#F9DEBF',
+                      borderColor: '#3D2E18',
+                    }}
+                  >
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#3D2E18' }}>
+                      Current Due Balance
+                    </span>
+                    <span className="text-lg font-black font-mono" style={{ color: '#3D2E18' }}>
+                      ₹{Number(editingCustomer.totalAmount || 0).toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Toggle: Add Credit vs Payment Received */}
+                  <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-neutral-100">
+                    <button
+                      type="button"
+                      onClick={() => setNewTxType('ADD')}
+                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
+                      style={{
+                        backgroundColor: newTxType === 'ADD' ? '#3D2E18' : 'transparent',
+                        color: newTxType === 'ADD' ? '#F9DEBF' : '#8A91A0',
+                      }}
+                    >
+                      <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>+ Add Credit</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewTxType('PAY')}
+                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
+                      style={{
+                        backgroundColor: newTxType === 'PAY' ? '#3D2E18' : 'transparent',
+                        color: newTxType === 'PAY' ? '#F9DEBF' : '#8A91A0',
+                      }}
+                    >
+                      <MinusCircle className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>- Payment Received</span>
+                    </button>
+                  </div>
+
+                  {/* Amount Input */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
+                      Amount (₹) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-2.5 font-mono text-base font-bold" style={{ color: '#3D2E18' }}>
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        autoFocus
+                        placeholder="0"
+                        value={newTxAmount}
+                        onChange={(e) => setNewTxAmount(e.target.value)}
+                        className="w-full pl-8 pr-3 py-2.5 rounded-xl text-lg font-mono font-bold outline-none border transition-all"
+                        style={{
+                          borderColor: '#3D2E18',
+                          color: '#3D2E18',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Amount Chips */}
+                  <div>
+                    <span className="text-[10px] font-bold uppercase block mb-1" style={{ color: '#8A91A0' }}>
+                      Quick Select:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[50, 100, 200, 500, 1000].map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setNewTxAmount(String(amt))}
+                          className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer"
+                          style={{
+                            backgroundColor: Number(newTxAmount) === amt ? '#3D2E18' : '#F9DEBF',
+                            color: Number(newTxAmount) === amt ? '#F9DEBF' : '#3D2E18',
+                            borderColor: '#3D2E18',
+                          }}
+                        >
+                          ₹{amt}
+                        </button>
+                      ))}
+                      {newTxType === 'PAY' && editingCustomer.totalAmount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setNewTxAmount(String(editingCustomer.totalAmount))}
+                          className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer"
+                          style={{
+                            backgroundColor: Number(newTxAmount) === editingCustomer.totalAmount ? '#3D2E18' : '#F9DEBF',
+                            color: Number(newTxAmount) === editingCustomer.totalAmount ? '#F9DEBF' : '#3D2E18',
+                            borderColor: '#3D2E18',
+                          }}
+                        >
+                          Full Due (₹{editingCustomer.totalAmount})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Note / Description */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
+                      Note (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={newTxType === 'ADD' ? 'e.g. Groceries credit, supplies' : 'e.g. Cash received / UPI'}
+                      value={newTxNote}
+                      onChange={(e) => setNewTxNote(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl text-xs outline-none border transition-all"
+                      style={{
+                        borderColor: '#8A91A0',
+                        color: '#3D2E18',
+                      }}
+                    />
+                  </div>
+
+                  {/* Projected New Balance */}
+                  {newTxAmount && Number(newTxAmount) > 0 && (
+                    <div
+                      className="p-3 rounded-xl border flex items-center justify-between text-xs font-medium"
+                      style={{
+                        backgroundColor: '#F9DEBF',
+                        borderColor: '#3D2E18',
+                        color: '#3D2E18',
+                      }}
+                    >
+                      <span>New Balance after this txn:</span>
+                      <span className="font-mono font-black text-sm">
+                        ₹{(newTxType === 'ADD'
+                          ? editingCustomer.totalAmount + Number(newTxAmount)
+                          : Math.max(0, editingCustomer.totalAmount - Number(newTxAmount))
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Buttons */}
+                  <div className="pt-2 border-t flex items-center justify-end space-x-2" style={{ borderColor: '#F9DEBF' }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditingCustomer(null)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                      style={{ color: '#8A91A0' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer hover:opacity-90 flex items-center space-x-1.5"
+                      style={{
+                        backgroundColor: '#3D2E18',
+                        color: '#F9DEBF',
+                      }}
+                    >
+                      <Check className="w-4 h-4 stroke-[2.5]" />
+                      <span>Save Transaction</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* TAB 2: CUSTOMER CONTACT DETAILS */}
+              {editTab === 'DETAILS' && (
+                <form onSubmit={handleSaveCustomer} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
+                      Customer Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editingCustomer.name}
+                      onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl text-black font-semibold text-xs outline-none border transition-all"
+                      style={{ borderColor: '#3D2E18' }}
+                      placeholder="Customer Name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
+                      WhatsApp / Mobile Number *
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-3.5 h-3.5 absolute left-3 top-2.5" style={{ color: '#8A91A0' }} />
+                      <input
+                        type="text"
+                        required
+                        value={editingCustomer.phone === 'Not Added' ? '' : editingCustomer.phone}
+                        onChange={(e) => setEditingCustomer({ ...editingCustomer, phone: e.target.value })}
+                        className="w-full pl-8 pr-3 py-2 rounded-xl text-black font-mono text-xs outline-none border transition-all"
+                        style={{ borderColor: '#3D2E18' }}
+                        placeholder="e.g. +91 98765 43210 or 9876543210"
+                      />
+                    </div>
+                    <p className="text-[10px] mt-1" style={{ color: '#8A91A0' }}>
+                      Required for 1-tap WhatsApp payment reminders.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold uppercase tracking-wider mb-1" style={{ color: '#3D2E18' }}>
+                      Promised Due Date
+                    </label>
+                    <input
+                      type="text"
+                      value={editingCustomer.dueDate || ''}
+                      onChange={(e) => setEditingCustomer({ ...editingCustomer, dueDate: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl text-black text-xs outline-none border transition-all"
+                      style={{ borderColor: '#8A91A0' }}
+                      placeholder="e.g. 30 November"
+                    />
+                  </div>
+
+                  <div className="pt-3 border-t flex items-center justify-between" style={{ borderColor: '#F9DEBF' }}>
+                    {editingCustomer.phone && editingCustomer.phone !== 'Not Added' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sendWhatsAppMessage(editingCustomer);
+                          setEditingCustomer(null);
+                        }}
+                        className="px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center space-x-1 cursor-pointer transition-colors"
+                        style={{
+                          backgroundColor: '#F9DEBF',
+                          borderColor: '#3D2E18',
+                          color: '#3D2E18',
+                        }}
+                        title="Fetch WhatsApp with Due & UPI Details"
+                      >
+                        <WhatsAppIcon className="w-3.5 h-3.5" />
+                        <span>Fetch WhatsApp</span>
+                      </button>
+                    )}
+
+                    <div className="flex items-center space-x-2 ml-auto">
+                      <button
+                        type="button"
+                        onClick={() => setEditingCustomer(null)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        style={{ color: '#8A91A0' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all hover:opacity-90"
+                        style={{
+                          backgroundColor: '#3D2E18',
+                          color: '#F9DEBF',
+                        }}
+                      >
+                        Save Customer Details
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 3. ADD NEW CUSTOMER MODAL (MANUAL + VOICE DICTATION) */}
+        {isAddCustomerModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white border border-neutral-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-yellow-300 text-black flex items-center justify-center font-bold shadow-sm border border-yellow-400">
+                    <UserPlus className="w-4 h-4 text-black" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-black font-['Outfit'] text-base">
+                      Add New Customer
+                    </h3>
+                    <p className="text-[11px] text-neutral-500">
+                      Enter details manually or dictate with voice
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsAddCustomerModalOpen(false)}
+                  className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* VOICE DICTATION BANNER */}
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-bold text-amber-950 flex items-center space-x-1">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Auto-Fill with Voice</span>
+                  </span>
+                  <p className="text-[10px] text-amber-800 leading-tight">
+                    Tap mic and say: <em>"Customer Ramesh, phone 9876543210, amount 500, due 25 Nov"</em>
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDictateNewCustomer}
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer shadow-xs shrink-0 flex items-center space-x-1 ${
+                    isDictatingCustomer
+                      ? 'bg-rose-500 text-white border-rose-600 animate-pulse'
+                      : 'bg-yellow-300 hover:bg-yellow-400 text-black border-yellow-400'
+                  }`}
+                  title="Speak Customer Details"
+                >
+                  <Mic className="w-4 h-4 text-black" />
+                  <span className="text-xs font-bold text-black">{isDictatingCustomer ? 'Listening...' : 'Dictate'}</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateNewCustomer} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block text-neutral-700 font-bold mb-1">
+                    Customer Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Ramesh Kumar"
+                    value={newCustomerForm.name}
+                    onChange={(e) =>
+                      setNewCustomerForm({ ...newCustomerForm, name: e.target.value })
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-semibold text-xs focus:border-yellow-400 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-neutral-700 font-bold mb-1">
+                    WhatsApp / Mobile Number *
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. +91 98765 43210 or 9876543210"
+                      value={newCustomerForm.phone}
+                      onChange={(e) =>
+                        setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })
+                      }
+                      className="w-full pl-8 pr-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono text-xs focus:border-yellow-400 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Presets for Due Amount */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-neutral-700 font-bold">
+                      Initial Due Amount (₹)
+                    </label>
+                    <div className="flex items-center space-x-1">
+                      {[100, 250, 500, 1000].map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setNewCustomerForm({ ...newCustomerForm, amount: String(amt) })}
+                          className="px-1.5 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 text-[10px] font-mono text-neutral-700 cursor-pointer"
+                        >
+                          ₹{amt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 500"
+                    value={newCustomerForm.amount}
+                    onChange={(e) =>
+                      setNewCustomerForm({ ...newCustomerForm, amount: e.target.value })
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono font-bold text-xs focus:border-yellow-400 outline-none"
+                  />
+                </div>
+
+                {/* Quick Presets for Due Date */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-neutral-700 font-bold">
+                      Due Date
+                    </label>
+                    <div className="flex items-center space-x-1">
+                      {['Tomorrow', '30 November', '7 Days', '15 Days'].map((dt) => (
+                        <button
+                          key={dt}
+                          type="button"
+                          onClick={() => setNewCustomerForm({ ...newCustomerForm, dueDate: dt })}
+                          className="px-1.5 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 text-[10px] text-neutral-700 cursor-pointer"
+                        >
+                          {dt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="e.g. 30 November"
+                    value={newCustomerForm.dueDate}
+                    onChange={(e) =>
+                      setNewCustomerForm({ ...newCustomerForm, dueDate: e.target.value })
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black text-xs focus:border-yellow-400 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-neutral-700 font-bold mb-1">
+                    Initial Note / Reason (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Groceries opening balance"
+                    value={newCustomerForm.note}
+                    onChange={(e) =>
+                      setNewCustomerForm({ ...newCustomerForm, note: e.target.value })
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black text-xs focus:border-yellow-400 outline-none"
+                  />
+                </div>
+
+                {/* Notify Immediately Checkbox */}
+                <label className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center space-x-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newCustomerForm.notifyImmediately || false}
+                    onChange={(e) =>
+                      setNewCustomerForm({ ...newCustomerForm, notifyImmediately: e.target.checked })
+                    }
+                    className="w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
+                  />
+                  <div className="text-[11px] leading-tight">
+                    <span className="font-bold text-emerald-950 block">
+                      Fetch WhatsApp reminder immediately upon creation
+                    </span>
+                    <span className="text-emerald-700 text-[10px]">
+                      Opens WhatsApp directly with pre-filled due details and your merchant UPI ID.
+                    </span>
+                  </div>
+                </label>
+
+                <div className="pt-2 border-t border-neutral-200 flex items-center justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddCustomerModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-neutral-100 text-neutral-700 text-xs font-semibold hover:bg-neutral-200 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="gold-button-gradient px-5 py-2 rounded-xl text-black text-xs font-bold border border-yellow-400 shadow-sm cursor-pointer"
+                  >
+                    Create Customer
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

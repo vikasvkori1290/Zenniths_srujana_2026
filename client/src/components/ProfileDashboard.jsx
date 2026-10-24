@@ -41,7 +41,11 @@ export default function ProfileDashboard({ setActivePage }) {
     const saved = localStorage.getItem('aurum_profile_info');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return {
+          ...parsed,
+          upiId: parsed.upiId || 'vikas.kori@okhdfcbank',
+        };
       } catch (e) {}
     }
     return {
@@ -50,6 +54,7 @@ export default function ProfileDashboard({ setActivePage }) {
       businessName: 'Zenniths Enterprise',
       phone: '+91 98765 12900',
       email: 'vikas.kori@zenniths.com',
+      upiId: 'vikas.kori@okhdfcbank',
       role: 'Owner & Primary Operator',
       currency: '₹',
       dailyGoal: 20000,
@@ -361,7 +366,8 @@ export default function ProfileDashboard({ setActivePage }) {
   // ----------------------------------------------------
   // Modal States
   // ----------------------------------------------------
-  const [modalType, setModalType] = useState(null); // 'income', 'fixed', 'upcoming', 'receivable', 'profile'
+  const [modalType, setModalType] = useState(null); // 'income', 'fixed', 'upcoming', 'receivable', 'profile', 'upi'
+  const [tempUpi, setTempUpi] = useState(profile.upiId || 'vikas.kori@okhdfcbank');
   const [toastMessage, setToastMessage] = useState(null);
 
   const showToast = (msg) => {
@@ -554,6 +560,18 @@ export default function ProfileDashboard({ setActivePage }) {
     showToast('Profile information updated successfully!');
   };
 
+  const handleSaveUpiOnly = (e) => {
+    e.preventDefault();
+    const cleaned = (tempUpi || '').trim();
+    if (!cleaned) return;
+    const updated = { ...profile, upiId: cleaned };
+    setProfile(updated);
+    setProfileForm(updated);
+    localStorage.setItem('aurum_profile_info', JSON.stringify(updated));
+    setModalType(null);
+    showToast(`Merchant UPI ID updated to ${cleaned}!`);
+  };
+
   return (
     <div className="w-full bg-white text-neutral-900 pb-20 selection:bg-amber-300 selection:text-black">
       {/* Toast Notification */}
@@ -635,6 +653,26 @@ export default function ProfileDashboard({ setActivePage }) {
                     <Mail className="w-3 h-3 text-neutral-400" />
                     <span>{profile.email}</span>
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempUpi(profile.upiId || 'vikas.kori@okhdfcbank');
+                      setModalType('upi');
+                    }}
+                    className="flex items-center space-x-1.5 font-semibold px-2.5 py-1 rounded-lg border font-mono transition-colors cursor-pointer group shadow-2xs"
+                    style={{
+                      backgroundColor: '#F9DEBF',
+                      borderColor: '#3D2E18',
+                      color: '#3D2E18',
+                    }}
+                    title="Click to edit Merchant UPI ID"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" style={{ color: '#3D2E18' }} />
+                    <span>UPI: {profile.upiId || 'vikas.kori@okhdfcbank'}</span>
+                    <span className="text-[10px] font-sans underline font-bold ml-1 opacity-70 group-hover:opacity-100">
+                      Edit
+                    </span>
+                  </button>
                   <span className="flex items-center space-x-1 text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                     <ShieldCheck className="w-3 h-3" />
                     <span>KYC Verified</span>
@@ -1507,6 +1545,31 @@ export default function ProfileDashboard({ setActivePage }) {
               </div>
 
               <div>
+                <label className="block text-xs font-bold uppercase tracking-wide mb-1" style={{ color: '#3D2E18' }}>
+                  Merchant UPI ID
+                </label>
+                <div className="relative">
+                  <CreditCard className="w-3.5 h-3.5 absolute left-3 top-3" style={{ color: '#8A91A0' }} />
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. vikas.kori@okhdfcbank"
+                    value={profileForm.upiId || ''}
+                    onChange={(e) => setProfileForm({ ...profileForm, upiId: e.target.value.trim() })}
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl text-xs font-mono font-bold outline-none border transition-all"
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      borderColor: '#F9DEBF',
+                      color: '#3D2E18',
+                    }}
+                  />
+                </div>
+                <p className="text-[11px] mt-1" style={{ color: '#8A91A0' }}>
+                  Mentioned in WhatsApp reminders for customer payments.
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wide mb-1">
                   Daily Income Target (₹)
                 </label>
@@ -1529,9 +1592,98 @@ export default function ProfileDashboard({ setActivePage }) {
                 </button>
                 <button
                   type="submit"
-                  className="gold-button-gradient px-5 py-2 rounded-xl text-xs font-bold text-black border border-yellow-400"
+                  className="px-5 py-2 rounded-xl text-xs font-bold cursor-pointer transition-opacity hover:opacity-90 shadow-sm"
+                  style={{
+                    backgroundColor: '#3D2E18',
+                    color: '#F9DEBF',
+                  }}
                 >
                   Save Profile
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Simple Edit UPI ID Modal (#3D2E18, #F9DEBF, #8A91A0) */}
+      {modalType === 'upi' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div
+            className="bg-white w-full max-w-md rounded-3xl p-6 sm:p-7 shadow-2xl border"
+            style={{ borderColor: '#F9DEBF' }}
+          >
+            <div className="flex items-center justify-between pb-4 mb-4 border-b" style={{ borderColor: '#F9DEBF' }}>
+              <div className="flex items-center space-x-2.5">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center font-bold shadow-xs"
+                  style={{ backgroundColor: '#3D2E18', color: '#F9DEBF' }}
+                >
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black font-['Outfit']" style={{ color: '#3D2E18' }}>
+                    Edit Merchant UPI ID
+                  </h3>
+                  <p className="text-[11px]" style={{ color: '#8A91A0' }}>
+                    Used for WhatsApp payment reminders & QR receipts
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalType(null)}
+                className="p-1 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
+                style={{ color: '#8A91A0' }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUpiOnly} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: '#3D2E18' }}>
+                  Merchant UPI ID (VPA) *
+                </label>
+                <div className="relative">
+                  <CreditCard className="w-4 h-4 absolute left-3.5 top-3" style={{ color: '#8A91A0' }} />
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. vikas.kori@okhdfcbank"
+                    value={tempUpi}
+                    onChange={(e) => setTempUpi(e.target.value.trim())}
+                    className="w-full pl-10 pr-3 py-2.5 rounded-xl text-sm font-mono font-bold outline-none border transition-all"
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      borderColor: '#3D2E18',
+                      color: '#3D2E18',
+                    }}
+                    autoFocus
+                  />
+                </div>
+                <p className="text-[11px] mt-1.5" style={{ color: '#8A91A0' }}>
+                  Customers will receive direct 1-tap payment links on WhatsApp with this UPI ID.
+                </p>
+              </div>
+
+              <div className="pt-3 border-t flex items-center justify-end space-x-2" style={{ borderColor: '#F9DEBF' }}>
+                <button
+                  type="button"
+                  onClick={() => setModalType(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  style={{ color: '#8A91A0' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all hover:opacity-90 shadow-sm"
+                  style={{
+                    backgroundColor: '#3D2E18',
+                    color: '#F9DEBF',
+                  }}
+                >
+                  Save UPI ID
                 </button>
               </div>
             </form>
