@@ -1,0 +1,415 @@
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  CreditCard,
+  Plus,
+  Trash2,
+  FileCheck,
+  UploadCloud,
+  CheckCircle2,
+  X,
+  Building2,
+  Calendar,
+  AlertCircle,
+  ArrowRight,
+} from 'lucide-react';
+
+export default function FixedExpensesPage() {
+  const [fixedExpenses, setFixedExpenses] = useState(() => {
+    const saved = localStorage.getItem('aurum_fixed_expenses');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [
+      {
+        id: 'fix-1',
+        title: 'Commercial Store & Warehouse Rent',
+        amount: 10000,
+        category: 'Rent',
+        dueDay: 5,
+        status: 'Paid',
+        receiptName: 'Rent_Receipt_Oct2026.pdf',
+        notes: 'Paid to Landlord via NEFT transaction',
+      },
+      {
+        id: 'fix-2',
+        title: 'Business Equipment & Machinery EMI',
+        amount: 10000,
+        category: 'EMI',
+        dueDay: 10,
+        status: 'Paid',
+        receiptName: 'HDFC_EMI_Schedule.pdf',
+        notes: 'Auto-debited from primary current account',
+      },
+      {
+        id: 'fix-3',
+        title: 'Staff Salary & Operating Stipend',
+        amount: 7000,
+        category: 'Salaries',
+        dueDay: 7,
+        status: 'Paid',
+        receiptName: 'Salary_Voucher.pdf',
+        notes: 'Monthly operating staff payout',
+      },
+      {
+        id: 'fix-4',
+        title: 'Commercial Electricity & Utility Bill',
+        amount: 3000,
+        category: 'Utilities',
+        dueDay: 18,
+        status: 'Pending',
+        receiptName: null,
+        notes: 'BESCOM commercial meter connection',
+      },
+    ];
+  });
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const [form, setForm] = useState({
+    title: '',
+    amount: '',
+    category: 'Rent',
+    dueDay: 5,
+    notes: '',
+  });
+
+  // Sync to localStorage and dispatch update events
+  useEffect(() => {
+    localStorage.setItem('aurum_fixed_expenses', JSON.stringify(fixedExpenses));
+    window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
+    window.dispatchEvent(new Event('aurum_expenses_updated'));
+    window.dispatchEvent(new Event('storage'));
+  }, [fixedExpenses]);
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const totalMonthlyFixed = fixedExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const paidCount = fixedExpenses.filter((item) => item.status === 'Paid').length;
+  const pendingCount = fixedExpenses.length - paidCount;
+
+  const handleToggleStatus = (id) => {
+    setFixedExpenses(
+      fixedExpenses.map((exp) => {
+        if (exp.id === id) {
+          const nextStatus = exp.status === 'Paid' ? 'Pending' : 'Paid';
+          showToast(`Updated status to ${nextStatus}!`);
+          return { ...exp, status: nextStatus };
+        }
+        return exp;
+      })
+    );
+  };
+
+  const handleDelete = (id) => {
+    setFixedExpenses(fixedExpenses.filter((e) => e.id !== id));
+    showToast('Fixed expense removed.');
+  };
+
+  const handleAddExpense = (e) => {
+    e.preventDefault();
+    if (!form.title.trim() || !form.amount) return;
+
+    const newItem = {
+      id: 'fix-' + Date.now(),
+      title: form.title.trim(),
+      amount: Number(form.amount),
+      category: form.category,
+      dueDay: Number(form.dueDay) || 1,
+      status: 'Pending',
+      notes: form.notes.trim() || 'Recurring monthly commitment',
+      receiptName: null,
+    };
+
+    setFixedExpenses([...fixedExpenses, newItem]);
+    setForm({ title: '', amount: '', category: 'Rent', dueDay: 5, notes: '' });
+    setIsModalOpen(false);
+    showToast(`Added ${newItem.title} (₹${newItem.amount.toLocaleString()})!`);
+  };
+
+  return (
+    <div className="w-full bg-white text-neutral-900 pb-16 font-['Plus_Jakarta_Sans']">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-5">
+          <div className="px-5 py-3 rounded-2xl bg-black text-yellow-300 border border-yellow-400 shadow-2xl text-xs font-bold flex items-center space-x-2.5">
+            <CheckCircle2 className="w-4 h-4 text-yellow-400 shrink-0" />
+            <span>{toastMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Top Banner / Breadcrumb */}
+      <div className="border-b border-neutral-200/80 bg-neutral-50/70">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center space-x-2 text-xs text-neutral-500">
+            <Link to="/" className="font-semibold text-neutral-700 hover:text-black transition-colors">
+              Home
+            </Link>
+            <span>/</span>
+            <span className="text-black font-bold">Monthly Fixed Expenses</span>
+            <span className="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full text-[10px] border border-amber-300">
+              Recurring Outlays
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Link
+              to="/upcoming-expenses"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs"
+            >
+              15-Day Payables &rarr;
+            </Link>
+            <Link
+              to="/runway"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs"
+            >
+              Runway Forecast &rarr;
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Page Hero Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-neutral-200/80 gap-4">
+          <div>
+            <div className="flex items-center space-x-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center border border-amber-500/20">
+                <CreditCard className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-black font-['Outfit'] tracking-tight">
+                Monthly Fixed Expenses
+              </h1>
+            </div>
+            <p className="text-xs sm:text-sm text-neutral-600 mt-1 max-w-2xl">
+              Mandatory monthly recurring outlays, rent agreements, loan EMIs, and utility commitments. Due dates falling within 15 days automatically synchronize to Upcoming Payables.
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <div className="text-right hidden sm:block">
+              <span className="text-[10px] uppercase font-bold text-neutral-400 block">Monthly Total</span>
+              <span className="text-2xl font-black text-black font-['Outfit']">
+                ₹{totalMonthlyFixed.toLocaleString()}
+              </span>
+            </div>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="gold-button-gradient px-4 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 flex items-center space-x-1.5 shadow-sm cursor-pointer"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>+ Add Fixed Expense</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Commitment Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white rounded-2xl p-4 border border-neutral-200 shadow-xs">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400 block">Total Monthly Budget</span>
+            <span className="text-xl font-black text-black font-['Outfit'] block mt-1">₹{totalMonthlyFixed.toLocaleString()}</span>
+            <span className="text-[11px] text-neutral-500 mt-0.5 block">{fixedExpenses.length} regular contracts</span>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 border border-neutral-200 shadow-xs">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400 block">Cleared / Paid This Month</span>
+            <span className="text-xl font-black text-emerald-600 font-['Outfit'] block mt-1">{paidCount} Paid</span>
+            <span className="text-[11px] text-emerald-700 mt-0.5 block">Vouchers on file</span>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 border border-neutral-200 shadow-xs">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400 block">Pending Payouts</span>
+            <span className="text-xl font-black text-amber-700 font-['Outfit'] block mt-1">{pendingCount} Pending</span>
+            <span className="text-[11px] text-amber-600 mt-0.5 block">Due before month end</span>
+          </div>
+        </div>
+
+        {/* Grid of Fixed Expenses */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {fixedExpenses.map((expense) => (
+            <div
+              key={expense.id}
+              className="p-6 rounded-3xl bg-neutral-50/70 border border-neutral-200/80 hover:border-amber-400/80 transition-all flex flex-col justify-between group"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-white border border-neutral-200 text-neutral-800">
+                    {expense.category}
+                  </span>
+                  <button
+                    onClick={() => handleToggleStatus(expense.id)}
+                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-all cursor-pointer ${
+                      expense.status === 'Paid'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-amber-100 text-amber-800 border-amber-300'
+                    }`}
+                  >
+                    {expense.status === 'Paid' ? '✓ Paid for Oct' : '● Due on ' + expense.dueDay + 'th'}
+                  </button>
+                </div>
+
+                <h3 className="text-base font-bold text-black mb-1">
+                  {expense.title}
+                </h3>
+                <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed">
+                  {expense.notes}
+                </p>
+
+                {/* Document / Receipt Upload indicator */}
+                {expense.receiptName ? (
+                  <div className="mt-4 flex items-center space-x-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200/70">
+                    <FileCheck className="w-3.5 h-3.5" />
+                    <span className="truncate">{expense.receiptName}</span>
+                  </div>
+                ) : (
+                  <div className="mt-4 flex items-center space-x-1.5 text-[11px] text-neutral-400">
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    <span>No voucher attached</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-neutral-200/60 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-neutral-400 block">Monthly Amount</span>
+                  <span className="text-lg font-black text-black font-['Outfit']">
+                    ₹{Number(expense.amount).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    onClick={() => handleToggleStatus(expense.id)}
+                    className="px-3 py-1 rounded-xl text-xs font-bold bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-800 cursor-pointer"
+                  >
+                    {expense.status === 'Paid' ? 'Mark Due' : 'Mark Paid'}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(expense.id)}
+                    className="p-1.5 rounded-lg text-neutral-300 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                    title="Delete commitment"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Add Fixed Expense Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md border border-neutral-200 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                  +
+                </div>
+                <h3 className="text-base font-black text-black font-['Outfit']">Add Fixed Commitment</h3>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-neutral-400 hover:text-black p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddExpense} className="mt-4 space-y-4 text-xs font-semibold">
+              <div>
+                <label className="block text-neutral-600 mb-1">Expense Title</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Warehouse Lease, Machining Loan EMI"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-neutral-600 mb-1">Monthly Amount (₹)</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  placeholder="e.g. 15000"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs font-mono font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-neutral-600 mb-1">Category</label>
+                  <select
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                  >
+                    <option value="Rent">Store / Warehouse Rent</option>
+                    <option value="EMI">Machinery / Loan EMI</option>
+                    <option value="Utilities">Electricity & Water</option>
+                    <option value="Salaries">Staff Salaries</option>
+                    <option value="Subscriptions">Software & Broadband</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-neutral-600 mb-1">Due Day of Month (1-31)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    required
+                    value={form.dueDay}
+                    onChange={(e) => setForm({ ...form, dueDay: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-neutral-600 mb-1">Notes / Payment Details</label>
+                <textarea
+                  rows="2"
+                  placeholder="e.g. Landlord account details, auto-debit bank schedule"
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                />
+              </div>
+
+              <div className="pt-3 flex items-center justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-neutral-600 hover:text-black cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="gold-button-gradient px-5 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer"
+                >
+                  Save Commitment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

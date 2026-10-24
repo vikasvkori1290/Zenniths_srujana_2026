@@ -14,11 +14,28 @@ router.get('/status', (req, res) => {
   });
 });
 
+function normalizeSpokenTranscript(text) {
+  if (!text) return '';
+  let str = text;
+  // Speech-to-text number homophones after ID / customer / number / # / no
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:to|too|two|do)\b/gi, '$1 2');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:one|won|ek)\b/gi, '$1 1');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:three|tree|teen)\b/gi, '$1 3');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:four|fore|for|chaar)\b/gi, '$1 4');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:five|paanch)\b/gi, '$1 5');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:six|chhah)\b/gi, '$1 6');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:seven|saat)\b/gi, '$1 7');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:eight|ate|aath)\b/gi, '$1 8');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:nine|nau)\b/gi, '$1 9');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:ten|tin|das)\b/gi, '$1 10');
+  return str;
+}
+
 // POST /api/groq/parse-voice - Intelligent Voice CRUD Engine
 router.post('/parse-voice', async (req, res) => {
   const startTime = Date.now();
   try {
-    const { text, apiKey } = req.body;
+    const { text, apiKey, currentCustomers } = req.body;
     const keyToUse = apiKey || process.env.GROQ_API_KEY;
 
     if (!keyToUse) {
@@ -35,30 +52,45 @@ router.post('/parse-voice', async (req, res) => {
       });
     }
 
+    const normalizedText = normalizeSpokenTranscript(text.trim());
     const todayStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    let currentCustomersSummary = 'No customers currently in the ledger.';
+    if (Array.isArray(currentCustomers) && currentCustomers.length > 0) {
+      currentCustomersSummary = currentCustomers
+        .map(
+          (c) =>
+            `- ID #${c.idNumber}: Name "${c.name}", Total Due: ₹${c.totalAmount || 0}, Due Date: "${c.dueDate || 'Not Specified'}"`
+        )
+        .join('\n');
+    }
 
     const systemPrompt = `You are a precision Voice CRUD engine for an Indian small business credit ledger (e-Khata).
 Today's date is: ${todayStr}.
 Analyze any spoken customer command (English, Hindi, Hinglish, informal slang, word digits, or shorthand).
 
-Customers in the ledger can be identified either by their NAME (e.g. "Nitish", "Vikas") OR by their ID NUMBER (e.g. "id number 1", "id 2", "customer 3", "id number 2", "number 2").
+CURRENT LEDGER CUSTOMERS DATABASE:
+${currentCustomersSummary}
 
-Identify the exact CRUD intent:
-1. "ADD": Add money/credit to a person or ID number (e.g. "add 20rs to nitish", "add 20rs to id number 1", "add 50 to id 2", "id number 1 ko 20 rupay do", "create account for vikas with 200").
-2. "SUBTRACT": Deduct or remove partial money from a person or ID number (e.g. "remove 20rs from id number 1", "subtract 50 from id 2", "nitish paid 30", "deduct 40rs from sunil").
-3. "DELETE": Completely remove a person or ID number from the list (e.g. "delete id number 2", "remove id 1 from list", "completely remove nitish", "remove nitish from the list", "delete rahul").
-4. "RENAME": Change or update a person's name (e.g. "change name of id number 1 to Vikas", "change name from nitish to vikas", "rename id 2 to Rahul").
-5. "UPDATE_DUE_DATE": Set, edit, or add payment due date without changing the balance/amount (e.g. "add 31 november to id number 2", "add 30 november to id 1", "set due date 30 november to id 2", "change due date of nitish to 15 december", "id number 2 ka date 31 november kar do"). 
-CRITICAL RULE FOR "UPDATE_DUE_DATE": If the user says "add <date> to id <number>" or "add <date> to <name>" (such as "add 31 november to id number 2") and NO money/rupees amount is mentioned, the action is strictly "UPDATE_DUE_DATE", "amount" MUST BE null, and "dueDate" MUST be the specified date.
-6. "SETTLE": Settle or clear full account (e.g. "settle id number 1", "settle nitish khata", "mark id 2 as paid").
+RULES FOR MATCHING CUSTOMERS:
+- Match against the database above: If the spoken command refers to an existing customer by their ID (e.g. "ID 2", "ID to", "customer 1"), or by their Name (e.g. "Nitish", "Nitesh", "Vikas", including spelling/phonetic variations like Nitish/Nitesh, Vikas/Vikash), resolve to that EXACT customer and output their "targetId" and ledger "name".
+- If the customer is new and not in the ledger database, set "targetId": null and "name": "New Person Name".
+
+HINDI / HINGLISH INTENT RULES:
+- "ADD": Giving credit or recording money owed (e.g. "add 20rs to nitish", "nitish ko 20 rupay do", "nitish ne 50 ka samaan liya", "id 1 ko 100 chadhaye", "likho 200 vikas ke khate mein").
+- "SUBTRACT": Deducting payment received (e.g. "remove 20rs from nitish", "nitish paid 30", "nitish ne 50 de diye", "nitish ne 20 rupay jama karwaye / jama kiye", "id 1 se 100 mile", "50 rupay kam karo / ghatao").
+- "DELETE": Completely removing customer (e.g. "delete id 2", "nitish ko list se hata do", "remove nitish totally", "naam kaat do").
+- "RENAME": Setting or changing a name (e.g. "the customer name of ID 2 is Nitesh", "set name of ID 2 as Rahul", "change name from nitish to vikas", "id 2 ka naam Nitesh likh do").
+- "UPDATE_DUE_DATE": Setting or updating due date (e.g. "add 31 november to id number 2", "tarikh 30 november kar do", "nitish 15 december ko dega"). When no currency amount is mentioned, amount MUST be null!
+- "SETTLE": Clearing full account (e.g. "settle id 1", "nitish ka hisaab barabar kar do", "hisaab chukta", "mark paid").
 
 Respond STRICTLY with valid JSON only, without markdown fences or additional text:
 {
   "action": "ADD" | "SUBTRACT" | "DELETE" | "RENAME" | "UPDATE_DUE_DATE" | "SETTLE",
-  "targetId": integer or null (e.g. 1, 2 if user mentions "id number 1", "id 2", etc.),
-  "name": "Target Person Name if mentioned, or 'ID ' + targetId (e.g. 'Nitish' or 'ID 2')",
+  "targetId": integer or null,
+  "name": "Target Person Name if mentioned, or 'ID ' + targetId",
   "newName": "New Person Name (ONLY if action is RENAME, otherwise null)",
-  "amount": numeric number or null (e.g. 20, 50, 500; MUST BE NULL if only date is specified like 'add 31 november to id number 2')",
+  "amount": numeric number or null (e.g. 20, 50, 500; MUST BE NULL if only date is specified)",
   "dueDate": "formatted date string like '31 November' or null",
   "isCompleteRemove": true/false,
   "explanation": "Brief description of action"
@@ -81,7 +113,7 @@ Respond STRICTLY with valid JSON only, without markdown fences or additional tex
             model,
             messages: [
               { role: 'system', content: systemPrompt },
-              { role: 'user', content: text },
+              { role: 'user', content: normalizedText },
             ],
             temperature: 0.1,
           }),
@@ -96,6 +128,14 @@ Respond STRICTLY with valid JSON only, without markdown fences or additional tex
           // Capitalize names
           const cap = (s) => (s ? s.trim().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : null);
 
+          // Clean names to prevent "Id Null", "Null", etc.
+          const cleanName = (val) => {
+            if (!val) return null;
+            const str = String(val).trim();
+            if (/^(null|undefined|none|id\s*null|id\s*undefined)$/i.test(str)) return null;
+            return cap(str);
+          };
+
           // Extract targetId (as integer if present)
           let targetId = null;
           if (obj.targetId !== undefined && obj.targetId !== null) {
@@ -103,11 +143,21 @@ Respond STRICTLY with valid JSON only, without markdown fences or additional tex
             if (isNaN(targetId)) targetId = null;
           }
 
+          // Fallback regex to capture targetId from normalizedText if Groq omitted it
+          if (targetId === null) {
+            const rx = normalizedText.match(/(?:id\s*(?:number)?|customer\s*#?|number|#)\s*(\d+)/i);
+            if (rx) targetId = parseInt(rx[1], 10);
+          }
+
+          const rawName = cleanName(obj.name || obj.accountHolder || obj.person || obj.customer);
+          const name = rawName || (targetId ? `ID ${targetId}` : null);
+          const newName = cleanName(obj.newName || obj.new_name);
+
           parsedContent = {
             action: (obj.action || 'ADD').toUpperCase(),
             targetId,
-            name: cap(obj.name || obj.accountHolder || obj.person || obj.customer) || (targetId ? `ID ${targetId}` : null),
-            newName: cap(obj.newName || obj.new_name),
+            name,
+            newName,
             amount: obj.amount !== null && obj.amount !== undefined ? Number(obj.amount) : null,
             dueDate: obj.dueDate || obj.due_date || null,
             isCompleteRemove: Boolean(obj.isCompleteRemove || obj.is_complete_remove),

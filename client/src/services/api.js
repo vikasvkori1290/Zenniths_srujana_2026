@@ -21,6 +21,69 @@ export async function getHealthStatus() {
 }
 
 /**
+ * Fetch complete financial summary from MongoDB Atlas
+ */
+export async function getFinanceSummary() {
+  try {
+    const res = await fetch(`${API_BASE}/finance/summary`);
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('Finance summary fetch failed, using local storage fallback:', err.message);
+    return { success: false, isDbConnected: false };
+  }
+}
+
+/**
+ * Sync eKhata customer to MongoDB Atlas
+ */
+export async function syncEKhataCustomerToDb(customer) {
+  try {
+    const res = await fetch(`${API_BASE}/finance/ekhata`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(customer),
+    });
+    return await res.json();
+  } catch (err) {
+    console.warn('Failed to sync eKhata customer to MongoDB Atlas:', err);
+    return { success: false };
+  }
+}
+
+/**
+ * Sync Fixed Expense to MongoDB Atlas
+ */
+export async function syncFixedExpenseToDb(expense) {
+  try {
+    const res = await fetch(`${API_BASE}/finance/fixed-expense`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(expense),
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false };
+  }
+}
+
+/**
+ * Sync Upcoming Scheduled Expense to MongoDB Atlas
+ */
+export async function syncUpcomingExpenseToDb(expense) {
+  try {
+    const res = await fetch(`${API_BASE}/finance/upcoming-expense`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(expense),
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false };
+  }
+}
+
+/**
  * Fetch all items with optional filters
  */
 export async function getItems(params = {}) {

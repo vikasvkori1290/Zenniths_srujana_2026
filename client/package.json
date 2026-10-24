@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "test": "node --test src/services/__tests__/cashFlow.test.js",
     "preview": "vite preview",
     "cap:build": "vite build && cap sync android",
     "cap:open": "cap open android"
@@ -17,7 +18,8 @@
     "@capacitor/core": "^8.5.3",
     "lucide-react": "^1.61.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
