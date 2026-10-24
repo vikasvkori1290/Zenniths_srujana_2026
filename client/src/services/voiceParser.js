@@ -67,10 +67,27 @@ export function resolveRelativeDate(dateStr) {
     .join(' ');
 }
 
+export function normalizeSpokenTranscript(text) {
+  if (!text) return '';
+  let str = text;
+  // Speech-to-text number homophones after ID / customer / number / # / no
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:to|too|two|do)\b/gi, '$1 2');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:one|won|ek)\b/gi, '$1 1');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:three|tree|teen)\b/gi, '$1 3');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:four|fore|for|chaar)\b/gi, '$1 4');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:five|paanch)\b/gi, '$1 5');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:six|chhah)\b/gi, '$1 6');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:seven|saat)\b/gi, '$1 7');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:eight|ate|aath)\b/gi, '$1 8');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:nine|nau)\b/gi, '$1 9');
+  str = str.replace(/\b(id\s*(?:number)?|customer\s*#?|number|#|no\.?)\s*(?:ten|tin|das)\b/gi, '$1 10');
+  return str;
+}
+
 // Local Smart Heuristic CRUD Parser (Offline Fallback)
 export function parseLocalSmartIntent(rawText) {
   if (!rawText) return null;
-  const original = rawText.trim();
+  const original = normalizeSpokenTranscript(rawText.trim());
   const lower = original.toLowerCase();
 
   let action = 'ADD';
@@ -88,36 +105,47 @@ export function parseLocalSmartIntent(rawText) {
     name = `ID ${targetId}`;
   }
 
-  // 1. Check RENAME: "change name from X to Y", "rename X to Y", "change name of id number 1 to Vikas"
-  const renameIdMatch = lower.match(/(?:change\s+name\s+(?:of|for)?\s*(?:id\s*(?:number)?|#)\s*(\d+)\s+to)\s+([a-zA-Z]+)/i);
-  if (renameIdMatch) {
-    targetId = parseInt(renameIdMatch[1], 10);
-    return {
-      action: 'RENAME',
-      targetId,
-      name: `ID ${targetId}`,
-      newName: capitalize(renameIdMatch[2]),
-      amount: null,
-      dueDate: null,
-      isCompleteRemove: false,
-      engine: 'Smart Local NLP (Fallback)',
-      isGroq: false,
-    };
-  }
+  // 1. Check RENAME:
+  // e.g. "the customer name of ID 2 is Nitesh", "name of ID 2 is Nitesh", "ID 2 name is Nitesh", "change name of ID 2 to Nitesh"
+  const renameSentencePatterns = [
+    /(?:the\s+)?customer\s+name\s+of\s+(?:id\s*(?:number)?|#)\s*(\d+)\s+(?:is|to|as)\s+([a-zA-Z]+)/i,
+    /(?:the\s+)?name\s+of\s+(?:id\s*(?:number)?|#)\s*(\d+)\s+(?:is|to|as)\s+([a-zA-Z]+)/i,
+    /(?:id\s*(?:number)?|#)\s*(\d+)\s+(?:customer\s+)?name\s+(?:is|to|as)\s+([a-zA-Z]+)/i,
+    /(?:set|change|rename|update)\s+(?:the\s+)?(?:customer\s+)?name\s+(?:of|for)?\s*(?:id\s*(?:number)?|#)\s*(\d+)\s+(?:to|as|is)\s+([a-zA-Z]+)/i,
+    /(?:change\s+name\s+from)\s+([a-zA-Z]+)\s+to\s+([a-zA-Z]+)/i,
+    /(?:rename|update\s+name\s+from)\s+([a-zA-Z]+)\s+to\s+([a-zA-Z]+)/i,
+  ];
 
-  const renameMatch = lower.match(/(?:change\s+name\s+from|rename|update\s+name\s+from)\s+([a-zA-Z]+)\s+to\s+([a-zA-Z]+)/i);
-  if (renameMatch) {
-    return {
-      action: 'RENAME',
-      targetId: null,
-      name: capitalize(renameMatch[1]),
-      newName: capitalize(renameMatch[2]),
-      amount: null,
-      dueDate: null,
-      isCompleteRemove: false,
-      engine: 'Smart Local NLP (Fallback)',
-      isGroq: false,
-    };
+  for (const pat of renameSentencePatterns) {
+    const m = lower.match(pat);
+    if (m) {
+      if (m.length === 3 && !isNaN(parseInt(m[1], 10))) {
+        targetId = parseInt(m[1], 10);
+        return {
+          action: 'RENAME',
+          targetId,
+          name: `ID ${targetId}`,
+          newName: capitalize(m[2]),
+          amount: null,
+          dueDate: null,
+          isCompleteRemove: false,
+          engine: 'Smart Local NLP (Fallback)',
+          isGroq: false,
+        };
+      } else if (m.length === 3) {
+        return {
+          action: 'RENAME',
+          targetId: null,
+          name: capitalize(m[1]),
+          newName: capitalize(m[2]),
+          amount: null,
+          dueDate: null,
+          isCompleteRemove: false,
+          engine: 'Smart Local NLP (Fallback)',
+          isGroq: false,
+        };
+      }
+    }
   }
 
   // 2. Check DELETE (Complete Remove): "remove complete number from X", "remove id 2 totally", "delete id number 2"
@@ -287,13 +315,15 @@ export async function checkGroqStatus() {
 }
 
 // PRIMARY: Groq Cloud LPU AI Engine (Free & Ultra-Fast Voice CRUD)
-export async function parseWithGroqAI({ text, apiKey }) {
+export async function parseWithGroqAI({ text, apiKey, currentCustomers }) {
+  const normalizedText = normalizeSpokenTranscript(text);
+
   // 1. Try Backend Proxy endpoint first
   try {
     const backendRes = await fetch('/api/v1/groq/parse-voice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, apiKey }),
+      body: JSON.stringify({ text: normalizedText, apiKey, currentCustomers }),
     });
 
     if (backendRes.ok) {
@@ -313,10 +343,26 @@ export async function parseWithGroqAI({ text, apiKey }) {
   if (apiKey && apiKey.trim()) {
     const startTime = Date.now();
     try {
+      let currentSummary = 'No customers currently in the ledger.';
+      if (Array.isArray(currentCustomers) && currentCustomers.length > 0) {
+        currentSummary = currentCustomers
+          .map(
+            (c) =>
+              `- ID #${c.idNumber}: Name "${c.name}", Total Due: ₹${c.totalAmount || 0}, Due Date: "${c.dueDate || 'Not Specified'}"`
+          )
+          .join('\n');
+      }
+
       const prompt = `You are a precision Voice CRUD engine for an Indian small business credit ledger (e-Khata).
-Analyze: "${text}"
-Customers can be identified by NAME or by ID NUMBER (e.g. "id number 1", "id 2").
-CRITICAL RULE: If the user says "add <date> to id <number>" or "add <date> to <name>" (such as "add 31 november to id number 2") and NO money/rupees is specified, action is strictly "UPDATE_DUE_DATE", amount is null, and dueDate is the specified date.
+Analyze: "${normalizedText}"
+
+CURRENT LEDGER CUSTOMERS DATABASE:
+${currentSummary}
+
+Match spoken customers against the database above. If user refers to an existing customer (by ID or Name or spelling variation like Nitish/Nitesh), resolve to their exact targetId and name.
+Hinglish / Hindi shortcuts: "jama kiye"/"de diye" -> SUBTRACT, "udhaar"/"diye" -> ADD, "chukta"/"barabar" -> SETTLE, "hata do" -> DELETE.
+CRITICAL RULE 1: If user says "the customer name of ID [X] is [Name]" or "change name of ID [X] to [Name]", action is strictly "RENAME", "targetId" is X, "name" is "ID " + X, and "newName" is Name.
+CRITICAL RULE 2: If the user says "add <date> to id <number>" or "add <date> to <name>" (such as "add 31 november to id number 2") and NO money/rupees is specified, action is strictly "UPDATE_DUE_DATE", amount is null, and dueDate is the specified date.
 
 Respond STRICTLY with valid JSON only:
 {
@@ -348,16 +394,33 @@ Respond STRICTLY with valid JSON only:
         if (rawJson) {
           const clean = rawJson.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
           const parsed = JSON.parse(clean);
+
+          const cleanName = (val) => {
+            if (!val) return null;
+            const str = String(val).trim();
+            if (/^(null|undefined|none|id\s*null|id\s*undefined)$/i.test(str)) return null;
+            return capitalize(str);
+          };
+
           let targetId = null;
           if (parsed.targetId !== undefined && parsed.targetId !== null) {
             targetId = parseInt(parsed.targetId, 10);
             if (isNaN(targetId)) targetId = null;
           }
+          if (targetId === null) {
+            const rx = normalizedText.match(/(?:id\s*(?:number)?|customer\s*#?|number|#)\s*(\d+)/i);
+            if (rx) targetId = parseInt(rx[1], 10);
+          }
+
+          const rawName = cleanName(parsed.name || parsed.accountHolder || parsed.person);
+          const name = rawName || (targetId ? `ID ${targetId}` : null);
+          const newName = cleanName(parsed.newName || parsed.new_name);
+
           return {
             action: (parsed.action || 'ADD').toUpperCase(),
             targetId,
-            name: capitalize(parsed.name || parsed.accountHolder || parsed.person) || (targetId ? `ID ${targetId}` : null),
-            newName: capitalize(parsed.newName || parsed.new_name),
+            name,
+            newName,
             amount: parsed.amount !== null && parsed.amount !== undefined ? Number(parsed.amount) : null,
             dueDate: parsed.dueDate || parsed.due_date || 'Not Specified',
             isCompleteRemove: Boolean(parsed.isCompleteRemove || parsed.is_complete_remove),
@@ -373,5 +436,5 @@ Respond STRICTLY with valid JSON only:
   }
 
   // 3. Fallback to Local Smart NLP Engine
-  return parseLocalSmartIntent(text);
+  return parseLocalSmartIntent(normalizedText);
 }

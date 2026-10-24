@@ -112,24 +112,80 @@ export default function EKhataPage() {
     localStorage.setItem('ekhata_groq_key', groqKey);
   }, [groqKey]);
 
-  // Setup Web Speech API for voice listening
+  // Fuzzy & Phonetic Name Similarity for Indian SMB Voice Transcripts
+  const fuzzyNameScore = (nameA, nameB) => {
+    if (!nameA || !nameB) return 0;
+    const a = nameA.toLowerCase().trim();
+    const b = nameB.toLowerCase().trim();
+    if (a === b) return 1.0;
+    if (a.includes(b) || b.includes(a)) return 0.88;
+
+    // Transliteration backbone: sh->s, ee->i, oo->u, v->w, ph->f, th->t, strip vowels
+    const backbone = (s) =>
+      s
+        .replace(/sh/g, 's')
+        .replace(/ee/g, 'i')
+        .replace(/oo/g, 'u')
+        .replace(/v/g, 'w')
+        .replace(/ph/g, 'f')
+        .replace(/th/g, 't')
+        .replace(/[aeiou]/g, '');
+
+    if (backbone(a) === backbone(b) && backbone(a).length >= 2) return 0.95;
+
+    // Levenshtein
+    const lenA = a.length;
+    const lenB = b.length;
+    const dp = Array.from({ length: lenA + 1 }, () => Array(lenB + 1).fill(0));
+    for (let i = 0; i <= lenA; i++) dp[i][0] = i;
+    for (let j = 0; j <= lenB; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= lenA; i++) {
+      for (let j = 1; j <= lenB; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+      }
+    }
+
+    const dist = dp[lenA][lenB];
+    return 1 - dist / Math.max(lenA, lenB);
+  };
+
+  // Setup Web Speech API for voice listening with live interim text
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
-      recognition.interimResults = false;
+      recognition.interimResults = true;
       recognition.lang = 'en-IN'; // Indian English / Hinglish speech
 
       recognition.onstart = () => {
         setIsListening(true);
-        setVoiceTranscript('Listening... Speak any CRUD command (Add, Remove, Rename, Delete)');
+        setVoiceTranscript('Listening... Speak any command in English or Hindi (Add, Deduct, Rename, Settle, Date)');
       };
 
       recognition.onresult = async (event) => {
-        const transcript = event.results[0][0].transcript;
-        setVoiceTranscript(`"${transcript}"`);
-        await handleExecuteVoiceCommand(transcript);
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        const liveText = finalTranscript || interimTranscript;
+        if (liveText && liveText.trim()) {
+          setManualText(liveText.trim());
+        }
+
+        if (finalTranscript && finalTranscript.trim()) {
+          setVoiceTranscript(`"${finalTranscript.trim()}"`);
+          await handleExecuteVoiceCommand(finalTranscript.trim());
+        }
       };
 
       recognition.onerror = (event) => {
@@ -144,7 +200,7 @@ export default function EKhataPage() {
 
       recognitionRef.current = recognition;
     }
-  }, [groqKey]);
+  }, [groqKey, khataList]);
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
@@ -157,6 +213,7 @@ export default function EKhataPage() {
       setIsListening(false);
     } else {
       try {
+        setManualText('');
         recognitionRef.current.start();
       } catch (err) {
         console.error(err);
@@ -169,13 +226,17 @@ export default function EKhataPage() {
     setTimeout(() => setFeedbackMessage(null), 5000);
   };
 
-  // Main Execution with Groq Voice CRUD Pipeline
+  // Main Execution with Groq Voice CRUD Pipeline (Context-Aware with currentCustomers)
   const handleExecuteVoiceCommand = async (rawText) => {
     if (!rawText || !rawText.trim()) return;
     setIsProcessing(true);
 
     try {
-      const parsed = await parseWithGroqAI({ text: rawText, apiKey: groqKey });
+      const parsed = await parseWithGroqAI({
+        text: rawText,
+        apiKey: groqKey,
+        currentCustomers: khataList,
+      });
       setLastExtracted(parsed);
 
       if (!parsed || (!parsed.name && parsed.targetId === null && parsed.targetId === undefined)) {
@@ -195,7 +256,7 @@ export default function EKhataPage() {
     }
   };
 
-  // FULL VOICE CRUD OPERATOR (Supports Customer Names & ID Numbers)
+  // FULL VOICE CRUD OPERATOR (Supports Customer Names, ID Numbers, & Phonetic Fuzzy Matches)
   const handleVoiceCrudOperation = (parsed, rawText) => {
     const { action, targetId, name, newName, amount, dueDate, isCompleteRemove, engine } = parsed;
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -203,7 +264,7 @@ export default function EKhataPage() {
     const engineLabel = engine || 'Groq AI';
 
     setKhataList((prevList) => {
-      // Find existing customer by targetId or name
+      // Find existing customer by targetId, name, or phonetic fuzzy match
       let existingIndex = -1;
 
       // 1. Direct ID match
@@ -229,11 +290,20 @@ export default function EKhataPage() {
         );
       }
 
-      // 4. Partial name match
+      // 4. Phonetic & Fuzzy similarity match (e.g. Nitish vs Nitesh, Vikas vs Vikash, Rahul vs Rahul Sharma)
       if (existingIndex === -1 && name && name.length >= 3) {
-        existingIndex = prevList.findIndex(
-          (c) => c.name.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(c.name.toLowerCase())
-        );
+        let bestScore = 0;
+        let bestIdx = -1;
+        for (let i = 0; i < prevList.length; i++) {
+          const score = fuzzyNameScore(prevList[i].name, name);
+          if (score > bestScore && score >= 0.72) {
+            bestScore = score;
+            bestIdx = i;
+          }
+        }
+        if (bestIdx !== -1) {
+          existingIndex = bestIdx;
+        }
       }
 
       const existing = existingIndex !== -1 ? prevList[existingIndex] : null;
