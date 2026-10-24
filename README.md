@@ -1,6 +1,6 @@
-# 🚀 Enterprise MERN Stack Architecture
+# 🚀 AURUMFLOW — Predictive Cash Flow Management & Smart Voice Ledger for SMBs
 
-A modern, production-grade **MERN** (MongoDB, Express.js, React 19, Node.js) full-stack template featuring a clean `client` and `server` separation and **Tailwind CSS v4**.
+A modern, production-grade **MERN** (MongoDB, Express.js, React 19, Node.js) full-stack application featuring **Predictive Cash Runway Analytics**, **eKhata Smart Voice Ledger with Groq AI**, and **Tailwind CSS v4**.
 
 ---
 
