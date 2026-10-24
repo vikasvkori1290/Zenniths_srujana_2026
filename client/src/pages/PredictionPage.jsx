@@ -185,31 +185,35 @@ export default function PredictionPage() {
         upi: upiSales,
         target: profile.dailyGoal || 10000,
         achievement: Math.min(Math.round((totalSalesToday / (profile.dailyGoal || 10000)) * 100), 100),
+        retainedCashPerDay: calculatedRunway.retainedCashPerDay,
+        grossMarginPct: calculatedRunway.grossMarginPct,
+        dailyRunningCost: calculatedRunway.dailyRunningCost,
       },
       dailyPayables: {
-        dailyFixedBurn: calculatedRunway.dailyBurnRate - Math.round(upcomingPayables15d / 15),
+        dailyRunningCost: calculatedRunway.dailyRunningCost,
         monthlyFixedTotal: calculatedRunway.totalMonthlyFixed,
-        dailyUpcomingBurn: Math.round(upcomingPayables15d / 15),
         upcoming15dTotal: upcomingPayables15d,
-        totalDailyBurn: calculatedRunway.dailyBurnRate,
+        duesWithin15Days: calculatedRunway.duesWithin15Days,
       },
       receivables: {
         totalUdhar,
         customerCount: eKhataCustomers.length,
-        collectionVelocity: Math.round(totalUdhar / 15),
+        isExpectedOnly: true,
         customers: eKhataCustomers.slice(0, 6),
       },
       liquidity: {
-        liquidBuffer: calculatedRunway.liquidCashAvailable,
-        runwayDays: calculatedRunway.runwayDays,
+        receivedCashInHand: calculatedRunway.receivedCashInHand,
+        safetyBuffer: calculatedRunway.safetyBuffer,
         status: calculatedRunway.runwayStatus,
-        netCashFlow: calculatedRunway.netDailyCashFlow,
+        headlineMetric: calculatedRunway.headlineMetric,
+        netCashFlow: calculatedRunway.retainedCashPerDay,
       },
       fixedBreakdown: fixedExpenses,
       upcomingBreakdown: upcomingExpenses,
       apiKey: nvidiaApiKey.trim() || undefined,
       model: selectedModel,
     };
+
 
     try {
       const res = await fetch('http://localhost:5000/api/v1/prediction/analyze', {
@@ -301,13 +305,6 @@ export default function PredictionPage() {
     };
   }, []);
 
-  // Auto-run prediction once on mount if not yet generated
-  useEffect(() => {
-    if (!predictionData && !isLoading) {
-      handleRunPrediction();
-    }
-  }, []);
-
   return (
     <div className="w-full bg-white text-neutral-900 pb-20 font-['Plus_Jakarta_Sans']">
       {/* 1. Header Banner */}
@@ -358,13 +355,14 @@ export default function PredictionPage() {
               ) : (
                 <>
                   <Zap className="w-4 h-4 text-yellow-300 fill-yellow-300" />
-                  <span>Run AI Prediction</span>
+                  <span>Predict using LLM</span>
                 </>
               )}
             </button>
           </div>
         </div>
       </div>
+
 
       {/* API Key Drawer Modal */}
       {isKeyDrawerOpen && (
@@ -448,66 +446,67 @@ export default function PredictionPage() {
 
           {/* 4 Telemetry Metrics Pill Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            {/* Metric 1: Daily Realized Sales */}
+            {/* Metric 1: Daily Retained Cash (After Restock & Running Costs) */}
             <div className="bg-white rounded-2xl p-4 border border-neutral-200/80 shadow-2xs">
               <div className="flex items-center justify-between text-neutral-500 mb-1">
-                <span className="text-[11px] font-bold">Today's Sales</span>
+                <span className="text-[11px] font-bold">Daily Retained Cash</span>
                 <ShoppingBag className="w-4 h-4 text-emerald-600" />
               </div>
-              <div className="text-xl font-black text-black font-['Outfit']">
-                ₹{totalSalesToday.toLocaleString()}
+              <div className="text-xl font-black text-emerald-600 font-['Outfit']">
+                +₹{calculatedRunway.retainedCashPerDay.toLocaleString()}
+                <span className="text-xs font-normal text-neutral-500"> /day</span>
               </div>
-              <div className="text-[10px] text-neutral-500 mt-1 flex items-center justify-between">
-                <span>Cash: ₹{cashSales.toLocaleString()}</span>
-                <span>UPI: ₹{upiSales.toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* Metric 2: Daily Payables Burn */}
-            <div className="bg-white rounded-2xl p-4 border border-neutral-200/80 shadow-2xs">
-              <div className="flex items-center justify-between text-neutral-500 mb-1">
-                <span className="text-[11px] font-bold">Daily Burn Rate</span>
-                <Clock className="w-4 h-4 text-rose-500" />
-              </div>
-              <div className="text-xl font-black text-black font-['Outfit']">
-                ₹{calculatedRunway.dailyBurnRate.toLocaleString()}<span className="text-xs font-normal text-neutral-500">/day</span>
-              </div>
-              <div className="text-[10px] text-neutral-500 mt-1">
-                Fixed: ₹{Math.round(calculatedRunway.totalMonthlyFixed / 30)} + 15d: ₹{Math.round(upcomingPayables15d / 15)}
+              <div className="text-[10px] text-neutral-500 mt-1 truncate">
+                Gross sales: ₹{totalSalesToday.toLocaleString()} · Margin: {calculatedRunway.grossMarginPct}%
               </div>
             </div>
 
-            {/* Metric 3: Pending Udhar */}
+            {/* Metric 2: Received Cash in Hand (Certain) */}
             <div className="bg-white rounded-2xl p-4 border border-neutral-200/80 shadow-2xs">
               <div className="flex items-center justify-between text-neutral-500 mb-1">
-                <span className="text-[11px] font-bold">Customer Udhar</span>
-                <Wallet className="w-4 h-4 text-amber-500" />
+                <span className="text-[11px] font-bold">Received Cash in Hand</span>
+                <Wallet className="w-4 h-4 text-black" />
               </div>
               <div className="text-xl font-black text-black font-['Outfit']">
+                ₹{calculatedRunway.receivedCashInHand.toLocaleString()}
+              </div>
+              <div className="text-[10px] text-emerald-700 font-semibold mt-1">
+                100% in hand today (opening + sales)
+              </div>
+            </div>
+
+            {/* Metric 3: Expected Receivables (Udhar - NEVER merged with in-hand) */}
+            <div className="bg-white rounded-2xl p-4 border border-neutral-200/80 shadow-2xs">
+              <div className="flex items-center justify-between text-neutral-500 mb-1">
+                <span className="text-[11px] font-bold">Expected Receivables</span>
+                <Clock className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="text-xl font-black text-amber-600 font-['Outfit']">
                 ₹{totalUdhar.toLocaleString()}
               </div>
               <div className="text-[10px] text-neutral-500 mt-1">
-                {eKhataCustomers.length} active credit accounts
+                {eKhataCustomers.length} accounts · Timeline weighted
               </div>
             </div>
 
-            {/* Metric 4: Cash Runway */}
+            {/* Metric 4: Cash Horizon & Status */}
             <div className="bg-white rounded-2xl p-4 border border-neutral-200/80 shadow-2xs">
               <div className="flex items-center justify-between text-neutral-500 mb-1">
-                <span className="text-[11px] font-bold">Predictive Runway</span>
+                <span className="text-[11px] font-bold">{calculatedRunway.headlineLabel || 'Cash Horizon'}</span>
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
               </div>
-              <div className="text-xl font-black text-emerald-600 font-['Outfit'] flex items-center gap-1.5">
-                <span>{calculatedRunway.runwayDays} Days</span>
+              <div className="text-lg font-black text-black font-['Outfit'] flex items-center gap-1.5 truncate">
+                <span>{calculatedRunway.headlineMetric}</span>
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
                   {calculatedRunway.runwayStatus}
                 </span>
               </div>
               <div className="text-[10px] text-neutral-500 mt-1">
-                Buffer: ₹{calculatedRunway.liquidCashAvailable.toLocaleString()}
+                Buffer: ₹{calculatedRunway.safetyBuffer.toLocaleString()} (3d running cost)
               </div>
             </div>
           </div>
+
         </section>
 
         {/* 3. Error Banner if any */}
@@ -808,8 +807,53 @@ export default function PredictionPage() {
               </div>
             </div>
           </div>
-        ) : null}
+        ) : (
+          /* Empty / Ready State with explicit "Predict using LLM" Button */
+          <div className="bg-linear-to-b from-neutral-50 via-white to-amber-50/20 rounded-3xl p-8 sm:p-12 border-2 border-dashed border-neutral-300 text-center space-y-6">
+            <div className="w-16 h-16 mx-auto rounded-3xl bg-black border-2 border-yellow-400 flex items-center justify-center shadow-lg">
+              <Sparkles className="w-8 h-8 text-yellow-300" />
+            </div>
+
+            <div className="max-w-xl mx-auto space-y-2">
+              <h3 className="text-xl sm:text-2xl font-black text-black font-['Outfit']">
+                AI Telemetry Ready — Run Prediction
+              </h3>
+              <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed">
+                Your live business telemetry is loaded. Click the button below to have <strong className="text-black">NVIDIA Nemotron 70B</strong> evaluate your daily retained cash, inventory cycle, 15-day liability cliff, and deliver a personalized spoken CFO diagnosis.
+              </p>
+            </div>
+
+            {/* Central "Predict using LLM" Action Button */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                onClick={handleRunPrediction}
+                disabled={isLoading}
+                className="px-7 py-3.5 rounded-2xl text-sm font-black bg-black hover:bg-neutral-800 text-yellow-300 border-2 border-yellow-400 flex items-center space-x-3 transition-all shadow-lg hover:scale-102 cursor-pointer disabled:opacity-50"
+              >
+                <Zap className="w-5 h-5 text-yellow-300 fill-yellow-300" />
+                <span>Predict using LLM</span>
+              </button>
+            </div>
+
+            {/* Feature highlights pill row */}
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-4 text-xs text-neutral-500">
+              <span className="px-3 py-1 rounded-full bg-white border border-neutral-200 font-bold flex items-center gap-1.5 shadow-2xs">
+                <Cpu className="w-3.5 h-3.5 text-amber-500" />
+                NVIDIA Nemotron 70B
+              </span>
+              <span className="px-3 py-1 rounded-full bg-white border border-neutral-200 font-bold flex items-center gap-1.5 shadow-2xs">
+                <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+                Spoken CFO Voice Narration
+              </span>
+              <span className="px-3 py-1 rounded-full bg-white border border-neutral-200 font-bold flex items-center gap-1.5 shadow-2xs">
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                15-Day Liability Stress Testing
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+

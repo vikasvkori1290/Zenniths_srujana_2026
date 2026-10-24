@@ -14,7 +14,10 @@ import {
 import {
   getFixedExpensesDueWithin15Days,
   toggleFixedExpenseStatus,
+  getStoredFixedExpenses,
 } from '../services/expenseSync';
+import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
+import { getRetainedCashBeforeDueDate } from '../services/contextAdjuster';
 
 const DEFAULT_UPCOMING_EXPENSES = [
   {
@@ -179,6 +182,34 @@ export default function UpcomingExpensesSection() {
     );
   }, [combinedExpenses]);
 
+  // Compute cashflow timeline to know the exact retained cash before each due date
+  const cashflowTimeline = useMemo(() => {
+    try {
+      const todayIncome = JSON.parse(localStorage.getItem('aurum_today_income') || '[]');
+      const allFixed = getStoredFixedExpenses();
+      const khata = JSON.parse(localStorage.getItem('aurum_ekhata_data') || '[]');
+      const isFestivalOn = localStorage.getItem('aurum_festival_toggle') !== 'false';
+      const bType = localStorage.getItem('aurum_business_type') || 'kirana';
+      const cacheKey = `aurum_context_adjustments_${bType.toLowerCase()}_bengaluru_${new Date().toISOString().slice(0, 7)}`;
+      const savedAdj = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+
+      const analytics = calculatePredictiveCashRunway({
+        todayIncomeList: todayIncome,
+        fixedExpensesList: allFixed,
+        upcomingExpensesList: upcomingExpenses,
+        eKhataCustomersList: khata,
+        contextAdjustments: savedAdj?.adjustments || [],
+        isFestivalAdjustmentOn: isFestivalOn,
+      });
+      return {
+        timeline: analytics.timeline || [],
+        retainedCashPerDay: analytics.retainedCashPerDay || 1500,
+      };
+    } catch (e) {
+      return { timeline: [], retainedCashPerDay: 1500 };
+    }
+  }, [upcomingExpenses, fixedExpensesDue]);
+
   const filteredExpenses = combinedExpenses.filter((item) => {
     const matchesSearch =
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -338,24 +369,50 @@ export default function UpcomingExpensesSection() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-neutral-700 font-semibold font-mono">
-                      <div>{item.dueDate}</div>
-                      {item.diffDays !== undefined && (
-                        <span
-                          className={`text-[10px] block font-sans font-medium ${
-                            item.diffDays <= 2
-                              ? 'text-rose-600 font-bold'
-                              : item.diffDays <= 7
-                              ? 'text-amber-700 font-semibold'
-                              : 'text-neutral-400'
-                          }`}
-                        >
-                          {item.diffDays === 0
-                            ? 'Due Today'
-                            : item.diffDays < 0
-                            ? `${Math.abs(item.diffDays)}d overdue`
-                            : `in ${item.diffDays} days`}
-                        </span>
-                      )}
+                      {(() => {
+                        const retainedBeforeDue = getRetainedCashBeforeDueDate(
+                          item.dueDate,
+                          cashflowTimeline.timeline,
+                          cashflowTimeline.retainedCashPerDay
+                        );
+                        return (
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <span>{item.dueDate}</span>
+                              {item.diffDays !== undefined && (
+                                <span
+                                  className={`text-[10px] font-sans font-bold px-1.5 py-0.5 rounded ${
+                                    item.diffDays <= 2
+                                      ? 'bg-rose-100 text-rose-700'
+                                      : item.diffDays <= 7
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-neutral-100 text-neutral-500'
+                                  }`}
+                                >
+                                  {item.diffDays === 0
+                                    ? 'Due Today'
+                                    : item.diffDays < 0
+                                    ? `${Math.abs(item.diffDays)}d overdue`
+                                    : `in ${item.diffDays} days`}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] font-sans font-medium text-emerald-900 bg-emerald-50/90 border border-emerald-200/80 rounded-lg px-2.5 py-1.5 shadow-2xs">
+                              <span className="text-[9.5px] font-bold text-emerald-800 uppercase tracking-wider block">
+                                Expected retained cash before this due:
+                              </span>
+                              <div className="mt-0.5">
+                                <strong className="font-extrabold font-mono text-xs text-black">
+                                  ₹{retainedBeforeDue.base.toLocaleString()}
+                                </strong>{' '}
+                                <span className="text-neutral-500 font-mono text-[10px]">
+                                  (range ₹{retainedBeforeDue.low.toLocaleString()} - ₹{retainedBeforeDue.high.toLocaleString()})
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="py-3.5 px-4">
                       <span

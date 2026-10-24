@@ -100,7 +100,19 @@ if (localStorage.getItem('aurum_user_dataset') !== 'v40k_10k_fixed30k') {
   localStorage.setItem('aurum_upcoming_expenses', JSON.stringify([]));
   localStorage.setItem('aurum_ekhata_data', JSON.stringify([]));
   localStorage.setItem('aurum_ekhata_customers', JSON.stringify([]));
+
+  // 5. Cash-Flow Onboarding Parameters: Margin 25%, Running Costs ₹500/day, Buffer ₹1,500
+  localStorage.setItem(
+    'aurum_cashflow_settings',
+    JSON.stringify({
+      openingCash: 40000,
+      grossMarginPct: 25,
+      dailyRunningCost: 500,
+      safetyBuffer: 1500,
+    })
+  );
 }
+
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

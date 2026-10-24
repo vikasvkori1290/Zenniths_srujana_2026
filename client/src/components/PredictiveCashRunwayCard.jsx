@@ -11,9 +11,43 @@ import {
   Sparkles,
   Info,
   Sliders,
+  Settings,
+  X,
+  Check,
+  Wallet,
+  Clock,
+  RotateCcw,
+  ToggleLeft,
+  ToggleRight,
+  HelpCircle,
+  Tag,
+  RefreshCw,
+  Building2,
+  MapPin,
+  ChevronDown,
 } from 'lucide-react';
-import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
+import {
+  calculatePredictiveCashRunway,
+  getStoredCashflowSettings,
+  saveCashflowSettings,
+  DEFAULT_MARGINS_BY_TYPE,
+} from '../services/predictiveAnalytics';
 import { getStoredFixedExpenses } from '../services/expenseSync';
+import {
+  fetchContextAdjustments,
+  generateDomainAdjustments,
+  sanitizeAdjustments,
+} from '../services/contextAdjuster';
+import calendarData from '../data/calendar.js';
+
+const BUSINESS_TYPE_OPTIONS = [
+  { id: 'kirana', label: 'Retail Kirana & Provisions', margin: 20 },
+  { id: 'sweets', label: 'Sweets & Bakery', margin: 35 },
+  { id: 'hardware', label: 'Hardware, Paints & Electricals', margin: 18 },
+  { id: 'stationery', label: 'Books & Stationery', margin: 22 },
+  { id: 'garments', label: 'Garments & Apparel', margin: 35 },
+  { id: 'pharmacy', label: 'Retail Pharmacy', margin: 20 },
+];
 
 export default function PredictiveCashRunwayCard() {
   const [todayIncome, setTodayIncome] = useState(() => {
@@ -33,8 +67,101 @@ export default function PredictiveCashRunwayCard() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // What-If Simulation Toggle
-  const [simulateAllCollections, setSimulateAllCollections] = useState(false);
+  // Onboarding & Cashflow Settings (Margin, Running Cost, Opening Cash, Buffer)
+  const [cashflowSettings, setCashflowSettings] = useState(() => getStoredCashflowSettings());
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsForm, setSettingsForm] = useState(cashflowSettings);
+
+  // Business Type & Location
+  const [businessType, setBusinessType] = useState(() => {
+    return localStorage.getItem('aurum_business_type') || 'kirana';
+  });
+
+  const [profileLocation, setProfileLocation] = useState(() => {
+    try {
+      const p = JSON.parse(localStorage.getItem('aurum_profile_info') || '{}');
+      return {
+        city: p.city || 'Bengaluru',
+        state: p.state || 'Karnataka',
+      };
+    } catch (e) {
+      return { city: 'Bengaluru', state: 'Karnataka' };
+    }
+  });
+
+  // Festival & Context Sales Adjuster Toggle
+  const [isFestivalAdjustmentOn, setIsFestivalAdjustmentOn] = useState(() => {
+    const saved = localStorage.getItem('aurum_festival_toggle');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  // Context Adjustments state (bounded multipliers + reasons)
+  const [contextAdjustments, setContextAdjustments] = useState(() => {
+    return generateDomainAdjustments(businessType, calendarData);
+  });
+  const [isAdjusterLoading, setIsAdjusterLoading] = useState(false);
+  const [adjusterUnavailable, setAdjusterUnavailable] = useState(false);
+  const [hoveredDayIndex, setHoveredDayIndex] = useState(null);
+
+  // Load / fetch adjustments whenever businessType, city, or refresh happens
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadAdjustments() {
+      setIsAdjusterLoading(true);
+      try {
+        const res = await fetchContextAdjustments({
+          businessType,
+          city: profileLocation.city,
+          state: profileLocation.state,
+        });
+        if (!isCancelled) {
+          setContextAdjustments(res.adjustments || []);
+          setAdjusterUnavailable(!!res.unavailable);
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          const fallback = sanitizeAdjustments(null, calendarData);
+          setContextAdjustments(fallback.adjustments);
+          setAdjusterUnavailable(true);
+        }
+      } finally {
+        if (!isCancelled) setIsAdjusterLoading(false);
+      }
+    }
+
+    loadAdjustments();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [businessType, profileLocation.city, profileLocation.state]);
+
+  // Handle Festival Toggle switch
+  const handleToggleFestival = () => {
+    const nextVal = !isFestivalAdjustmentOn;
+    setIsFestivalAdjustmentOn(nextVal);
+    localStorage.setItem('aurum_festival_toggle', String(nextVal));
+    window.dispatchEvent(new Event('aurum_festival_toggle_updated'));
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  // Handle Business Type switch
+  const handleChangeBusinessType = (newType) => {
+    setBusinessType(newType);
+    localStorage.setItem('aurum_business_type', newType);
+
+    // Also suggest recommended gross margin for this business type
+    const presetMargin = DEFAULT_MARGINS_BY_TYPE[newType];
+    if (presetMargin && presetMargin !== cashflowSettings.grossMarginPct) {
+      const updated = saveCashflowSettings({ grossMarginPct: presetMargin });
+      setCashflowSettings(updated);
+      setSettingsForm(updated);
+    }
+
+    window.dispatchEvent(new Event('aurum_business_type_updated'));
+    window.dispatchEvent(new Event('storage'));
+  };
 
   // Sync with global events
   useEffect(() => {
@@ -50,6 +177,22 @@ export default function PredictiveCashRunwayCard() {
 
         const savedKhata = localStorage.getItem('aurum_ekhata_data');
         if (savedKhata) setEKhataCustomers(JSON.parse(savedKhata));
+
+        const freshSettings = getStoredCashflowSettings();
+        setCashflowSettings(freshSettings);
+        setSettingsForm(freshSettings);
+
+        const savedToggle = localStorage.getItem('aurum_festival_toggle');
+        if (savedToggle !== null) setIsFestivalAdjustmentOn(savedToggle === 'true');
+
+        const savedType = localStorage.getItem('aurum_business_type');
+        if (savedType) setBusinessType(savedType);
+
+        const p = JSON.parse(localStorage.getItem('aurum_profile_info') || '{}');
+        setProfileLocation({
+          city: p.city || 'Bengaluru',
+          state: p.state || 'Karnataka',
+        });
       } catch (e) {}
     };
 
@@ -57,6 +200,9 @@ export default function PredictiveCashRunwayCard() {
     window.addEventListener('aurum_fixed_expenses_updated', refreshData);
     window.addEventListener('aurum_expenses_updated', refreshData);
     window.addEventListener('aurum_ekhata_updated', refreshData);
+    window.addEventListener('aurum_cashflow_settings_updated', refreshData);
+    window.addEventListener('aurum_festival_toggle_updated', refreshData);
+    window.addEventListener('aurum_business_type_updated', refreshData);
     window.addEventListener('storage', refreshData);
 
     return () => {
@@ -64,29 +210,112 @@ export default function PredictiveCashRunwayCard() {
       window.removeEventListener('aurum_fixed_expenses_updated', refreshData);
       window.removeEventListener('aurum_expenses_updated', refreshData);
       window.removeEventListener('aurum_ekhata_updated', refreshData);
+      window.removeEventListener('aurum_cashflow_settings_updated', refreshData);
+      window.removeEventListener('aurum_festival_toggle_updated', refreshData);
+      window.removeEventListener('aurum_business_type_updated', refreshData);
       window.removeEventListener('storage', refreshData);
     };
   }, []);
 
-  // Compute analytics using business logic engine
+  // Compute live analytics using the new Retained Cash and Timeline Engine with festival multipliers
   const analytics = useMemo(() => {
-    // If simulation active, inject full collection into starting balance
-    const totalPendingUdhar = eKhataCustomers.reduce(
-      (sum, c) => sum + Number(c.totalAmount || 0),
-      0
-    );
-    const simulatedStartingCash = simulateAllCollections
-      ? 40000 + totalPendingUdhar
-      : 40000;
-
     return calculatePredictiveCashRunway({
-      startingBalance: simulatedStartingCash,
       todayIncomeList: todayIncome,
       fixedExpensesList: fixedExpenses,
       upcomingExpensesList: upcomingExpenses,
       eKhataCustomersList: eKhataCustomers,
+      customSettings: cashflowSettings,
+      contextAdjustments,
+      isFestivalAdjustmentOn,
     });
-  }, [todayIncome, fixedExpenses, upcomingExpenses, eKhataCustomers, simulateAllCollections]);
+  }, [
+    todayIncome,
+    fixedExpenses,
+    upcomingExpenses,
+    eKhataCustomers,
+    cashflowSettings,
+    contextAdjustments,
+    isFestivalAdjustmentOn,
+  ]);
+
+  const handleSaveSettings = (e) => {
+    e.preventDefault();
+    const updated = saveCashflowSettings(settingsForm);
+    setCashflowSettings(updated);
+    setIsSettingsOpen(false);
+  };
+
+  const handleApplyPresetMargin = (pct) => {
+    setSettingsForm((prev) => ({
+      ...prev,
+      grossMarginPct: pct,
+    }));
+  };
+
+  // SVG Chart Geometry calculations for 60-day timeline
+  const timelinePoints = analytics.timeline || [];
+  const chartHeight = 220;
+  const chartWidth = 960;
+  const paddingX = 35;
+  const paddingY = 25;
+
+  const minVal = useMemo(() => {
+    if (timelinePoints.length === 0) return 0;
+    const lowest = Math.min(
+      ...timelinePoints.map((d) => Math.min(d.balance, d.balanceLow || d.balance)),
+      analytics.safetyBuffer || 1500
+    );
+    return Math.max(0, lowest - 8000);
+  }, [timelinePoints, analytics.safetyBuffer]);
+
+  const maxVal = useMemo(() => {
+    if (timelinePoints.length === 0) return 100000;
+    const highest = Math.max(
+      ...timelinePoints.map((d) => Math.max(d.balance, d.balanceHigh || d.balance)),
+      analytics.receivedCashInHand || 40000
+    );
+    return highest + 10000;
+  }, [timelinePoints, analytics.receivedCashInHand]);
+
+  const getX = (index) =>
+    paddingX + (index / Math.max(1, timelinePoints.length - 1)) * (chartWidth - paddingX * 2);
+
+  const getY = (val) =>
+    chartHeight -
+    paddingY -
+    ((val - minVal) / Math.max(1, maxVal - minVal)) * (chartHeight - paddingY * 2);
+
+  // Base Forecast line path
+  const basePath = useMemo(() => {
+    if (timelinePoints.length === 0) return '';
+    return timelinePoints.reduce((acc, p, i) => {
+      const x = getX(i);
+      const y = getY(p.balance);
+      return i === 0 ? `M ${x} ${y}` : `${acc} L ${x} ${y}`;
+    }, '');
+  }, [timelinePoints, minVal, maxVal]);
+
+  // Confidence Corridor (Low to High area)
+  const confidenceAreaPath = useMemo(() => {
+    if (timelinePoints.length === 0) return '';
+    const topPoints = [];
+    const bottomPoints = [];
+
+    timelinePoints.forEach((p, i) => {
+      const x = getX(i);
+      const yHigh = getY(p.balanceHigh ?? p.balance);
+      const yLow = getY(p.balanceLow ?? p.balance);
+      topPoints.push(`${x} ${yHigh}`);
+      bottomPoints.unshift(`${x} ${yLow}`);
+    });
+
+    return `M ${topPoints[0]} L ${topPoints.join(' L ')} L ${bottomPoints.join(' L ')} Z`;
+  }, [timelinePoints, minVal, maxVal]);
+
+  const safetyLineY = getY(analytics.safetyBuffer);
+
+  // Active hovered point details
+  const hoveredPoint = hoveredDayIndex !== null ? timelinePoints[hoveredDayIndex] : null;
 
   return (
     <section className="bg-white rounded-3xl p-6 sm:p-8 border border-neutral-200 shadow-sm space-y-6 font-['Plus_Jakarta_Sans'] relative overflow-hidden">
@@ -101,13 +330,13 @@ export default function PredictiveCashRunwayCard() {
               <Activity className="w-4 h-4 stroke-[2.5]" />
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-black font-['Outfit'] tracking-tight">
-              Predictive Cash Runway & Burn Rate
+              Predictive Cash Flow & Timeline Radar
             </h2>
             <span
               className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border flex items-center space-x-1 ${
                 analytics.runwayStatus === 'SAFE'
                   ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                  : analytics.runwayStatus === 'CAUTION'
+                  : analytics.runwayStatus === 'WATCH'
                   ? 'bg-amber-100 text-amber-800 border-amber-300'
                   : 'bg-rose-100 text-rose-800 border-rose-300'
               }`}
@@ -116,36 +345,46 @@ export default function PredictiveCashRunwayCard() {
             </span>
           </div>
           <p className="text-xs text-neutral-500 mt-1">
-            Real-time projection balancing daily revenue velocity against amortized commitments and 15-day payables.
+            Tracks real retained cash (margin after restocking & running costs) with AI Festival & Context Multipliers against dated obligations.
           </p>
         </div>
 
-        {/* Estimated Runway Highlight */}
+        {/* Dynamic Horizon / Next Risk Date Card */}
         <div className="flex items-center space-x-3">
           <div className="text-right">
             <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">
-              Estimated Cash Runway
+              {analytics.headlineLabel}
             </span>
             <div className="flex items-baseline justify-end space-x-1">
-              <span className="text-2xl sm:text-3xl font-black text-black font-['Outfit']">
-                ~{analytics.runwayDays}
+              <span
+                className={`text-xl sm:text-2xl font-black font-['Outfit'] ${
+                  analytics.runwayStatus === 'SAFE'
+                    ? 'text-black'
+                    : analytics.runwayStatus === 'WATCH'
+                    ? 'text-amber-600'
+                    : 'text-rose-600'
+                }`}
+              >
+                {analytics.headlineMetric}
               </span>
-              <span className="text-xs font-bold text-neutral-500">Days</span>
             </div>
+            <span className="text-[10px] text-neutral-400 block">
+              Buffer: ₹{analytics.safetyBuffer.toLocaleString()} (3d running cost)
+            </span>
           </div>
 
           <div
             className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
               analytics.runwayStatus === 'SAFE'
                 ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                : analytics.runwayStatus === 'CAUTION'
+                : analytics.runwayStatus === 'WATCH'
                 ? 'bg-amber-50 text-amber-600 border-amber-200'
                 : 'bg-rose-50 text-rose-600 border-rose-200'
             }`}
           >
             {analytics.runwayStatus === 'SAFE' ? (
               <ShieldCheck className="w-6 h-6 stroke-2" />
-            ) : analytics.runwayStatus === 'CAUTION' ? (
+            ) : analytics.runwayStatus === 'WATCH' ? (
               <AlertTriangle className="w-6 h-6 stroke-2" />
             ) : (
               <Flame className="w-6 h-6 stroke-2" />
@@ -154,82 +393,454 @@ export default function PredictiveCashRunwayCard() {
         </div>
       </div>
 
-      {/* 4 Financial Velocity Metric Cards */}
+      {/* 4 Financial Metric Cards: RETAINED CASH, RECEIVED CASH, EXPECTED KHATA, TIMELINE DUES */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
-        {/* Metric 1: Daily Burn Rate */}
-        <div className="p-4 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 space-y-1">
+        {/* Metric 1: Daily Retained Cash (Replaces Gross Inflow Velocity) */}
+        <div className="p-4 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 space-y-1 relative group">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-[10px] uppercase font-bold tracking-wider">
-              Daily Outflow Burn
+              Daily Retained Cash
             </span>
-            <Flame className="w-3.5 h-3.5 text-rose-500" />
+            <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
           </div>
-          <div className="text-lg font-black text-rose-600 font-['Outfit']">
-            ₹{analytics.dailyBurnRate.toLocaleString()}
+          <div className="text-xl font-black text-emerald-600 font-['Outfit']">
+            {analytics.retainedCashPerDay >= 0 ? '+' : ''}₹{analytics.retainedCashPerDay.toLocaleString()}
             <span className="text-xs font-normal text-neutral-500"> /day</span>
           </div>
-          <span className="text-[10px] text-neutral-400 block">
-            Amortized rent, EMI + payables
+          <span className="text-[10px] text-neutral-500 block truncate">
+            Gross sales: ₹{analytics.grossSales.toLocaleString()} · Margin: {analytics.grossMarginPct}%
+          </span>
+          <span className="text-[9px] text-neutral-400 block">
+            After ₹{analytics.dailyRunningCost}/d running costs
           </span>
         </div>
 
-        {/* Metric 2: Daily Inflow Velocity */}
+        {/* Metric 2: Received Cash in Hand (Certain) */}
         <div className="p-4 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 space-y-1">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-[10px] uppercase font-bold tracking-wider">
-              Daily Inflow Velocity
+              Received Cash (Certain)
             </span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" />
+            <Wallet className="w-3.5 h-3.5 text-black" />
           </div>
-          <div className="text-lg font-black text-emerald-600 font-['Outfit']">
-            ₹{analytics.totalDailyInflow.toLocaleString()}
-            <span className="text-xs font-normal text-neutral-500"> /day</span>
+          <div className="text-xl font-black text-black font-['Outfit']">
+            ₹{analytics.receivedCashInHand.toLocaleString()}
           </div>
-          <span className="text-[10px] text-neutral-400 block">
-            Sales + estimated credit receipts
+          <span className="text-[10px] text-neutral-500 block">
+            Opening cash + today's sales
+          </span>
+          <span className="text-[9px] text-emerald-700 block font-semibold">
+            100% in hand today
           </span>
         </div>
 
-        {/* Metric 3: Net Daily Cash Flow */}
+        {/* Metric 3: Expected Receivables (Khata / Credit - NEVER merged with in-hand) */}
         <div className="p-4 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 space-y-1">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-[10px] uppercase font-bold tracking-wider">
-              Net Cash Flow Rate
+              Expected Receivables
             </span>
-            <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
           </div>
-          <div
-            className={`text-lg font-black font-['Outfit'] ${
-              analytics.netDailyCashFlow >= 0 ? 'text-emerald-600' : 'text-rose-600'
-            }`}
-          >
-            {analytics.netDailyCashFlow >= 0 ? '+' : ''}₹
-            {analytics.netDailyCashFlow.toLocaleString()}
-            <span className="text-xs font-normal text-neutral-500"> /day</span>
+          <div className="text-xl font-black text-amber-600 font-['Outfit']">
+            ₹{analytics.expectedReceivables.toLocaleString()}
           </div>
-          <span className="text-[10px] text-neutral-400 block">
-            {analytics.netDailyCashFlow >= 0 ? 'Operating cash surplus' : 'Working capital burn'}
+          <span className="text-[10px] text-neutral-500 block">
+            Customer Udhar in eKhata
+          </span>
+          <span className="text-[9px] text-amber-800 block font-semibold">
+            Timeline weighted · Not cash in hand
           </span>
         </div>
 
-        {/* Metric 4: Liquid Buffer */}
+        {/* Metric 4: Scheduled Obligations (Timeline-Based, Not Amortized) */}
         <div className="p-4 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 space-y-1">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-[10px] uppercase font-bold tracking-wider">
-              Liquid Cash Buffer
+              15-Day Scheduled Dues
             </span>
-            <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+            <Calendar className="w-3.5 h-3.5 text-rose-500" />
           </div>
-          <div className="text-lg font-black text-black font-['Outfit']">
-            ₹{analytics.liquidCashAvailable.toLocaleString()}
+          <div className="text-xl font-black text-rose-600 font-['Outfit']">
+            ₹{analytics.duesWithin15Days.toLocaleString()}
           </div>
-          <span className="text-[10px] text-neutral-400 block">
-            Working capital available today
+          <span className="text-[10px] text-neutral-500 block">
+            Rent, EMI & vendor payables
+          </span>
+          <span className="text-[9px] text-neutral-400 block">
+            Deducted on exact dates (no double count)
           </span>
         </div>
       </div>
 
-      {/* Advisory & What-If Simulation Row */}
+      {/* FESTIVAL ADJUSTER CONTROL BAR & JUDGE DEMO SELECTOR */}
+      <div className="p-4 rounded-2xl bg-neutral-900 text-white border border-neutral-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Left: Festival Toggle Switch */}
+        <div className="flex items-center space-x-3">
+          <button
+            type="button"
+            onClick={handleToggleFestival}
+            className={`relative inline-flex h-7 w-13 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+              isFestivalAdjustmentOn ? 'bg-amber-400' : 'bg-neutral-700'
+            }`}
+            title="Toggle Festival & Context Sales Adjuster ON/OFF"
+          >
+            <span
+              className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-black shadow-lg ring-0 transition duration-200 ease-in-out ${
+                isFestivalAdjustmentOn ? 'translate-x-6' : 'translate-x-0'
+              }`}
+            />
+          </button>
+
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-black tracking-wide uppercase font-['Outfit'] text-white">
+                Festival adjustment {isFestivalAdjustmentOn ? 'ON' : 'OFF'}
+              </span>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                  isFestivalAdjustmentOn
+                    ? 'bg-amber-400/20 text-yellow-300 border border-yellow-400/30'
+                    : 'bg-neutral-800 text-neutral-400 border border-neutral-700'
+                }`}
+              >
+                {isFestivalAdjustmentOn ? 'AI Bounded Multipliers Active' : 'Baseline 1.0 Only'}
+              </span>
+            </div>
+            <p className="text-[11px] text-neutral-400 mt-0.5">
+              {isFestivalAdjustmentOn
+                ? 'Applies calendar windows with code-bounded multipliers [0.6 - 1.6] and 1.8 overlap cap.'
+                : 'Showing unadjusted baseline sales forecast exactly matching historical day-of-week.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Right: Business Type Selector (Acceptance test: kirana -> sweets) */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold text-neutral-400 flex items-center gap-1">
+            <Building2 className="w-3.5 h-3.5 text-amber-400" />
+            <span>Shop Model:</span>
+          </span>
+          <div className="inline-flex rounded-xl bg-neutral-800 p-1 border border-neutral-700">
+            {BUSINESS_TYPE_OPTIONS.slice(0, 4).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => handleChangeBusinessType(opt.id)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  businessType === opt.id
+                    ? 'bg-amber-400 text-black shadow-xs font-black'
+                    : 'text-neutral-300 hover:text-white hover:bg-neutral-700/60'
+                }`}
+              >
+                {opt.label.split(' ')[0]}
+              </button>
+            ))}
+          </div>
+          <span className="text-[10px] text-neutral-400 flex items-center gap-1">
+            <MapPin className="w-3 h-3 text-amber-400" />
+            <span>{profileLocation.city}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* 60-DAY INTERACTIVE TIMELINE CHART WITH SHADED FESTIVAL BANDS & LOW-HIGH CORRIDOR */}
+      <div className="p-5 rounded-2xl bg-neutral-50/70 border border-neutral-200/90 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+              <h3 className="text-sm font-bold text-black font-['Outfit']">
+                60-Day Cash Balance Timeline & Event Windows
+              </h3>
+              <span className="text-[10px] text-amber-800 font-bold bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                {isFestivalAdjustmentOn ? 'Corridor: Low ↔ Base ↔ High' : 'Baseline Mode'}
+              </span>
+            </div>
+            <p className="text-[11px] text-neutral-500 mt-0.5">
+              Shaded bands mark festive/seasonal demand windows. The light golden corridor reflects confidence bounds.
+            </p>
+          </div>
+
+          {/* Chart Legend */}
+          <div className="flex flex-wrap items-center gap-3 text-[11px]">
+            <div className="flex items-center space-x-1.5">
+              <span className="w-3 h-1 bg-amber-500 rounded-full"></span>
+              <span className="font-bold text-neutral-700">Base Forecast</span>
+            </div>
+            {isFestivalAdjustmentOn && (
+              <div className="flex items-center space-x-1.5">
+                <span className="w-3 h-2 bg-amber-200/60 border border-amber-400/50 rounded-xs"></span>
+                <span className="text-neutral-600">Low-High Range</span>
+              </div>
+            )}
+            <div className="flex items-center space-x-1.5">
+              <span className="w-2.5 h-2.5 bg-amber-100 border border-amber-300 rounded-xs"></span>
+              <span className="text-neutral-600">Event Window</span>
+            </div>
+            <div className="flex items-center space-x-1.5">
+              <span className="w-3 h-0.5 border-t border-dashed border-rose-500"></span>
+              <span className="text-rose-700 font-bold">Buffer (₹{analytics.safetyBuffer.toLocaleString()})</span>
+            </div>
+          </div>
+        </div>
+
+        {/* SVG Canvas */}
+        <div className="relative w-full overflow-x-auto bg-white rounded-xl border border-neutral-200/80 p-2">
+          <svg
+            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+            className="w-full h-56 select-none"
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <linearGradient id="corridorGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.25" />
+                <stop offset="100%" stopColor="#d97706" stopOpacity="0.08" />
+              </linearGradient>
+              <pattern id="bandHatch" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                <line x1="0" y1="0" x2="0" y2="8" stroke="#f59e0b" strokeWidth="1.2" strokeOpacity="0.2" />
+              </pattern>
+            </defs>
+
+            {/* Shaded Event Window Bands */}
+            {timelinePoints.map((p, i) => {
+              if (!p.activeEvents || p.activeEvents.length === 0 || !isFestivalAdjustmentOn) return null;
+              const xStart = Math.max(0, getX(i) - 6);
+              const xEnd = Math.min(chartWidth, getX(i) + 6);
+              return (
+                <g key={`event-band-${i}`}>
+                  <rect
+                    x={xStart}
+                    y={paddingY}
+                    width={xEnd - xStart}
+                    height={chartHeight - paddingY * 2}
+                    fill="url(#bandHatch)"
+                    opacity="0.85"
+                  />
+                  <rect
+                    x={xStart}
+                    y={paddingY}
+                    width={xEnd - xStart}
+                    height={chartHeight - paddingY * 2}
+                    fill="#fef3c7"
+                    opacity="0.35"
+                  />
+                </g>
+              );
+            })}
+
+            {/* Safety Reserve Threshold Dashed Line */}
+            {safetyLineY >= paddingY && safetyLineY <= chartHeight - paddingY && (
+              <line
+                x1={paddingX}
+                y1={safetyLineY}
+                x2={chartWidth - paddingX}
+                y2={safetyLineY}
+                stroke="#f43f5e"
+                strokeWidth="1.5"
+                strokeDasharray="4 3"
+              />
+            )}
+
+            {/* Low-High Confidence Area Light Band */}
+            {isFestivalAdjustmentOn && confidenceAreaPath && (
+              <path d={confidenceAreaPath} fill="url(#corridorGradient)" />
+            )}
+
+            {/* Main Base Line */}
+            {basePath && (
+              <path
+                d={basePath}
+                fill="none"
+                stroke="#d97706"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+
+            {/* Interactive Data Point Handles */}
+            {timelinePoints.map((p, i) => {
+              const cx = getX(i);
+              const cy = getY(p.balance);
+              const isHovered = hoveredDayIndex === i;
+              const hasDue = p.dayDuesTotal > 0;
+              const hasFestival = p.activeEvents && p.activeEvents.length > 0;
+
+              return (
+                <g
+                  key={`point-${i}`}
+                  onMouseEnter={() => setHoveredDayIndex(i)}
+                  onMouseLeave={() => setHoveredDayIndex(null)}
+                  className="cursor-pointer"
+                >
+                  {/* Invisible hit target for smooth hovering */}
+                  <rect
+                    x={cx - 7}
+                    y={paddingY}
+                    width="14"
+                    height={chartHeight - paddingY * 2}
+                    fill="transparent"
+                  />
+
+                  {/* Highlight point circle */}
+                  {(isHovered || hasDue || (hasFestival && isFestivalAdjustmentOn)) && (
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={isHovered ? 6 : hasDue ? 4.5 : 3}
+                      fill={hasDue ? '#f43f5e' : '#f59e0b'}
+                      stroke="#ffffff"
+                      strokeWidth={isHovered ? 2 : 1.5}
+                    />
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* Interactive Tooltip Card on Hover */}
+          {hoveredPoint && (
+            <div className="mt-2 p-3 bg-neutral-900 text-white rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs border border-neutral-700 animate-in fade-in">
+              <div className="space-y-0.5">
+                <div className="flex items-center space-x-2">
+                  <span className="font-mono font-bold text-amber-400">
+                    Day +{hoveredPoint.day} ({hoveredPoint.date})
+                  </span>
+                  {hoveredPoint.activeEvents?.length > 0 && isFestivalAdjustmentOn && (
+                    <span className="bg-amber-400/20 text-amber-300 font-bold px-1.5 py-0.2 rounded text-[10px]">
+                      {hoveredPoint.activeEvents[0]}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-neutral-300">
+                  Daily retained cash:{' '}
+                  <strong className="text-emerald-400 font-mono">
+                    {hoveredPoint.retainedBase >= 0 ? '+' : ''}₹{hoveredPoint.retainedBase.toLocaleString()}
+                  </strong>{' '}
+                  (from sales ₹{hoveredPoint.adjSalesBase.toLocaleString()} at multiplier ×{hoveredPoint.multBase})
+                </div>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-bold text-neutral-400 block">
+                  Projected Balance
+                </span>
+                <span className="font-extrabold font-mono text-sm text-yellow-300">
+                  ₹{hoveredPoint.balance.toLocaleString()}
+                </span>{' '}
+                {isFestivalAdjustmentOn && (
+                  <span className="text-[10px] text-neutral-400 font-mono block">
+                    (range ₹{(hoveredPoint.balanceLow || hoveredPoint.balance).toLocaleString()} - ₹{(hoveredPoint.balanceHigh || hoveredPoint.balance).toLocaleString()})
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* "WHY THIS FORECAST?" CARD LISTING UPCOMING EVENTS, MULTIPLIERS, BADGES, AND REASONS */}
+      <div className="p-5 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-amber-200/60 gap-2">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-7 h-7 rounded-lg bg-amber-400/20 text-amber-800 flex items-center justify-center border border-amber-400/40">
+              <Sparkles className="w-4 h-4 text-amber-700" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-black font-['Outfit']">
+                Why this forecast?
+              </h3>
+              <p className="text-[11px] text-neutral-500">
+                AI Sales Context Analyst bounded adjustments for{' '}
+                <strong className="text-black font-bold capitalize">
+                  {BUSINESS_TYPE_OPTIONS.find((b) => b.id === businessType)?.label || businessType}
+                </strong>{' '}
+                in {profileLocation.city}. Code enforces all rupee math.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 text-xs">
+            {adjusterUnavailable && (
+              <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-md border border-rose-200">
+                Context adjustment unavailable (Fallback 1.0)
+              </span>
+            )}
+            <span className="text-[11px] text-neutral-500 font-medium">
+              Next 90 Days Events: {contextAdjustments.length}
+            </span>
+          </div>
+        </div>
+
+        {/* Event Adjustments Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {contextAdjustments.slice(0, 8).map((adj, idx) => {
+            const mult = adj.multiplier || { low: 1.0, base: 1.0, high: 1.0 };
+            const isBoost = mult.base > 1.05;
+            const isSlump = mult.base < 0.95;
+
+            return (
+              <div
+                key={idx}
+                className="p-3.5 rounded-xl bg-white border border-neutral-200/90 shadow-2xs space-y-1.5 hover:border-amber-400 transition-all"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="font-bold text-xs text-black block leading-tight">
+                      {adj.event}
+                    </span>
+                    <span className="text-[10px] font-mono text-neutral-400 block mt-0.5">
+                      {adj.window_start} &rarr; {adj.window_end}
+                    </span>
+                  </div>
+
+                  {/* Multiplier pill */}
+                  <div className="text-right shrink-0">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-black font-mono border ${
+                        isBoost
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                          : isSlump
+                          ? 'bg-rose-50 text-rose-700 border-rose-300'
+                          : 'bg-neutral-50 text-neutral-700 border-neutral-200'
+                      }`}
+                    >
+                      &times;{Number(mult.base).toFixed(2)}
+                    </span>
+                    <span className="text-[9px] text-neutral-400 block font-mono">
+                      [{Number(mult.low).toFixed(2)} - {Number(mult.high).toFixed(2)}]
+                    </span>
+                  </div>
+                </div>
+
+                {/* Plain sentence reason */}
+                <p className="text-[11px] text-neutral-600 leading-relaxed italic">
+                  "{adj.reason}"
+                </p>
+
+                {/* Confidence Badge */}
+                <div className="flex items-center justify-between pt-1 border-t border-neutral-100 text-[10px]">
+                  <span className="text-neutral-400">AI Confidence:</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded font-bold uppercase text-[9px] ${
+                      adj.confidence === 'high'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : adj.confidence === 'medium'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-neutral-100 text-neutral-600'
+                    }`}
+                  >
+                    {adj.confidence || 'medium'}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Advisory & Onboarding Parameters Bar */}
       <div className="p-4 rounded-2xl bg-linear-to-r from-amber-50/70 via-yellow-50/40 to-neutral-50 border border-amber-200 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
         <div className="flex items-start space-x-2.5">
           <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -241,24 +852,163 @@ export default function PredictiveCashRunwayCard() {
           </div>
         </div>
 
-        {/* What-If Simulation Toggle */}
+        {/* Onboarding / Parameters Trigger Button */}
         <div className="shrink-0 flex items-center space-x-2 pt-2 md:pt-0 border-t md:border-t-0 border-amber-200/60">
           <button
             type="button"
-            onClick={() => setSimulateAllCollections(!simulateAllCollections)}
-            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
-              simulateAllCollections
-                ? 'bg-black text-yellow-300 border border-black shadow-xs'
-                : 'bg-white text-neutral-700 hover:text-black border border-neutral-300 hover:bg-neutral-50'
-            }`}
+            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+            className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-white text-neutral-700 hover:text-black border border-neutral-300 hover:bg-neutral-50 transition-all cursor-pointer flex items-center space-x-1.5 shadow-2xs"
           >
-            <Sliders className="w-3 h-3" />
-            <span>
-              {simulateAllCollections ? 'Simulating 100% Udhar Collected' : 'Simulate Udhar Recovery'}
-            </span>
+            <Sliders className="w-3.5 h-3.5 text-amber-600" />
+            <span>Cash Flow Assumptions</span>
           </button>
         </div>
       </div>
+
+      {/* Onboarding Parameters Drawer / Modal */}
+      {isSettingsOpen && (
+        <div className="p-5 rounded-2xl bg-neutral-50 border border-neutral-300 space-y-4 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
+            <div>
+              <h3 className="text-sm font-bold text-black font-['Outfit']">
+                Onboarding & Operational Cash Flow Parameters
+              </h3>
+              <p className="text-[11px] text-neutral-500">
+                Calibrate profit margins and non-rent daily operating costs for accurate retained cash math.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsSettingsOpen(false)}
+              className="text-neutral-400 hover:text-black cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Input 1: Gross Margin % */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-neutral-700 block">
+                  Gross Profit Margin (%)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="99"
+                  value={settingsForm.grossMarginPct}
+                  onChange={(e) =>
+                    setSettingsForm({ ...settingsForm, grossMarginPct: Number(e.target.value) })
+                  }
+                  className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-1.5 text-black font-bold focus:ring-2 focus:ring-yellow-400"
+                />
+                <div className="flex flex-wrap gap-1 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPresetMargin(20)}
+                    className="text-[9px] px-1.5 py-0.5 rounded bg-white border border-neutral-200 hover:border-black"
+                  >
+                    Kirana (20%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPresetMargin(35)}
+                    className="text-[9px] px-1.5 py-0.5 rounded bg-white border border-neutral-200 hover:border-black"
+                  >
+                    Sweets (35%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPresetMargin(25)}
+                    className="text-[9px] px-1.5 py-0.5 rounded bg-white border border-neutral-200 hover:border-black"
+                  >
+                    Standard (25%)
+                  </button>
+                </div>
+              </div>
+
+              {/* Input 2: Daily Running Cost */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-neutral-700 block">
+                  Daily Running Costs (₹/day)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={settingsForm.dailyRunningCost}
+                  onChange={(e) => {
+                    const cost = Number(e.target.value);
+                    setSettingsForm({
+                      ...settingsForm,
+                      dailyRunningCost: cost,
+                      safetyBuffer: cost * 3,
+                    });
+                  }}
+                  className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-1.5 text-black font-bold focus:ring-2 focus:ring-yellow-400"
+                />
+                <span className="text-[10px] text-neutral-400 block">
+                  Helper wages, electricity, transport
+                </span>
+              </div>
+
+              {/* Input 3: Opening Cash */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-neutral-700 block">
+                  Opening Received Cash (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={settingsForm.openingCash}
+                  onChange={(e) =>
+                    setSettingsForm({ ...settingsForm, openingCash: Number(e.target.value) })
+                  }
+                  className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-1.5 text-black font-bold focus:ring-2 focus:ring-yellow-400"
+                />
+                <span className="text-[10px] text-neutral-400 block">
+                  Cash in hand + current account balance
+                </span>
+              </div>
+
+              {/* Input 4: Safety Buffer */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-neutral-700 block">
+                  Safety Buffer (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={settingsForm.safetyBuffer}
+                  onChange={(e) =>
+                    setSettingsForm({ ...settingsForm, safetyBuffer: Number(e.target.value) })
+                  }
+                  className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-1.5 text-black font-bold focus:ring-2 focus:ring-yellow-400"
+                />
+                <span className="text-[10px] text-neutral-400 block">
+                  Defaults to 3 days of running costs
+                </span>
+              </div>
+            </div>
+
+            {/* Save Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-200">
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(false)}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-600 hover:text-black"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-1.5 rounded-xl text-xs font-black bg-black text-yellow-300 hover:bg-neutral-800 transition-all shadow-xs cursor-pointer"
+              >
+                Save & Recompute Timeline
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </section>
   );
 }

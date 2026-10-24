@@ -430,22 +430,25 @@ export default function ProfilePage() {
             >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] uppercase font-bold tracking-wider text-neutral-500">
-                  Predictive Runway
+                  {analytics.headlineLabel || 'Cash Horizon'}
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Zap className="w-4 h-4" />
                 </div>
               </div>
               <div className="mt-2">
-                <span className="text-2xl font-black text-black font-['Outfit']">
-                  ~{analytics.runwayDays} Days
+                <span className="text-xl font-black text-black font-['Outfit'] block truncate">
+                  {analytics.headlineMetric}
                 </span>
                 <div className="flex items-center justify-between text-[11px] mt-1 text-neutral-500 font-medium">
-                  <span>Burn: ₹{analytics.dailyBurnRate.toLocaleString()}/day</span>
+                  <span className="text-emerald-700 font-bold">
+                    Retained: +₹{analytics.retainedCashPerDay.toLocaleString()}/day
+                  </span>
                   <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
                 </div>
               </div>
             </Link>
+
 
             {/* KPI 3: Upcoming Payables (15d) */}
             <Link

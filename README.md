@@ -2,7 +2,10 @@
 
 A production-grade, full-stack financial platform designed specifically for Indian Retailers, Kiranas, and SMBs to eliminate cash-flow blind spots. It bridges real-time revenue collection, multilingual voice-powered credit bookkeeping (**eKhata**), automated 15-day liability tracking, and an **AI-driven Predictive Cash Runway Engine**.
 
+> 📖 **Comprehensive Implementation Manual**: For a granular breakdown of every single feature, UI module, and AI engine implemented across the project, see [**`FEATURES.md`**](FEATURES.md).
+
 ---
+
 
 ## 🎯 The Core Business Problem
 
@@ -19,115 +22,93 @@ All business logic across the platform has been audited for mathematical correct
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────────┐
-│                           AURUMFLOW FINANCIAL ENGINE                              │
+│                    AURUMFLOW RETAINED CASH & TIMELINE ENGINE                      │
 ├───────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                   │
-│  [ Opening Buffer ] ──┐                                                           │
-│  (₹40,000 in Hand)    │                                                           │
-│                       ├──► [ Liquid Cash Buffer ]                                 │
-│  [ Realized Sales ] ──┘    (₹48,000 Liquid Capital)                               │
-│  (₹8,000: ₹5k+₹3k)                                  │                             │
-│                                                     ▼                             │
-│  [ Monthly Fixed ] ──► (÷30d) ──► Fixed Burn   ──┐  ┌──────────────────────────┐  │
-│  (₹30,000 / month)                (₹1,000/day)   │  │  Predictive Runway Days  │  │
-│                                                  ├──┤                          │  │
-│  [ 15d Payables  ] ──► (÷15d) ──► Upcoming Burn──┘  │      41 Days (SAFE)      │  │
-│  (₹20,000 vendor)                 (₹1,333/day)   ▲  └──────────────────────────┘  │
-│                                                  │                                │
-│  [ Customer Udhar] ──► (÷15d) ──► Inflow Velocity│                                │
-│  (₹10,000 credit)                 (₹667/day)     │                                │
-│                                                  │                                │
-│  [ Baseline Sales] ─────────────► Inflow Velocity│                                │
-│  (₹8,000 sales)                   (₹8,000/day)   │                                │
-│                                                  │                                │
-│  Net Flow Rate: Δ = Vin - Bout = +₹6,334/day (Surplus ──► 50% Stress-Tested)     │
+│  [ Today's Sales: ₹8,000 ] ──► (× Margin 25%) ──► Gross Profit: ₹2,000            │
+│                                                            │                      │
+│  [ Daily Running Cost: ₹500 ] ─────────────────────────────┴──► RETAINED CASH:   │
+│  (helper wages, electricity, transport, petty cash)             +₹1,500 /day      │
+│                                                                       │           │
+│  [ Received Cash in Hand ] = Opening (₹40k) + Today Sales (₹8k) = ₹48,000         │
+│  [ Expected Receivables  ] = ₹10,000 Khata (Weighted on Timeline, NEVER merged)  │
+│                                                                                   │
+│  TIMELINE-BASED PROJECTION (No Amortized Double Counting):                        │
+│  balance[d] = opening_cash + Σ retained_cash[d'] + Σ expected[d']×w − Σ dues[d']  │
+│                                                                                   │
+│  * Rent (₹10k on 5th), EMI (₹10k on 10th), Vendor Invoices hit on exact dates     │
+│  * Safety Buffer = 3 days of daily running costs (3 × ₹500 = ₹1,500)              │
+│  * Status: SAFE (resilient in base & low scenarios across 60 days)                │
 └───────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### 1. Liquid Cash Buffer
-Total accessible, immediate liquid capital available to the merchant today:
+### 1. Daily Retained Cash vs Gross Sales
+Shopkeepers do not keep gross sales. Gross sales must replenish inventory and service day-to-day running costs. Every metric in AurumFlow uses **Retained Cash**:
 
-$$\text{Liquid Cash Buffer} = \text{Starting Balance} + \sum \text{Today's Realized Income}$$
+$$\text{Retained Cash Per Day} = (\text{Received Cash Sales} \times \text{Gross Margin \%}) - \text{Daily Running Cost}$$
 
-* **Starting Balance**: Initial working capital in hand and primary current account (default seed: **₹40,000**).
-* **Today's Realized Income**: Real-time sum of all sales recorded today across Cash, UPI QR, and settled credit receipts (default seed: **₹8,000** = ₹5,000 Cash + ₹3,000 UPI).
-* **Calculation**:
-  $$\text{Liquid Buffer} = 40,000 + 8,000 = \mathbf{₹48,000}$$
-* **Verification**: Real-time reactive updates whenever a new sale is logged or customer Udhar is settled.
-
----
-
-### 2. Daily Outflow Burn Rate ($B_{\text{out}}$)
-Amortized daily cash burn required to service ongoing recurring commitments and near-term vendor liabilities:
-
-$$B_{\text{out}} = B_{\text{fixed}} + B_{\text{upcoming}} = \left(\frac{\sum \text{Monthly Fixed Commitments}}{30\text{ days}}\right) + \left(\frac{\sum \text{15-Day Scheduled Liabilities}}{15\text{ days}}\right)$$
-
-#### A. Daily Fixed Burn ($B_{\text{fixed}}$)
-* Monthly commitments: Commercial Store Rent (₹10,000) + Machinery EMI (₹10,000) + Staff Salaries (₹7,000) + Electricity & Utilities (₹3,000) = **₹30,000 / month**.
-* Amortized over standard 30-day billing cycle:
-  $$B_{\text{fixed}} = \frac{₹30,000}{30} = \mathbf{₹1,000 /day}$$
-
-#### B. Daily Upcoming Burn ($B_{\text{upcoming}}$)
-* Near-term liabilities due within $\le 15$ days (e.g. Raw Material Batch #42: ₹12,500 + GST Filing: ₹7,800 + Packaging: ₹2,450 $\approx$ ₹20,000).
-* Amortized over 15-day liability horizon:
-  $$B_{\text{upcoming}} = \frac{₹20,000}{15} \approx \mathbf{₹1,333 /day}$$
-
-#### C. Total Daily Burn:
-$$B_{\text{out}} = 1,000 + 1,333 = \mathbf{₹2,333 /day}$$
+* **Worked Example**:
+  $$\text{Sales } ₹8,000 \times 25\% = ₹2,000 \text{ gross profit}$$
+  $$\text{Minus daily running cost } ₹500 = \mathbf{+₹1,500 /day \text{ Retained Cash}}$$
+* **Restock Cost**: Approximated through gross margin:
+  $$\text{Restock Spending} = \text{Sales} \times (1 - \text{Gross Margin \%}) = 8,000 \times 0.75 = \mathbf{₹6,000}$$
+* **Default Margins by Business Type**:
+  - Kirana & Provisions: 15–20% (default 20%, 25% for worked example)
+  - Sweets & Bakery: 30–40% (default 35%)
+  - Stationery & Books: 20–25% (default 22%)
+  - Garments & Apparel: 30–40% (default 35%)
+  - Pharmacy & Healthcare: 20%
+  - General Retail: 25%
+* **Display Standard**: The homepage displays **₹1,500/day** prominently as the cash inflow, with **₹8,000** displayed only as secondary gross sales text.
 
 ---
 
-### 3. Daily Inflow Velocity ($V_{\text{in}}$)
-The velocity at which incoming liquidity is generated per operational day:
-
-$$V_{\text{in}} = \text{Baseline Daily Sales} + V_{\text{collection}}$$
-
-* **Baseline Daily Sales**: Operational revenue floor or actual sales realized today:
-  $$\text{Baseline Daily Sales} = \max\left(\sum \text{Today's Sales},\ \text{Daily Floor (₹8,000)}\right)$$
-* **Customer Credit Collection Velocity ($V_{\text{collection}}$)**: Expected recovery pace of outstanding customer Udhar over a standard 15-day collection cycle:
-  $$V_{\text{collection}} = \frac{\sum \text{Eligible Customer Udhar}}{15\text{ days}} = \frac{₹10,000}{15} \approx \mathbf{₹667 /day}$$
-* **Total Daily Inflow**:
-  $$V_{\text{in}} = 8,000 + 667 = \mathbf{₹8,667 /day}$$
+### 2. Separation of Received Cash vs Expected Receivables
+To prevent false liquidity assumptions, cash is divided into two distinct channels:
+* **Received Cash (Certain / In Hand)**:
+  $$\text{Received Cash} = \text{Opening Cash} + \text{Today's Received Sales} = 40,000 + 8,000 = \mathbf{₹48,000}$$
+* **Expected Receivables (Khata / Credit)**:
+  Total outstanding credit in eKhata (e.g. **₹10,000**).
+* **Strict Rule**: Expected receivables are **NEVER** merged with cash in hand. They enter the timeline on their predicted due dates weighted by collection reliability ($w = 0.8$ in Base, $w = 0.4$ in Low).
 
 ---
 
-### 4. Net Daily Cash Flow Rate ($\Delta$)
-Measures whether the business is expanding reserves or burning liquid capital on a daily basis:
+### 3. Timeline-Based Cash Balance Projection (No Amortized Double Counting)
+Rent, EMI, salaries, and supplier dues are **discrete dated events**. They are **NOT** amortized into a daily burn average, preventing obligations from being deducted twice:
 
-$$\Delta = V_{\text{in}} - B_{\text{out}}$$
+$$\text{balance}[d] = \text{opening\_received\_cash} + \sum_{d' \le d} \text{retained\_cash}[d'] + \sum_{d' \le d} (\text{expected\_receivables\_due}[d'] \times w) - \sum_{d' \le d} \text{dues}[d']$$
 
-* **With User's Seed Numbers**:
-  $$\Delta = 8,667 - 2,333 = \mathbf{+₹6,334 /day}\quad (\text{Operating Cash Surplus})$$
-* **Interpretation**:
-  * **$\Delta > 0$ (Surplus)**: Daily inflows exceed burn. Liquid buffer expands over time.
-  * **$\Delta < 0$ (Deficit)**: Outflows exceed inflows. Merchant consumes liquid reserves to stay afloat.
+* **On Days 1–4**: Zero rent is paid; only daily running costs apply (already netted inside retained cash).
+* **On Day 5**: Rent (₹10,000) is deducted as a discrete timeline event.
+* **On Day 10**: Machinery EMI (₹10,000) is deducted as a discrete timeline event.
+* **On Day 18**: Commercial Electricity (₹3,000) is deducted.
+* **Vendor Invoices**: Deducted on their exact calendar `dueDate`.
 
 ---
 
-### 5. Predictive Cash Runway Horizon & Health Status
-The number of days the business can survive while honoring all payment obligations:
+### 4. Safety Buffer & Risk Horizon
+* **Safety Buffer**: Defaults to 3 days of daily running costs:
+  $$\text{Safety Buffer} = 3 \times \text{Daily Running Cost} = 3 \times ₹500 = \mathbf{₹1,500}$$
+* **Headline Metric Logic**:
+  * **If Retained Cash < 0**: Shows **`Runway: X Days`** (days until balance drops below 0).
+  * **If Retained Cash $\ge$ 0**:
+    - If `balance[d] < safetyBuffer` on any upcoming date:
+      Shows **`Next Risk Date: [Date] (in Xd)`** (e.g. balance drops below buffer due to lumpy payment).
+    - If `balance[d] >= safetyBuffer` for all 60 days:
+      Shows **`No Shortfall in 60 Days`**.
 
-#### Case A: Self-Sustaining Surplus ($\Delta \ge 0$)
-Because inflows exceed outflows, standard naive formulas ($\frac{\text{Buffer}}{\Delta}$) yield infinite days, which gives merchants a false sense of security. AurumFlow applies a **50% Stress-Test Scenario** (evaluating how long the merchant survives on liquid cash alone if revenue drops by 50% or customer collections freeze):
+---
 
-$$\text{Runway Days} = \min\left(90,\ \text{round}\left(\frac{\text{Liquid Cash Buffer}}{B_{\text{out}} \times 0.5}\right)\right)$$
+### 5. Status Badge Classification Matrix
+Evaluates whether lumpy obligations cause a shortfall under normal and stressed conditions:
+| Status | Condition | Description |
+| :--- | :--- | :--- |
+| **`SAFE`** | $\text{balance}[d] \ge \text{safety\_buffer}$ on every due date in **both** Base ($w=0.8$) and Low ($w=0.4$) scenarios | Operations comfortably absorb all dated obligations with buffer intact. |
+| **`WATCH`** | $\text{balance}[d] \ge \text{safety\_buffer}$ in Base, but drops below buffer in Low stress-test scenario | Normal cash flow covers dues, but delayed Udhar recovery risks breaching safety buffer. |
+| **`RISK`** | $\text{balance}[d] < \text{safety\_buffer}$ on **any** due date in the Base scenario | Lumpy payment cliff causes shortfall even under positive daily cash generation. |
 
-* **Calculation**:
-  $$\text{Runway Days} = \text{round}\left(\frac{48,000}{2,333 \times 0.5}\right) = \text{round}\left(\frac{48,000}{1,166.5}\right) = \mathbf{41\text{ Days}}$$
-
-#### Case B: Deficit Burn ($\Delta < 0$)
-When burn exceeds inflow velocity, runway is determined by the depletion rate of the liquid buffer:
-
-$$\text{Runway Days} = \max\left(1,\ \left\lfloor\frac{\text{Liquid Cash Buffer}}{|\Delta|}\right\rfloor\right)$$
-
-#### Health Status Classification:
-| Status | Threshold | Visual Indicator | Advisory Action |
-| :--- | :--- | :--- | :--- |
-| **`SAFE`** | $\ge 30$ Days | 🟢 Emerald Shield | Inflows comfortably service operations. Good time to negotiate bulk supplier discounts. |
-| **`CAUTION`** | $15 - 30$ Days | 🟡 Amber Warning | Near-term payables risk draining liquid reserves. Send WhatsApp payment reminders to Udhar customers. |
-| **`CRITICAL`** | $< 15$ Days | 🔴 Red Alert | High risk of bounced payments. Defer non-essential expenses and collect urgent receivables immediately. |
 
 ---
 
@@ -339,6 +320,13 @@ npm run dev
 * **Frontend**: `http://localhost:5173`
 * **Backend API**: `http://localhost:5000`
 * **API Health Check**: `http://localhost:5000/api/v1/health`
+
+### 5. Running Cash-Flow Unit Tests
+Execute the native unit tests covering the worked example (₹8k $\rightarrow$ ₹1,500), separation of received vs expected, no double counting, and lumpy due date risk triggers:
+```bash
+npm test
+```
+
 
 ---
 

@@ -1,9 +1,19 @@
 import { Router } from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const router = Router();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CALENDAR_PATH = path.join(__dirname, '../data/calendar.json');
+
 const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+// In-memory cache for Context Adjuster: key -> { timestamp, data }
+const contextAdjusterCache = new Map();
 
 /**
  * GET /api/v1/prediction/status
@@ -76,29 +86,32 @@ CRITICAL: Return ONLY a valid JSON object matching this exact schema:
     .map((c) => `- ${c.name}: ₹${Number(c.totalAmount || 0).toLocaleString()} (Due: ${c.dueDate || 'Undated'})`)
     .join('\n');
 
-  const userPrompt = `MERCHANT FINANCIAL TELEMETRY:
+  const userPrompt = `MERCHANT FINANCIAL TELEMETRY (RETAINED CASH & TIMELINE MODEL):
 - Business Name: ${businessName || 'Aurum Kirana Store'}
 - Business Type: ${businessType || 'Retail Kirana & Grocery Store'}
 
-1. DAILY REVENUE & INFLOWS:
-- Today's Realized Sales: ₹${Number(dailySales?.totalToday || 0).toLocaleString()} (Cash: ₹${Number(dailySales?.cash || 0).toLocaleString()}, UPI: ₹${Number(dailySales?.upi || 0).toLocaleString()})
-- Daily Target Goal: ₹${Number(dailySales?.target || 10000).toLocaleString()} (Achievement: ${dailySales?.achievement || 0}%)
+1. SALES & RETAINED CASH:
+- Today's Gross Sales: ₹${Number(dailySales?.totalToday || 0).toLocaleString()} (Cash: ₹${Number(dailySales?.cash || 0).toLocaleString()}, UPI: ₹${Number(dailySales?.upi || 0).toLocaleString()})
+- Gross Margin %: ${dailySales?.grossMarginPct || 25}% (Cost of restocking: ${(100 - (dailySales?.grossMarginPct || 25))}% of sales)
+- Daily Running Costs: ₹${Number(dailySales?.dailyRunningCost || 500).toLocaleString()}/day (excluding Rent/EMI)
+- Daily Retained Cash: ₹${Number(dailySales?.retainedCashPerDay || 1500).toLocaleString()}/day ((Sales × Margin) - Daily Running Costs)
+- NOTE: The owner keeps ONLY retained cash (₹${dailySales?.retainedCashPerDay || 1500}/d), NOT gross sales! Never treat gross sales as spendable cash.
 
-2. DAILY PAYABLES & OPERATING BURN:
-- Daily Fixed Overhead Burn: ₹${Number(dailyPayables?.dailyFixedBurn || 0).toLocaleString()}/day (Monthly Total: ₹${Number(dailyPayables?.monthlyFixedTotal || 0).toLocaleString()})
-- Daily Scheduled Liabilities Burn: ₹${Number(dailyPayables?.dailyUpcomingBurn || 0).toLocaleString()}/day (15-Day Payables: ₹${Number(dailyPayables?.upcoming15dTotal || 0).toLocaleString()})
-- Total Daily Outflow Burn: ₹${Number(dailyPayables?.totalDailyBurn || 0).toLocaleString()}/day
+2. TIMELINE DUES & SCHEDULED OBLIGATIONS:
+- Rent, EMI, and vendor payments are discrete timeline events (NOT amortized daily to prevent double-counting).
+- 15-Day Scheduled Obligations Total: ₹${Number(dailyPayables?.duesWithin15Days || dailyPayables?.upcoming15dTotal || 0).toLocaleString()}
 
-3. CUSTOMER CREDIT (UDHAR RECEIVABLES):
+3. CUSTOMER CREDIT (UDHAR RECEIVABLES - EXPECTED ONLY):
 - Total Outstanding Udhar: ₹${Number(receivables?.totalUdhar || 0).toLocaleString()} across ${receivables?.customerCount || 0} customer accounts
-- Estimated Recovery Velocity: ₹${Number(receivables?.collectionVelocity || 0).toLocaleString()}/day over standard 15-day collection window
+- IMPORTANT: This is EXPECTED future recovery, NEVER counted as immediate cash in hand!
 
-4. LIQUIDITY & PREDICTIVE RUNWAY:
-- Liquid Cash Buffer Available: ₹${Number(liquidity?.liquidBuffer || 0).toLocaleString()}
-- Net Daily Cash Flow Rate (Δ): ${Number(liquidity?.netCashFlow || 0) >= 0 ? '+' : ''}₹${Number(liquidity?.netCashFlow || 0).toLocaleString()}/day
-- Predictive Cash Runway: ${liquidity?.runwayDays || 0} Days (Health Status: ${liquidity?.status || 'SAFE'})
+4. LIQUIDITY & TIMELINE STATUS:
+- Received Cash in Hand (Certain): ₹${Number(liquidity?.receivedCashInHand || liquidity?.liquidBuffer || 0).toLocaleString()}
+- Safety Buffer: ₹${Number(liquidity?.safetyBuffer || 1500).toLocaleString()} (3 days of daily running costs)
+- Cash Horizon Status: ${liquidity?.status || 'SAFE'}
+- Timeline Forecast: ${liquidity?.headlineMetric || 'No Shortfall in 60 Days'}
 
-5. FIXED EXPENSES BREAKDOWN:
+5. FIXED EXPENSES BREAKDOWN (Timeline Dates):
 ${fixedListStr || 'No fixed expenses recorded.'}
 
 6. UPCOMING 15-DAY PAYABLES BREAKDOWN:
@@ -107,7 +120,8 @@ ${upcomingListStr || 'No upcoming scheduled payables recorded.'}
 7. TOP CUSTOMER UDHAR ACCOUNTS:
 ${customerListStr || 'No active udhar credit accounts.'}
 
-Please perform a rigorous financial and business-type analysis and return the JSON object as requested.`;
+Please perform a rigorous financial and business-type analysis using RETAINED CASH and return the JSON object as requested.`;
+
 
   return { systemPrompt, userPrompt };
 }
@@ -288,6 +302,525 @@ router.post('/analyze', async (req, res) => {
     return res.status(500).json({
       success: false,
       error: error.message || 'Failed to generate financial prediction',
+    });
+  }
+});
+
+/**
+ * Clamp multiplier values between 0.6 and 1.6 with low <= base <= high
+ */
+export function clampMultipliersList(adjustments = []) {
+  if (!Array.isArray(adjustments)) return [];
+  return adjustments.map((adj) => {
+    let low = Number(adj?.multiplier?.low ?? 1.0);
+    let base = Number(adj?.multiplier?.base ?? 1.0);
+    let high = Number(adj?.multiplier?.high ?? 1.0);
+
+    low = Math.min(1.6, Math.max(0.6, isNaN(low) ? 1.0 : low));
+    base = Math.min(1.6, Math.max(0.6, isNaN(base) ? 1.0 : base));
+    high = Math.min(1.6, Math.max(0.6, isNaN(high) ? 1.0 : high));
+
+    if (low > base) low = base;
+    if (high < base) high = base;
+
+    return {
+      event: adj?.event || 'Upcoming Event',
+      window_start: adj?.window_start || '',
+      window_end: adj?.window_end || '',
+      multiplier: {
+        low: Math.round(low * 100) / 100,
+        base: Math.round(base * 100) / 100,
+        high: Math.round(high * 100) / 100,
+      },
+      confidence: ['low', 'medium', 'high'].includes(adj?.confidence) ? adj.confidence : 'medium',
+      reason:
+        typeof adj?.reason === 'string' && adj.reason.trim()
+          ? adj.reason.trim()
+          : 'Context adjustment based on local seasonal event pattern.',
+    };
+  });
+}
+
+/**
+ * Domain-specific rule generator when LLM is unavailable or offline
+ */
+export function generateDomainAdjustments(businessType, events = []) {
+  const bType = (businessType || 'kirana').toLowerCase();
+  const isSweets = bType.includes('sweet') || bType.includes('bakery') || bType.includes('mithai');
+  const isHardware = bType.includes('hardware') || bType.includes('paint') || bType.includes('electrical');
+  const isStationery = bType.includes('stationer') || bType.includes('book');
+
+  return events.map((ev) => {
+    const name = ev.name || ev.event || '';
+    const start = ev.start || ev.window_start;
+    const end = ev.end || ev.window_end;
+
+    if (isSweets) {
+      if (name.includes('Diwali Pre-Festival') || name.includes('Dhanteras')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.35, base: 1.55, high: 1.6 },
+          confidence: 'high',
+          reason: 'Diwali gifting rush creates surge in orders for sweet boxes and confections.',
+        };
+      }
+      if (name.includes('Diwali / Deepavali')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.25, base: 1.45, high: 1.6 },
+          confidence: 'high',
+          reason: 'Peak festival days with non-stop counter sales for fresh traditional sweets.',
+        };
+      }
+      if (name.includes('Post-Diwali Slump')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 0.6, base: 0.7, high: 0.8 },
+          confidence: 'high',
+          reason: 'Sharp drop in sweet consumption as households finish gifted festival sweets.',
+        };
+      }
+      if (name.includes('Wedding')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.2, base: 1.35, high: 1.5 },
+          confidence: 'high',
+          reason: 'Wedding season drives large catering and bulk sweet box orders.',
+        };
+      }
+      if (name.includes('Christmas')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.25, base: 1.4, high: 1.55 },
+          confidence: 'high',
+          reason: 'Holiday season sparks surging sales for plum cakes, baked cookies, and confections.',
+        };
+      }
+      if (name.includes('New Year')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.2, base: 1.35, high: 1.5 },
+          confidence: 'high',
+          reason: 'New Year celebrations trigger high demand for party desserts and cakes.',
+        };
+      }
+      if (name.includes('Sankranti') || name.includes('Pongal')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.2, base: 1.35, high: 1.5 },
+          confidence: 'high',
+          reason: 'Traditional sesame sweets and jaggery delicacies experience seasonal harvest peak.',
+        };
+      }
+      if (name.includes('School')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.0, base: 1.0, high: 1.05 },
+          confidence: 'low',
+          reason: 'School stationery restock is irrelevant to sweet and bakery shop sales.',
+        };
+      }
+      if (name.includes('Monsoon') || name.includes('Rain')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 0.8, base: 0.9, high: 0.95 },
+          confidence: 'medium',
+          reason: 'Heavy rain spells reduce walk-in customer footfall to confectionery shops.',
+        };
+      }
+    } else if (isHardware) {
+      if (name.includes('Diwali Pre-Festival') || name.includes('Dhanteras')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 0.95, base: 1.1, high: 1.2 },
+          confidence: 'medium',
+          reason: 'Pre-festival home repainting and minor lighting upgrades provide a slight lift to hardware retail.',
+        };
+      }
+      if (name.includes('Diwali / Deepavali')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 0.65, base: 0.7, high: 0.8 },
+          confidence: 'high',
+          reason: 'Construction workers and contractors halt site work for festive holidays, dropping trade sales.',
+        };
+      }
+      if (name.includes('Monsoon') || name.includes('Rain')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 0.6, base: 0.7, high: 0.8 },
+          confidence: 'high',
+          reason: 'Heavy monsoon rains stall exterior painting, masonry, and active construction sites.',
+        };
+      }
+      if (name.includes('School') || name.includes('Wedding')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.0, base: 1.0, high: 1.0 },
+          confidence: 'low',
+          reason: 'This event has no operational relevance to hardware, paints, and electrical stores.',
+        };
+      }
+    } else if (isStationery) {
+      if (name.includes('School Mid-Term')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.3, base: 1.45, high: 1.6 },
+          confidence: 'high',
+          reason: 'School term resumption triggers a rush for notebooks, pens, and student supplies.',
+        };
+      }
+      if (name.includes('Diwali / Deepavali')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 0.65, base: 0.7, high: 0.8 },
+          confidence: 'high',
+          reason: 'Schools, coaching classes, and offices are closed during the Deepavali break.',
+        };
+      }
+    } else {
+      // Default: Kirana / Retail Provisions Store
+      if (name.includes('Diwali Pre-Festival') || name.includes('Dhanteras')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.15, base: 1.3, high: 1.45 },
+          confidence: 'high',
+          reason: 'Households stock up heavily on grocery provisions, edible oil, dry fruits, and puja essentials.',
+        };
+      }
+      if (name.includes('Diwali / Deepavali')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.05, base: 1.15, high: 1.25 },
+          confidence: 'high',
+          reason: 'Morning milk, dairy, and pooja supply sales spike before neighborhood stores close early.',
+        };
+      }
+      if (name.includes('Post-Diwali Slump')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 0.7, base: 0.8, high: 0.9 },
+          confidence: 'high',
+          reason: 'Households consume pantry inventories stocked before the festival, slowing grocery purchases.',
+        };
+      }
+      if (name.includes('Chhath Puja')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.05, base: 1.15, high: 1.25 },
+          confidence: 'medium',
+          reason: 'Puja offerings increase purchases of seasonal produce, wheat flour, and sugarcane.',
+        };
+      }
+      if (name.includes('Karthika Masa') || name.includes('Deepotsava')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.1, base: 1.2, high: 1.3 },
+          confidence: 'high',
+          reason: 'Deepotsava temple visits lift demand for sesame oil, wicks, camphor, and coconuts.',
+        };
+      }
+      if (name.includes('Wedding')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.1, base: 1.2, high: 1.3 },
+          confidence: 'high',
+          reason: 'Family wedding celebrations drive bulk provisions and wholesale kitchen ingredient demand.',
+        };
+      }
+      if (name.includes('Monsoon') || name.includes('Rain')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 0.75, base: 0.85, high: 0.95 },
+          confidence: 'medium',
+          reason: 'Rainy spells temporarily dampen walk-in footfall at neighborhood kirana counters.',
+        };
+      }
+      if (name.includes('New Year')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.1, base: 1.2, high: 1.35 },
+          confidence: 'high',
+          reason: 'Party snacks, beverages, and celebration goods experience brisk neighborhood turnover.',
+        };
+      }
+      if (name.includes('Sankranti') || name.includes('Pongal')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.15, base: 1.25, high: 1.4 },
+          confidence: 'high',
+          reason: 'Harvest festival drives peak demand for jaggery, sesame seeds, and new grain stocks.',
+        };
+      }
+      if (name.includes('School')) {
+        return {
+          event: name,
+          window_start: start,
+          window_end: end,
+          multiplier: { low: 1.0, base: 1.0, high: 1.05 },
+          confidence: 'low',
+          reason: 'School reopening has minimal effect on regular grocery provisions turnover.',
+        };
+      }
+    }
+
+    return {
+      event: name,
+      window_start: start,
+      window_end: end,
+      multiplier: { low: 1.0, base: 1.0, high: 1.0 },
+      confidence: 'low',
+      reason: `Event has normal baseline trading activity for ${businessType || 'this shop'}.`,
+    };
+  });
+}
+
+/**
+ * GET /api/v1/prediction/calendar
+ * Returns static festival & seasonal events calendar for the next 90 days
+ */
+router.get('/calendar', (req, res) => {
+  try {
+    if (fs.existsSync(CALENDAR_PATH)) {
+      const data = JSON.parse(fs.readFileSync(CALENDAR_PATH, 'utf-8'));
+      return res.json({ success: true, events: data });
+    }
+    return res.status(404).json({ success: false, error: 'Calendar file not found' });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/v1/prediction/context-adjuster
+ * LLM-based Festival & Context Sales Adjuster
+ * Clamps multipliers to [0.6, 1.6], falls back to 1.0 on failure/timeout
+ * Caches responses per (business_type, city, month) refreshed daily at most
+ */
+router.post('/context-adjuster', async (req, res) => {
+  try {
+    const {
+      businessType = 'kirana',
+      city = 'Bengaluru',
+      state = 'Karnataka',
+      events: customEvents,
+      apiKey,
+      model = 'nvidia/llama-3.1-nemotron-70b-instruct',
+    } = req.body;
+
+    // Load calendar events
+    let events = customEvents;
+    if (!Array.isArray(events) || events.length === 0) {
+      if (fs.existsSync(CALENDAR_PATH)) {
+        events = JSON.parse(fs.readFileSync(CALENDAR_PATH, 'utf-8'));
+      } else {
+        events = [];
+      }
+    }
+
+    // Cache key: (business_type, city, month)
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const cacheKey = `${businessType.toLowerCase().trim()}_${city.toLowerCase().trim()}_${currentMonth}`;
+    const cached = contextAdjusterCache.get(cacheKey);
+
+    // Refresh daily at most (24 hours)
+    if (cached && Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
+      return res.json({
+        success: true,
+        cached: true,
+        adjustments: cached.adjustments,
+        meta: cached.meta,
+      });
+    }
+
+    // System prompt per exact specifications
+    const systemPrompt = `You adjust small-shop sales forecasts for Indian businesses. You receive business_type, city, and a list of upcoming events. For each event, return a pre-event ramp window and a post-event slump window. Use only the events given. If an event is irrelevant to this business type, return base 1.0. Multipliers must be between 0.6 and 1.6, with low <= base <= high. Give one plain sentence as the reason. If unsure, return 1.0 with confidence 'low'. Return JSON only.`;
+
+    const userPrompt = JSON.stringify({
+      business_type: businessType,
+      city,
+      state,
+      upcoming_events: events.map((e) => ({
+        name: e.name,
+        start: e.start,
+        end: e.end,
+        region: e.region,
+      })),
+    });
+
+    const nvidiaKey = apiKey || process.env.NVIDIA_API_KEY?.trim();
+    const groqKey = process.env.GROQ_API_KEY?.trim();
+
+    let rawResponseText = '';
+    let usedProvider = '';
+
+    // Attempt 1: Call NVIDIA Nemotron (temperature 0, JSON mode)
+    if (nvidiaKey) {
+      try {
+        const nvResp = await fetch(NVIDIA_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${nvidiaKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: 0,
+            response_format: { type: 'json_object' },
+            max_tokens: 2048,
+          }),
+        });
+
+        if (nvResp.ok) {
+          const nvData = await nvResp.json();
+          rawResponseText = nvData?.choices?.[0]?.message?.content || '';
+          usedProvider = 'NVIDIA NIM (Nemotron)';
+        }
+      } catch (err) {
+        console.warn('[Context Adjuster NVIDIA failed]:', err.message);
+      }
+    }
+
+    // Attempt 2: Fallback to Groq if NVIDIA was unavailable or failed
+    if (!rawResponseText && groqKey) {
+      try {
+        const groqResp = await fetch(GROQ_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${groqKey}`,
+          },
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: 0,
+            response_format: { type: 'json_object' },
+          }),
+        });
+
+        if (groqResp.ok) {
+          const groqData = await groqResp.json();
+          rawResponseText = groqData?.choices?.[0]?.message?.content || '';
+          usedProvider = 'Groq Cloud LPU AI';
+        }
+      } catch (err) {
+        console.warn('[Context Adjuster Groq failed]:', err.message);
+      }
+    }
+
+    let parsedAdjustments = null;
+    if (rawResponseText) {
+      try {
+        const clean = rawResponseText.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
+        const parsed = JSON.parse(clean);
+        if (Array.isArray(parsed?.adjustments)) {
+          parsedAdjustments = parsed.adjustments;
+        }
+      } catch (e) {
+        console.warn('[Context Adjuster Parse Warning]:', e.message);
+      }
+    }
+
+    // If neither LLM returned valid adjustments, use domain-specific rule generator
+    if (!parsedAdjustments || parsedAdjustments.length === 0) {
+      parsedAdjustments = generateDomainAdjustments(businessType, events);
+      usedProvider = usedProvider || 'AurumFlow Bounded Domain Engine';
+    }
+
+    // Clamping step: enforce 0.6 - 1.6 and low <= base <= high
+    const clampedAdjustments = clampMultipliersList(parsedAdjustments);
+
+    const meta = {
+      provider: usedProvider,
+      businessType,
+      city,
+      cacheKey,
+      cachedAt: new Date().toISOString(),
+    };
+
+    // Cache result
+    contextAdjusterCache.set(cacheKey, {
+      timestamp: Date.now(),
+      adjustments: clampedAdjustments,
+      meta,
+    });
+
+    return res.json({
+      success: true,
+      cached: false,
+      adjustments: clampedAdjustments,
+      meta,
+    });
+  } catch (err) {
+    console.error('[Context Adjuster Route Error]:', err);
+    // On failure or timeout: fallback to 1.0 for every date and show "Context adjustment unavailable"
+    return res.json({
+      success: true,
+      unavailable: true,
+      warning: 'Context adjustment unavailable',
+      adjustments: (req.body?.events || []).map((e) => ({
+        event: e.name || 'Event',
+        window_start: e.start || '',
+        window_end: e.end || '',
+        multiplier: { low: 1.0, base: 1.0, high: 1.0 },
+        confidence: 'low',
+        reason: 'Context adjustment unavailable',
+      })),
     });
   }
 });
