@@ -927,11 +927,16 @@ export default function PredictiveCashRunwayCard() {
               </span>
             </div>
             <div className="flex items-center space-x-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-500 border border-orange-600"></span>
+              <span className="text-orange-700 font-bold">Restock (Auto)</span>
+            </div>
+            <div className="flex items-center space-x-1.5">
               <span className="w-3 h-0.5 border-t border-dashed border-rose-500"></span>
               <span className="text-rose-700 font-bold">Buffer (₹{analytics.safetyBuffer.toLocaleString()})</span>
             </div>
           </div>
         </div>
+
 
         {/* SVG Canvas */}
         <div className="relative w-full overflow-x-auto bg-white rounded-xl border border-neutral-200/80 p-2">
