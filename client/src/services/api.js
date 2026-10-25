@@ -1,6 +1,30 @@
-import { deduplicateFixedExpenses, deduplicateUpcomingExpenses } from './expenseSync';
+import {
+  deduplicateFixedExpenses,
+  deduplicateUpcomingExpenses,
+  deduplicateEKhataCustomers,
+  deduplicateDailyIncomeRecords,
+} from './expenseSync';
 
-export const API_BASE = (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '') + '/api/v1';
+export const API_BASE = (() => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL.replace(/\/$/, '') + '/api/v1';
+  }
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('aurum_backend_url');
+    if (custom) return custom.replace(/\/$/, '') + '/api/v1';
+
+    // If running in Capacitor/native mobile container without local proxy
+    const isCapacitor =
+      window.location.protocol === 'capacitor:' ||
+      window.location.protocol === 'file:' ||
+      (window.Capacitor?.isNativePlatform && window.Capacitor.isNativePlatform());
+
+    if (isCapacitor) {
+      return 'http://172.22.2.130:5000/api/v1';
+    }
+  }
+  return '/api/v1';
+})();
 
 /**
  * Returns authorization headers with bearer token if logged in
@@ -55,10 +79,11 @@ export async function getFinanceSummary() {
  */
 export async function syncEKhataListToDb(customers) {
   try {
+    const cleanCustomers = deduplicateEKhataCustomers(customers || []);
     const res = await fetch(`${API_BASE}/finance/ekhata/sync`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ customers }),
+      body: JSON.stringify({ customers: cleanCustomers }),
     });
     return await res.json();
   } catch (err) {
@@ -162,7 +187,7 @@ export async function fetchDailyIncomeFromDb() {
     });
     const data = await res.json();
     if (data.success && Array.isArray(data.dailyIncome)) {
-      const records = data.dailyIncome;
+      const records = deduplicateDailyIncomeRecords(data.dailyIncome);
       localStorage.setItem('aurum_all_income_records', JSON.stringify(records));
       const todayStr = new Date().toISOString().split('T')[0];
       const todayItems = records.filter((i) => i.date === todayStr);
@@ -182,10 +207,11 @@ export async function fetchDailyIncomeFromDb() {
  */
 export async function syncDailyIncomeToDb(records) {
   try {
+    const cleanRecords = deduplicateDailyIncomeRecords(records || []);
     const res = await fetch(`${API_BASE}/finance/income/sync`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ records }),
+      body: JSON.stringify({ records: cleanRecords }),
     });
     return await res.json();
   } catch (err) {
@@ -217,8 +243,10 @@ export async function loadUserDataFromDb() {
   if (summaryRes && summaryRes.success && summaryRes.data) {
     const { ekhata, fixedExpenses, upcomingExpenses, dailyIncome, cashflowSettings } = summaryRes.data;
 
-    // Set eKhata
-    localStorage.setItem('aurum_ekhata_data', JSON.stringify(ekhata || []));
+    // Set eKhata (deduplicated)
+    const cleanKhata = deduplicateEKhataCustomers(ekhata || []);
+    localStorage.setItem('aurum_ekhata_data', JSON.stringify(cleanKhata));
+    localStorage.setItem('aurum_ekhata_customers', JSON.stringify(cleanKhata));
     window.dispatchEvent(new Event('aurum_ekhata_updated'));
 
     // Set fixed expenses (deduplicated)
@@ -231,10 +259,11 @@ export async function loadUserDataFromDb() {
     localStorage.setItem('aurum_upcoming_expenses', JSON.stringify(cleanUpcoming));
     window.dispatchEvent(new Event('aurum_expenses_updated'));
 
-    // Set daily income
-    localStorage.setItem('aurum_all_income_records', JSON.stringify(dailyIncome || []));
+    // Set daily income (deduplicated)
+    const cleanIncome = deduplicateDailyIncomeRecords(dailyIncome || []);
+    localStorage.setItem('aurum_all_income_records', JSON.stringify(cleanIncome));
     const todayStr = new Date().toISOString().split('T')[0];
-    const todayItems = (dailyIncome || []).filter((i) => i.date === todayStr);
+    const todayItems = cleanIncome.filter((i) => i.date === todayStr);
     localStorage.setItem('aurum_today_income', JSON.stringify(todayItems));
     window.dispatchEvent(new Event('aurum_income_updated'));
 

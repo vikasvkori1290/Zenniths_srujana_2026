@@ -25,6 +25,7 @@ import { useAuth } from '../context/AuthContext';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 import { getStoredCashflowSettings, calculateBaselineSales } from '../services/predictiveAnalytics';
 import { syncDailyIncomeToDb, fetchDailyIncomeFromDb } from '../services/api';
+import { deduplicateDailyIncomeRecords } from '../services/expenseSync';
 
 // Date utility helpers
 const getLocalDateString = (d = new Date()) => {
@@ -82,7 +83,7 @@ export default function IncomePage() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return deduplicateDailyIncomeRecords(parsed);
       } catch (e) {}
     }
     return [];
@@ -118,7 +119,7 @@ export default function IncomePage() {
       setIsLoadingDb(true);
       const records = await fetchDailyIncomeFromDb();
       if (!isCancelled && records && Array.isArray(records)) {
-        setAllIncomeRecords(records);
+        setAllIncomeRecords(deduplicateDailyIncomeRecords(records));
       }
       if (!isCancelled) setIsLoadingDb(false);
     }
@@ -131,9 +132,10 @@ export default function IncomePage() {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
+            const clean = deduplicateDailyIncomeRecords(parsed);
             setAllIncomeRecords((prev) => {
-              if (JSON.stringify(prev) === JSON.stringify(parsed)) return prev;
-              return parsed;
+              if (JSON.stringify(prev) === JSON.stringify(clean)) return prev;
+              return clean;
             });
           }
         }
@@ -218,7 +220,7 @@ export default function IncomePage() {
     };
 
     localStorage.setItem('aurum_today_gross_profit_entered', 'true');
-    setAllIncomeRecords((prev) => [newItem, ...prev]);
+    setAllIncomeRecords((prev) => deduplicateDailyIncomeRecords([newItem, ...prev]));
     setForm({ date: todayStr, source: '', amount: '', mode: 'UPI', category: 'In-Store Retail' });
     setPendingHighValueEntry(null);
     setIsModalOpen(false);

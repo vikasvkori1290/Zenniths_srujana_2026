@@ -7,10 +7,10 @@
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
-    "start": "npm run start --prefix server",
-    "build": "npm run build --prefix client",
-    "test": "node --test client/src/services/__tests__/cashFlow.test.js",
-    "install:all": "npm install && npm install --prefix client && npm install --prefix server"
+    "install:all": "npm install && npm --prefix client install && npm --prefix server install",
+    "build": "npm --prefix client install && npm --prefix client run build && npm --prefix server install",
+    "start": "node server/src/server.js",
+    "test": "node --test client/src/services/__tests__/cashFlow.test.js"
   },
 
   "keywords": ["mern", "react", "express", "mongodb", "node", "tailwindcss"],

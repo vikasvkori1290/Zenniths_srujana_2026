@@ -145,23 +145,38 @@ export const register = async (req, res) => {
  */
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, identifier, phone } = req.body;
+    const inputVal = String(email || identifier || phone || '').trim();
 
-    if (!email || !password) {
+    if (!inputVal || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide both email and password',
+        message: 'Please provide both email/phone and password',
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedInput = inputVal.toLowerCase();
+    const digitsOnly = inputVal.replace(/\D/g, '');
 
     if (isDbConnected()) {
-      const user = await User.findOne({ email: normalizedEmail });
+      // Flexible lookup: match email, phone (with/without country code), or name
+      const orConditions = [
+        { email: normalizedInput },
+        { email: new RegExp(`^${normalizedInput}$`, 'i') },
+        { phone: inputVal },
+        { name: new RegExp(`^${normalizedInput}$`, 'i') },
+      ];
+
+      if (digitsOnly.length >= 10) {
+        const last10 = digitsOnly.slice(-10);
+        orConditions.push({ phone: new RegExp(last10) });
+      }
+
+      const user = await User.findOne({ $or: orConditions });
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email or password',
+          message: 'Invalid email, phone, or password',
         });
       }
 
@@ -169,7 +184,7 @@ export const login = async (req, res) => {
       if (!isMatch) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email or password',
+          message: 'Invalid email, phone, or password',
         });
       }
 
@@ -182,11 +197,27 @@ export const login = async (req, res) => {
       });
     } else {
       // In-memory fallback
-      const user = inMemoryUsers.get(normalizedEmail);
+      let user = inMemoryUsers.get(normalizedInput);
+      if (!user) {
+        for (const u of inMemoryUsers.values()) {
+          const uEmail = (u.email || '').toLowerCase();
+          const uPhone = (u.phone || '').replace(/\D/g, '');
+          const uName = (u.name || '').toLowerCase();
+          if (
+            uEmail === normalizedInput ||
+            uName === normalizedInput ||
+            (digitsOnly.length >= 10 && uPhone.endsWith(digitsOnly.slice(-10)))
+          ) {
+            user = u;
+            break;
+          }
+        }
+      }
+
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email or password',
+          message: 'Invalid email, phone, or password',
         });
       }
 
@@ -194,7 +225,7 @@ export const login = async (req, res) => {
       if (!isMatch) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email or password',
+          message: 'Invalid email, phone, or password',
         });
       }
 

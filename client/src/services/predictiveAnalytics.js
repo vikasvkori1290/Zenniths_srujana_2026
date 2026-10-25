@@ -399,6 +399,9 @@ export function calculateTimelineCashflow({
 
   const today = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
 
+  let prevDaySales = todayReceivedSales > 0 ? todayReceivedSales : baselineSales;
+  let prevDayGrossProfit = Math.round(prevDaySales * marginFraction);
+
   for (let d = 1; d <= horizonDays; d++) {
     const dDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + d);
     const dateStr = dDate.toISOString().split('T')[0];
@@ -414,6 +417,20 @@ export function calculateTimelineCashflow({
     const adjSalesBase = Math.round(dayBaselineSales * multBase);
     const adjSalesLow = Math.round(dayBaselineSales * multLow);
     const adjSalesHigh = Math.round(dayBaselineSales * multHigh);
+
+    // Daily gross profit on this forecast day
+    const dailyGrossProfit = Math.round(adjSalesBase * marginFraction);
+    const baselineGrossProfit = Math.round(dayBaselineSales * marginFraction);
+
+    // Percentage change in gross profit compared to the previous day (last day):
+    let grossProfitChangePct = 0;
+    if (prevDayGrossProfit > 0) {
+      grossProfitChangePct = Math.round(((dailyGrossProfit - prevDayGrossProfit) / prevDayGrossProfit) * 1000) / 10;
+    }
+    const grossProfitDiff = dailyGrossProfit - prevDayGrossProfit;
+    const grossProfitVsBaselinePct = baselineGrossProfit > 0
+      ? Math.round(((dailyGrossProfit - baselineGrossProfit) / baselineGrossProfit) * 1000) / 10
+      : 0;
 
     // Future retained cash:
     // retained[d] = adj_sales * margin - running_cost
@@ -563,7 +580,19 @@ export function calculateTimelineCashflow({
       hasDues,
       hasKhata,
       markerColor,
+      // Gross Profit on this day and change from last day
+      dailyGrossProfit,
+      prevDayGrossProfit,
+      prevDaySales,
+      baselineGrossProfit,
+      grossProfitChangePct,
+      grossProfitDiff,
+      grossProfitVsBaselinePct,
     };
+
+    // Advance previous day values for next day's day-over-day calculation
+    prevDaySales = adjSalesBase;
+    prevDayGrossProfit = dailyGrossProfit;
 
     timeline.push(point);
     lowScenarioTimeline.push({

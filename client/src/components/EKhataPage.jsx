@@ -38,8 +38,8 @@ import {
 import { parseLocalSmartIntent, parseWithGroqAI, checkGroqStatus } from '../services/voiceParser';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 import { speechService } from '../services/speechSynthesis';
-import { audioVoiceRecorder } from '../services/audioVoiceRecorder';
 import { syncEKhataListToDb } from '../services/api';
+import { deduplicateEKhataCustomers } from '../services/expenseSync';
 
 function WhatsAppIcon({ className = 'w-3.5 h-3.5' }) {
   return (
@@ -52,15 +52,12 @@ function WhatsAppIcon({ className = 'w-3.5 h-3.5' }) {
 export default function EKhataPage() {
   // Customer Khata Ledger
   const [khataList, setKhataList] = useState(() => {
-    const saved = localStorage.getItem('aurum_ekhata_data');
+    const saved = localStorage.getItem('aurum_ekhata_data') || localStorage.getItem('aurum_ekhata_customers');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((item, idx) => ({
-            ...item,
-            idNumber: item.idNumber !== undefined && item.idNumber !== null ? item.idNumber : idx + 1,
-          }));
+          return deduplicateEKhataCustomers(parsed);
         }
       } catch (e) {
         // fallback
@@ -88,12 +85,10 @@ export default function EKhataPage() {
   const [editTab, setEditTab] = useState('TXN'); // 'TXN' or 'DETAILS'
 
   // Voice Engine & Audible Voice-To-Speech Settings
-  const [voiceEngineMode, setVoiceEngineMode] = useState(() => localStorage.getItem('aurum_voice_engine') || 'whisper'); // 'whisper' | 'webspeech'
   const [voiceLanguage, setVoiceLanguage] = useState(() => localStorage.getItem('aurum_voice_lang') || 'en-IN'); // 'en-IN', 'hi-IN', 'kn-IN'
   const [isSpeechOutputEnabled, setIsSpeechOutputEnabled] = useState(() => speechService.getIsEnabled());
   const [isSpeechSpeaking, setIsSpeechSpeaking] = useState(false);
-  const [audioVolume, setAudioVolume] = useState(0); // 0-100 live microphone volume level
-  const [isWhisperRecording, setIsWhisperRecording] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
 
   // Transaction states for simple New Transaction modal
   const [newTxType, setNewTxType] = useState('ADD'); // 'ADD' or 'PAY'
@@ -116,10 +111,13 @@ export default function EKhataPage() {
   const [isDictatingCustomer, setIsDictatingCustomer] = useState(false);
 
   const recognitionRef = useRef(null);
+  const modalRecognitionRef = useRef(null);
   const khataListRef = useRef(khataList);
-  const isStartingRef = useRef(false);
-  const holdStartTimeRef = useRef(0);
+  const isListeningRef = useRef(false);
   const isHoldingRef = useRef(false);
+  const holdStartTimeRef = useRef(0);
+  const accumulatedTranscriptRef = useRef('');
+  const hasParsedThisSessionRef = useRef(false);
 
   // Keep khataListRef synchronized without causing recognition re-initialization
   useEffect(() => {
@@ -127,10 +125,6 @@ export default function EKhataPage() {
   }, [khataList]);
 
   // Persist Voice Settings
-  useEffect(() => {
-    localStorage.setItem('aurum_voice_engine', voiceEngineMode);
-  }, [voiceEngineMode]);
-
   useEffect(() => {
     localStorage.setItem('aurum_voice_lang', voiceLanguage);
   }, [voiceLanguage]);
@@ -159,13 +153,49 @@ export default function EKhataPage() {
     });
   }, []);
 
+  const isInitialMountRef = useRef(true);
+
+  // Listen to external updates (e.g. from MongoDB Atlas load or other tabs)
+  useEffect(() => {
+    const handleSync = () => {
+      try {
+        const saved = localStorage.getItem('aurum_ekhata_data') || localStorage.getItem('aurum_ekhata_customers');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const clean = deduplicateEKhataCustomers(parsed);
+            setKhataList((prev) => {
+              if (JSON.stringify(prev) === JSON.stringify(clean)) return prev;
+              return clean;
+            });
+          }
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('aurum_ekhata_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('aurum_ekhata_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
   // Sync state to localStorage and MongoDB Atlas
   useEffect(() => {
-    localStorage.setItem('aurum_ekhata_data', JSON.stringify(khataList));
-    localStorage.setItem('aurum_ekhata_customers', JSON.stringify(khataList));
-    window.dispatchEvent(new Event('aurum_ekhata_updated'));
-    window.dispatchEvent(new Event('storage'));
-    syncEKhataListToDb(khataList).catch(() => {});
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+    const cleanList = deduplicateEKhataCustomers(khataList);
+    const serialized = JSON.stringify(cleanList);
+    if (localStorage.getItem('aurum_ekhata_data') !== serialized) {
+      localStorage.setItem('aurum_ekhata_data', serialized);
+      localStorage.setItem('aurum_ekhata_customers', serialized);
+      window.dispatchEvent(new Event('aurum_ekhata_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+    syncEKhataListToDb(cleanList).catch(() => {});
   }, [khataList]);
 
   useEffect(() => {
@@ -211,174 +241,150 @@ export default function EKhataPage() {
     return 1 - dist / Math.max(lenA, lenB);
   };
 
-  // Setup Web Speech API for voice listening with live interim text (stable setup without khataList churn)
+  // Native Web Speech API recognition (Simple, fast, reliable parsing)
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.lang = voiceLanguage;
+    const SpeechRecognition = typeof window !== 'undefined'
+      ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+      : null;
 
-        recognition.onstart = () => {
-          setIsListening(true);
-          setVoiceTranscript('Listening... Speak any command in English or Hindi (Add, Deduct, Rename, Settle, Date)');
-        };
-
-        recognition.onresult = async (event) => {
-          let interimTranscript = '';
-          let finalTranscript = '';
-
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript;
-            } else {
-              interimTranscript += event.results[i][0].transcript;
-            }
-          }
-
-          const liveText = finalTranscript || interimTranscript;
-          if (liveText && liveText.trim()) {
-            setManualText(liveText.trim());
-          }
-
-          if (finalTranscript && finalTranscript.trim()) {
-            setVoiceTranscript(`"${finalTranscript.trim()}"`);
-            await handleExecuteVoiceCommand(finalTranscript.trim());
-          }
-        };
-
-        recognition.onerror = (event) => {
-          console.warn('Speech recognition warning:', event.error);
-          setIsListening(false);
-          if (event.error === 'network' || event.error === 'no-speech') {
-            showFeedback(`Web Speech issue (${event.error}). Groq Whisper Turbo is also available for high accuracy!`, 'warning');
-          }
-        };
-
-        recognition.onend = () => {
-          setIsListening(false);
-        };
-
-        recognitionRef.current = recognition;
-      } catch (err) {
-        console.warn('SpeechRecognition init error:', err);
-      }
-    }
-  }, [groqKey, voiceLanguage]);
-
-  // Direct Audio Recording via Groq Whisper Large V3 Turbo
-  const startWhisperRecording = async () => {
-    try {
-      setIsListening(true);
-      setIsWhisperRecording(true);
-      setVoiceTranscript('🎙️ Recording high-fidelity audio... Speak your command in English or Hindi');
-      setManualText('');
-      await audioVoiceRecorder.start({
-        language: voiceLanguage ? voiceLanguage.split('-')[0] : 'en',
-        onVolumeChange: (vol) => setAudioVolume(vol),
-      });
-    } catch (err) {
-      setIsListening(false);
-      setIsWhisperRecording(false);
-      setAudioVolume(0);
-      showFeedback(`Microphone error: ${err.message || 'Microphone access denied'}. Please check browser mic permissions.`, 'error');
-    }
-  };
-
-  const stopWhisperRecording = async () => {
-    setIsListening(false);
-    setIsWhisperRecording(false);
-    setAudioVolume(0);
-    setIsProcessing(true);
-    setVoiceTranscript('⚡ Transcribing via Groq Whisper Large V3 Turbo (LPU Cloud)...');
-    try {
-      const res = await audioVoiceRecorder.stop();
-      if (res && res.text && res.text.trim()) {
-        const transcript = res.text.trim();
-        setVoiceTranscript(`"${transcript}"`);
-        setManualText(transcript);
-        await handleExecuteVoiceCommand(transcript);
-      } else {
-        setVoiceTranscript('');
-        showFeedback('No audible speech detected. Please hold or speak clearly for at least 1-2 seconds!', 'warning');
-      }
-    } catch (err) {
-      console.error('Whisper transcription error:', err);
-      setVoiceTranscript('');
-      const hasWebSpeech = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
-      if (hasWebSpeech) {
-        setVoiceEngineMode('webspeech');
-        showFeedback(`Whisper: ${err.message}. Switched to Web Speech mode. Try speaking now!`, 'warning');
-      } else {
-        showFeedback(`Whisper: ${err.message}. Please use the 1-click test chips or type below.`, 'error');
-      }
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Toggle Voice Input between Whisper Turbo & Web Speech API
-  const toggleListening = async () => {
-    if (isStartingRef.current) return;
-
-    const hasWebSpeech = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
-    const shouldUseWhisper = voiceEngineMode === 'whisper' || !hasWebSpeech;
-
-    if (shouldUseWhisper) {
-      if (isListening || isWhisperRecording) {
-        await stopWhisperRecording();
-      } else {
-        await startWhisperRecording();
-      }
+    if (!SpeechRecognition) {
+      console.warn('SpeechRecognition API not available in this browser.');
       return;
     }
 
-    // Web Speech API mode
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = voiceLanguage || 'en-IN';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        isListeningRef.current = true;
+        hasParsedThisSessionRef.current = false;
+      };
+
+      recognition.onresult = (event) => {
+        let interim = '';
+        let final = '';
+
+        for (let i = 0; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript + ' ';
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+
+        const currentSpoken = (final + interim).trim();
+        accumulatedTranscriptRef.current = currentSpoken;
+        if (currentSpoken) {
+          setLiveTranscript(currentSpoken);
+          setVoiceTranscript(`"${currentSpoken}"`);
+          setManualText(currentSpoken);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn('Speech recognition warning:', event.error);
+        if (event.error !== 'no-speech') {
+          setIsListening(false);
+          isListeningRef.current = false;
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        isListeningRef.current = false;
+        if (!hasParsedThisSessionRef.current && accumulatedTranscriptRef.current && accumulatedTranscriptRef.current.trim()) {
+          const textToParse = accumulatedTranscriptRef.current.trim();
+          hasParsedThisSessionRef.current = true;
+          accumulatedTranscriptRef.current = '';
+          handleExecuteVoiceCommand(textToParse);
+        }
+      };
+
+      recognitionRef.current = recognition;
+    } catch (err) {
+      console.warn('SpeechRecognition init error:', err);
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
+    };
+  }, [voiceLanguage]);
+
+  // Push-to-Talk Hold Handlers (Listen while holding, parse immediately upon release)
+  const handleHoldStart = (e) => {
+    if (isProcessing) return;
+    isHoldingRef.current = true;
+    holdStartTimeRef.current = Date.now();
+    hasParsedThisSessionRef.current = false;
+    accumulatedTranscriptRef.current = '';
+    setLiveTranscript('');
+
     if (!recognitionRef.current) {
-      setVoiceEngineMode('whisper');
-      await startWhisperRecording();
+      showFeedback('Speech Recognition is supported in Chrome, Edge, and Safari.', 'warning');
       return;
     }
 
-    if (isListening) {
+    try {
+      if (!isListeningRef.current) {
+        recognitionRef.current.lang = voiceLanguage || 'en-IN';
+        recognitionRef.current.start();
+      }
+    } catch (err) {
+      console.warn('Recognition start error:', err);
+    }
+  };
+
+  const handleHoldEnd = (e) => {
+    if (!isHoldingRef.current) return;
+    isHoldingRef.current = false;
+
+    // Small delay to capture trailing words before stopping
+    setTimeout(() => {
+      if (recognitionRef.current && isListeningRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {}
+      } else if (!hasParsedThisSessionRef.current && accumulatedTranscriptRef.current && accumulatedTranscriptRef.current.trim()) {
+        const textToParse = accumulatedTranscriptRef.current.trim();
+        hasParsedThisSessionRef.current = true;
+        accumulatedTranscriptRef.current = '';
+        handleExecuteVoiceCommand(textToParse);
+      }
+    }, 180);
+  };
+
+  // Click/Tap toggle handler for 1-tap mic operation
+  const handleClickMic = () => {
+    if (isProcessing) return;
+
+    if (!recognitionRef.current) {
+      showFeedback('Speech Recognition is supported in Chrome, Edge, and Safari.', 'warning');
+      return;
+    }
+
+    if (isListeningRef.current) {
       try {
         recognitionRef.current.stop();
       } catch (e) {}
-      setIsListening(false);
     } else {
+      accumulatedTranscriptRef.current = '';
+      hasParsedThisSessionRef.current = false;
+      setLiveTranscript('');
       try {
-        isStartingRef.current = true;
-        setManualText('');
-        recognitionRef.current.lang = voiceLanguage;
+        recognitionRef.current.lang = voiceLanguage || 'en-IN';
         recognitionRef.current.start();
-        setTimeout(() => { isStartingRef.current = false; }, 300);
       } catch (err) {
-        isStartingRef.current = false;
-        console.warn('Web Speech start failed, falling back to Whisper Turbo:', err);
-        setVoiceEngineMode('whisper');
-        await startWhisperRecording();
+        console.warn('Recognition start error:', err);
       }
     }
-  };
-
-  // Push-to-Talk Hold Handlers (Continuously listen on hold, parse on release)
-  const handleHoldStart = async (e) => {
-    if (isHoldingRef.current || isProcessing) return;
-    isHoldingRef.current = true;
-    holdStartTimeRef.current = Date.now();
-    await startWhisperRecording();
-  };
-
-  const handleHoldEnd = async (e) => {
-    if (!isHoldingRef.current) return;
-    isHoldingRef.current = false;
-    const duration = Date.now() - holdStartTimeRef.current;
-    if (duration < 400) {
-      showFeedback('Hold the mic button continuously while speaking, then release your hand to parse!', 'warning');
-    }
-    await stopWhisperRecording();
   };
 
   const toggleSpeechOutput = () => {
@@ -406,11 +412,11 @@ export default function EKhataPage() {
       const parsed = await parseWithGroqAI({
         text: rawText,
         apiKey: groqKey,
-        currentCustomers: khataList,
+        currentCustomers: khataListRef.current || khataList,
       });
-      setLastExtracted(parsed);
 
       if (!parsed || (!parsed.name && parsed.targetId === null && parsed.targetId === undefined)) {
+        setLastExtracted(null);
         showFeedback(
           `Could not identify customer name or ID from: "${rawText}". Please mention the person name or ID number!`,
           'error'
@@ -418,6 +424,7 @@ export default function EKhataPage() {
         return;
       }
 
+      setLastExtracted(parsed);
       handleVoiceCrudOperation(parsed, rawText);
     } catch (err) {
       console.error('Voice execution error:', err);
@@ -454,10 +461,11 @@ export default function EKhataPage() {
         }
       }
 
-      // 3. Exact name match (case-insensitive)
+      // 3. Exact name match (case-insensitive + trimmed)
       if (existingIndex === -1 && name) {
+        const targetClean = name.trim().toLowerCase();
         existingIndex = prevList.findIndex(
-          (c) => c.name.toLowerCase() === name.toLowerCase()
+          (c) => c.name && c.name.trim().toLowerCase() === targetClean
         );
       }
 
@@ -1042,80 +1050,133 @@ Thank you for your business! 🙏
     };
 
     if (isDictatingCustomer) {
-      if (audioVoiceRecorder.isRecording) {
-        setIsDictatingCustomer(false);
-        const res = await audioVoiceRecorder.stop();
-        if (res && res.text) processTranscriptText(res.text);
+      if (modalRecognitionRef.current) {
+        try {
+          modalRecognitionRef.current.stop();
+        } catch (e) {}
       }
+      setIsDictatingCustomer(false);
       return;
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const canUseWebSpeech = voiceEngineMode === 'webspeech' && Boolean(SpeechRecognition);
+    const SpeechRecognition = typeof window !== 'undefined'
+      ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+      : null;
 
-    if (canUseWebSpeech) {
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.lang = voiceLanguage;
-        recognition.continuous = false;
-        recognition.interimResults = false;
-
-        recognition.onstart = () => {
-          setIsDictatingCustomer(true);
-          showFeedback('🎙️ Listening... Say e.g. "Customer Ramesh, phone 9876543210, amount 500, due 30 November"', 'info');
-        };
-
-        recognition.onresult = (event) => {
-          setIsDictatingCustomer(false);
-          processTranscriptText(event.results[0][0].transcript);
-        };
-
-        recognition.onerror = () => {
-          setIsDictatingCustomer(false);
-          showFeedback('Voice listening stopped. You can also enter details manually.', 'warning');
-        };
-
-        recognition.onend = () => {
-          setIsDictatingCustomer(false);
-        };
-
-        recognition.start();
-        return;
-      } catch (err) {
-        console.warn('Web speech failed in modal, using Whisper:', err);
-      }
+    if (!SpeechRecognition) {
+      showFeedback('Voice dictation is supported in Chrome, Edge, and Safari.', 'warning');
+      return;
     }
 
-    // Whisper Turbo Direct Audio Capture
     try {
-      setIsDictatingCustomer(true);
-      showFeedback('🎙️ Recording with Groq Whisper... Speak customer name, amount, and due date, then tap mic again when done.', 'info');
-      await audioVoiceRecorder.start({
-        language: voiceLanguage ? voiceLanguage.split('-')[0] : 'en',
-      });
+      const recognition = new SpeechRecognition();
+      recognition.lang = voiceLanguage || 'en-IN';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        setIsDictatingCustomer(true);
+        showFeedback('🎙️ Listening... Say e.g. "Customer Ramesh, phone 9876543210, amount 500, due 30 November"', 'info');
+      };
+
+      recognition.onresult = (event) => {
+        setIsDictatingCustomer(false);
+        if (event.results && event.results[0] && event.results[0][0]) {
+          processTranscriptText(event.results[0][0].transcript);
+        }
+      };
+
+      recognition.onerror = () => {
+        setIsDictatingCustomer(false);
+        showFeedback('Voice listening stopped. You can also enter details manually.', 'warning');
+      };
+
+      recognition.onend = () => {
+        setIsDictatingCustomer(false);
+      };
+
+      modalRecognitionRef.current = recognition;
+      recognition.start();
     } catch (err) {
       setIsDictatingCustomer(false);
-      showFeedback(`Could not access microphone: ${err.message}`, 'error');
+      showFeedback('Could not access microphone. Please check browser mic permissions.', 'error');
     }
   };
 
   // Create new customer manually / via voice
   const handleCreateNewCustomer = (e) => {
     e.preventDefault();
-    if (!newCustomerForm.name.trim()) {
+    const cleanName = newCustomerForm.name.trim();
+    if (!cleanName) {
       showFeedback('Customer name is required.', 'error');
+      return;
+    }
+
+    const amountVal = Number(newCustomerForm.amount) || 0;
+    const dateStr = `Today at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const shouldNotify = newCustomerForm.notifyImmediately;
+
+    // Check if customer already exists by normalized name (case-insensitive + trimmed)
+    const existingIndex = khataList.findIndex(
+      (c) => c.name && c.name.trim().toLowerCase() === cleanName.toLowerCase()
+    );
+
+    if (existingIndex !== -1) {
+      const existing = khataList[existingIndex];
+      const updatedTotal = existing.totalAmount + amountVal;
+      const updatedList = [...khataList];
+      const newDueDate = newCustomerForm.dueDate?.trim() && newCustomerForm.dueDate.trim() !== 'Not Specified'
+        ? newCustomerForm.dueDate.trim()
+        : existing.dueDate;
+      const newPhone = newCustomerForm.phone?.trim() && newCustomerForm.phone.trim() !== 'Not Added'
+        ? newCustomerForm.phone.trim()
+        : existing.phone;
+
+      const updatedCustomer = {
+        ...existing,
+        totalAmount: updatedTotal,
+        dueDate: newDueDate,
+        phone: newPhone,
+        status: updatedTotal === 0 ? 'Settled' : 'Pending',
+        lastUpdated: dateStr,
+        history: amountVal !== 0 ? [
+          {
+            amount: amountVal,
+            date: dateStr,
+            note: newCustomerForm.note.trim() || `Added ₹${amountVal} via Customer Form`,
+          },
+          ...(existing.history || []),
+        ] : existing.history,
+      };
+
+      updatedList[existingIndex] = updatedCustomer;
+      setKhataList(deduplicateEKhataCustomers(updatedList));
+      setIsAddCustomerModalOpen(false);
+
+      setNewCustomerForm({
+        name: '',
+        phone: '',
+        amount: '',
+        dueDate: '30 November',
+        note: 'Initial credit balance',
+        notifyImmediately: false,
+      });
+
+      showFeedback(`Customer #${existing.idNumber} (${existing.name}) already exists! Added ₹${amountVal.toLocaleString()} (New Balance: ₹${updatedTotal.toLocaleString()}).`, 'success');
+
+      if (shouldNotify && updatedCustomer.phone && updatedCustomer.phone !== 'Not Added') {
+        setTimeout(() => sendWhatsAppMessage(updatedCustomer), 300);
+      }
       return;
     }
 
     const maxId = khataList.reduce((max, c) => Math.max(max, c.idNumber || 0), 0);
     const assignedIdNumber = maxId + 1;
-    const amountVal = Number(newCustomerForm.amount) || 0;
-    const dateStr = `Today at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
     const newCustomer = {
       id: `cust-${Date.now()}`,
       idNumber: assignedIdNumber,
-      name: newCustomerForm.name.trim(),
+      name: cleanName,
       phone: newCustomerForm.phone.trim() || 'Not Added',
       dueDate: newCustomerForm.dueDate.trim() || 'Not Specified',
       totalAmount: amountVal,
@@ -1130,10 +1191,8 @@ Thank you for your business! 🙏
       ],
     };
 
-    setKhataList([newCustomer, ...khataList]);
+    setKhataList(deduplicateEKhataCustomers([newCustomer, ...khataList]));
     setIsAddCustomerModalOpen(false);
-
-    const shouldNotify = newCustomerForm.notifyImmediately;
 
     setNewCustomerForm({
       name: '',
@@ -1279,21 +1338,10 @@ Thank you for your business! 🙏
           </div>
         )}
 
-        {/* PUSH-TO-TALK VOICE CRUD MICROPHONE */}
-        <div className="bg-linear-to-b from-neutral-900 to-black rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-neutral-800 flex flex-col items-center justify-center text-center relative overflow-hidden select-none">
-          {/* Subtle background amber glow */}
-          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-
-          {/* Large Hold-To-Speak Microphone Button */}
-          <div className="relative my-2">
-            {/* Pulsing ring animations while holding/listening */}
-            {isListening && (
-              <>
-                <div className="absolute -inset-4 rounded-full bg-amber-400/30 animate-ping pointer-events-none" />
-                <div className="absolute -inset-2 rounded-full bg-amber-500/40 animate-pulse pointer-events-none" />
-              </>
-            )}
-
+        {/* COMPACT & MINIMAL VOICE CRUD MIC BAR */}
+        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 text-white shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 select-none">
+          <div className="flex items-center space-x-3 w-full sm:w-auto">
+            {/* Minimal Round Mic Button */}
             <button
               type="button"
               onMouseDown={handleHoldStart}
@@ -1302,84 +1350,72 @@ Thank you for your business! 🙏
               onTouchStart={handleHoldStart}
               onTouchEnd={handleHoldEnd}
               onTouchCancel={handleHoldEnd}
+              onClick={handleClickMic}
               onContextMenu={(e) => e.preventDefault()}
               disabled={isProcessing}
-              className={`relative w-24 h-24 sm:w-28 sm:h-28 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-2xl focus:outline-none select-none ${
+              className={`relative w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-all duration-150 cursor-pointer focus:outline-none select-none ${
                 isListening
-                  ? 'bg-linear-to-tr from-amber-500 to-yellow-300 text-black scale-110 shadow-amber-500/60 ring-4 ring-yellow-400'
+                  ? 'bg-yellow-400 text-black scale-105 shadow-md shadow-yellow-400/50 ring-2 ring-yellow-300'
                   : isProcessing
-                  ? 'bg-neutral-800 text-amber-400 cursor-not-allowed opacity-90'
-                  : 'bg-neutral-950 text-yellow-300 hover:text-yellow-200 hover:scale-105 active:scale-95 border-2 border-yellow-400/80 hover:border-yellow-300 shadow-amber-500/20'
+                  ? 'bg-neutral-800 text-amber-400 cursor-not-allowed opacity-80'
+                  : 'bg-neutral-800 text-yellow-300 hover:text-yellow-200 hover:bg-neutral-700 hover:scale-105 border border-yellow-400/40'
               }`}
-              title="Hold continuously to speak. Release hands to parse voice."
-              aria-label="Hold to speak microphone"
+              title="Hold to speak (or tap to toggle). Release to parse voice command."
+              aria-label="Voice microphone"
             >
+              {isListening && (
+                <span className="absolute -inset-1 rounded-full bg-yellow-400/30 animate-ping pointer-events-none" />
+              )}
               {isProcessing ? (
-                <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin text-amber-400" />
+                <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
               ) : (
-                <Mic className={`w-10 h-10 sm:w-12 sm:h-12 ${isListening ? 'animate-pulse text-black' : 'text-yellow-300'}`} />
+                <Mic className={`w-5 h-5 ${isListening ? 'animate-pulse text-black' : 'text-yellow-300'}`} />
               )}
             </button>
+
+            {/* Status / Instructions / Live transcript */}
+            <div className="min-w-0 flex-1">
+              {isListening ? (
+                <div className="space-y-0.5">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping shrink-0" />
+                    <span className="text-xs font-bold text-yellow-300">
+                      Listening... Release or tap when done
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-300 font-mono truncate">
+                    {liveTranscript ? `"${liveTranscript}"` : 'Listening for your voice...'}
+                  </p>
+                </div>
+              ) : isProcessing ? (
+                <div className="flex items-center space-x-1.5 text-xs text-amber-300">
+                  <Sparkles className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
+                  <span className="font-semibold">Parsing voice command with AI...</span>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-bold text-white">Hold or tap mic to speak</span>
+                    <span className="text-[10px] text-neutral-400 hidden md:inline">· Voice CRUD</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400 truncate">
+                    e.g. &ldquo;Add 500 to Ramesh&rdquo; · &ldquo;Remove 200 from ID 1&rdquo; · &ldquo;Delete Nitish&rdquo;
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Status Label & Instructions */}
-          <div className="mt-3 space-y-1 z-10 max-w-md">
-            {isListening ? (
-              <div className="flex flex-col items-center space-y-2">
-                <div className="flex items-center space-x-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
-                  <span className="text-base font-black text-yellow-300 font-['Outfit'] uppercase tracking-wider">
-                    Listening... Speak Now
-                  </span>
-                </div>
-                {/* Live audio volume wave bars */}
-                <div className="flex items-end justify-center space-x-1 h-5 py-0.5">
-                  {[20, 50, 85, 100, 70, 40, 80, 55, 90, 60, 30].map((h, idx) => {
-                    const barHeight = Math.max(4, Math.min(20, Math.round((h * Math.max(30, audioVolume)) / 100)));
-                    return (
-                      <span
-                        key={idx}
-                        className="w-1.5 bg-yellow-400 rounded-full transition-all duration-75"
-                        style={{ height: `${barHeight}px` }}
-                      />
-                    );
-                  })}
-                </div>
-                <p className="text-xs font-semibold text-neutral-300 animate-pulse">
-                  Release your hand when done to parse voice with Groq AI
-                </p>
-              </div>
-            ) : isProcessing ? (
-              <div className="flex flex-col items-center space-y-1">
-                <span className="text-sm font-bold text-amber-300 flex items-center space-x-1.5">
-                  <Sparkles className="w-4 h-4 animate-spin text-amber-400" />
-                  <span>Parsing voice command with Groq AI...</span>
-                </span>
-                <p className="text-xs text-neutral-400">Updating ledger balance & history</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center space-y-1">
-                <h3 className="text-sm sm:text-base font-bold text-neutral-100 flex items-center justify-center space-x-1.5">
-                  <span>Hold to Speak</span>
-                </h3>
-                <p className="text-xs text-neutral-400">
-                  Hold continuously while speaking, then release to parse.
-                </p>
-                <p className="text-[11px] text-amber-300/80 font-mono pt-1">
-                  e.g. "Add 500 to Ramesh" · "Remove 200 from id 1" · "Delete Nitish"
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Transcript & Last Parsed Action Confirmation Badge */}
+          {/* Transcript / Last Action Badge */}
           {voiceTranscript && (
-            <div className="mt-4 px-4 py-2 rounded-2xl bg-neutral-900/90 border border-neutral-700 text-xs text-neutral-200 flex flex-wrap items-center justify-center gap-2 max-w-lg shadow-inner z-10">
-              <span className="text-[11px] font-bold uppercase text-amber-400">Heard:</span>
-              <span className="font-mono text-xs font-medium text-white">{voiceTranscript}</span>
-              {lastExtracted && lastExtracted.action && (
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-bold text-[10px]">
-                  ✓ {lastExtracted.action} {lastExtracted.name || `ID #${lastExtracted.targetId}`} {lastExtracted.amount ? `₹${lastExtracted.amount}` : ''}
+            <div className="flex items-center space-x-2 bg-neutral-950/80 border border-neutral-800 px-3 py-1.5 rounded-xl text-xs max-w-full sm:max-w-md shrink-0">
+              <span className="text-[10px] font-bold uppercase text-amber-400 shrink-0">Heard:</span>
+              <span className="font-mono text-white text-[11px] truncate max-w-[160px] sm:max-w-[200px]">
+                {voiceTranscript}
+              </span>
+              {lastExtracted && lastExtracted.action && (lastExtracted.name || lastExtracted.targetId) && (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold text-[10px] shrink-0">
+                  ✓ {lastExtracted.action} {lastExtracted.name || `#${lastExtracted.targetId}`} {lastExtracted.amount ? `₹${lastExtracted.amount}` : ''}
                 </span>
               )}
             </div>

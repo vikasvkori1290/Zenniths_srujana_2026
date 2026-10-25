@@ -62,6 +62,110 @@ export function deduplicateUpcomingExpenses(list) {
 }
 
 /**
+ * Deduplicate eKhata customers by unique id/clientId or normalized name (case-insensitive + trimmed).
+ * Gracefully merges transaction history and keeps latest details.
+ */
+export function deduplicateEKhataCustomers(list) {
+  if (!Array.isArray(list)) return [];
+  const nameMap = new Map();
+  const seenIds = new Set();
+  const unique = [];
+
+  for (const item of list) {
+    if (!item || !item.name) continue;
+    const normName = String(item.name).trim().toLowerCase();
+    const id = item.id || item.clientId;
+
+    if (nameMap.has(normName)) {
+      const existing = nameMap.get(normName);
+      // Merge transaction history without duplicate entries
+      const existingHistory = Array.isArray(existing.history) ? existing.history : [];
+      const itemHistory = Array.isArray(item.history) ? item.history : [];
+      const seenHistory = new Set(existingHistory.map((h) => `${h.date}__${h.amount}__${h.note}`));
+      const mergedHistory = [...existingHistory];
+
+      for (const h of itemHistory) {
+        const hKey = `${h.date}__${h.amount}__${h.note}`;
+        if (!seenHistory.has(hKey)) {
+          seenHistory.add(hKey);
+          mergedHistory.push(h);
+        }
+      }
+      existing.history = mergedHistory;
+
+      // Keep valid phone, dueDate, and highest balance
+      if ((!existing.phone || existing.phone === 'Not Added') && item.phone && item.phone !== 'Not Added') {
+        existing.phone = item.phone;
+      }
+      if ((!existing.dueDate || existing.dueDate === 'Not Specified') && item.dueDate && item.dueDate !== 'Not Specified') {
+        existing.dueDate = item.dueDate;
+      }
+      if (item.totalAmount !== undefined && item.totalAmount !== null) {
+        existing.totalAmount = Math.max(Number(existing.totalAmount) || 0, Number(item.totalAmount) || 0);
+      }
+      if (existing.totalAmount === 0) {
+        existing.status = 'Settled';
+      }
+      continue;
+    }
+
+    if (id && seenIds.has(id)) continue;
+    if (id) seenIds.add(id);
+
+    const record = {
+      ...item,
+      name: String(item.name).trim(),
+      totalAmount: Number(item.totalAmount) || 0,
+      phone: item.phone ? String(item.phone).trim() : '',
+      dueDate: item.dueDate ? String(item.dueDate).trim() : 'Not Specified',
+      history: Array.isArray(item.history) ? [...item.history] : [],
+    };
+    nameMap.set(normName, record);
+    unique.push(record);
+  }
+
+  // Ensure sequential, unique idNumbers
+  return unique.map((item, idx) => ({
+    ...item,
+    idNumber: item.idNumber !== undefined && item.idNumber !== null ? Number(item.idNumber) : idx + 1,
+  }));
+}
+
+/**
+ * Deduplicate daily income records by unique entry ID or (date + time + amount + source) composite key
+ */
+export function deduplicateDailyIncomeRecords(records) {
+  if (!Array.isArray(records)) return [];
+  const seenIds = new Set();
+  const seenComposite = new Set();
+  const unique = [];
+
+  for (const r of records) {
+    if (!r) continue;
+    const id = r.id || r.entryId || r._id;
+    const date = String(r.date || '').trim();
+    const time = String(r.time || '').trim();
+    const amount = Number(r.amount) || 0;
+    const source = String(r.source || '').trim().toLowerCase();
+    const compositeKey = `${date}__${time}__${amount}__${source}`;
+
+    if (id && seenIds.has(id)) continue;
+    if (compositeKey && seenComposite.has(compositeKey)) continue;
+
+    if (id) seenIds.add(id);
+    seenComposite.add(compositeKey);
+    unique.push({
+      ...r,
+      amount,
+      source: r.source?.trim() || 'Daily Sales',
+      date: date || new Date().toISOString().split('T')[0],
+    });
+  }
+
+  return unique;
+}
+
+/**
  * Retrieve raw stored fixed expenses from localStorage or default, with auto-deduplication
  */
 export function getStoredFixedExpenses() {

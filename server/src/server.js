@@ -10,10 +10,10 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   await connectDB();
 
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`===============================================`);
     console.log(`🚀 MERN Server running in ${process.env.NODE_ENV || 'development'} mode`);
-    console.log(`📡 URL: http://localhost:${PORT}`);
+    console.log(`📡 URL: http://0.0.0.0:${PORT} (Local: http://localhost:${PORT})`);
     console.log(`🩺 Health check: http://localhost:${PORT}/api/v1/health`);
     console.log(`📦 Items endpoint: http://localhost:${PORT}/api/v1/items`);
     console.log(`===============================================`);

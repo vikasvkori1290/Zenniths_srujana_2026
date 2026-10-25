@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { loadUserDataFromDb } from '../services/api';
+import { loadUserDataFromDb, API_BASE } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -65,10 +65,10 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setAuthError(null);
     try {
-      const res = await fetch('/api/v1/auth/login', {
+      const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email?.trim(), password }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -78,7 +78,11 @@ export function AuthProvider({ children }) {
       setUser(data.user);
       localStorage.setItem('aurum_auth_token', data.token);
       localStorage.setItem('aurum_auth_user', JSON.stringify(data.user));
-      await loadUserDataFromDb();
+      try {
+        await loadUserDataFromDb();
+      } catch (loadErr) {
+        console.warn('Initial data sync warning:', loadErr);
+      }
       return { success: true, user: data.user };
     } catch (err) {
       setAuthError(err.message);
@@ -93,7 +97,7 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setAuthError(null);
     try {
-      const res = await fetch('/api/v1/auth/register', {
+      const res = await fetch(`${API_BASE}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
@@ -156,7 +160,7 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setAuthError(null);
     try {
-      const res = await fetch('/api/v1/auth/demo', { method: 'POST' });
+      const res = await fetch(`${API_BASE}/auth/demo`, { method: 'POST' });
       const data = await res.json();
       if (data.success && data.token) {
         setToken(data.token);

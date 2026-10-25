@@ -32,7 +32,11 @@ import {
   saveCashflowSettings,
   DEFAULT_MARGINS_BY_TYPE,
 } from '../services/predictiveAnalytics';
-import { getStoredFixedExpenses } from '../services/expenseSync';
+import {
+  getStoredFixedExpenses,
+  deduplicateEKhataCustomers,
+  deduplicateUpcomingExpenses,
+} from '../services/expenseSync';
 import {
   fetchContextAdjustments,
   generateDomainAdjustments,
@@ -80,8 +84,8 @@ export default function PredictiveCashRunwayCard() {
   });
 
   const [eKhataCustomers, setEKhataCustomers] = useState(() => {
-    const saved = localStorage.getItem('aurum_ekhata_data');
-    return saved ? JSON.parse(saved) : [];
+    const saved = localStorage.getItem('aurum_ekhata_data') || localStorage.getItem('aurum_ekhata_customers');
+    return saved ? deduplicateEKhataCustomers(JSON.parse(saved)) : [];
   });
 
   // Onboarding & Cashflow Settings (Margin, Running Cost, Opening Cash, Buffer)
@@ -246,10 +250,10 @@ export default function PredictiveCashRunwayCard() {
         setFixedExpenses(getStoredFixedExpenses());
 
         const savedUp = localStorage.getItem('aurum_upcoming_expenses');
-        if (savedUp) setUpcomingExpenses(JSON.parse(savedUp));
+        if (savedUp) setUpcomingExpenses(deduplicateUpcomingExpenses(JSON.parse(savedUp)));
 
-        const savedKhata = localStorage.getItem('aurum_ekhata_data');
-        if (savedKhata) setEKhataCustomers(JSON.parse(savedKhata));
+        const savedKhata = localStorage.getItem('aurum_ekhata_data') || localStorage.getItem('aurum_ekhata_customers');
+        if (savedKhata) setEKhataCustomers(deduplicateEKhataCustomers(JSON.parse(savedKhata)));
 
         const freshSettings = getStoredCashflowSettings();
         setCashflowSettings(freshSettings);
@@ -952,23 +956,33 @@ export default function PredictiveCashRunwayCard() {
               if (!p.activeEvents || p.activeEvents.length === 0 || !p.isAdjusted || !isFestivalAdjustmentOn) return null;
               const xStart = Math.max(paddingLeft, getX(i) - 6);
               const xEnd = Math.min(chartWidth - paddingRight, getX(i) + 6);
+              const isHovered = hoveredDayIndex === i;
               return (
-                <g key={`event-band-${i}`}>
+                <g
+                  key={`event-band-${i}`}
+                  onMouseEnter={() => setHoveredDayIndex(i)}
+                  onMouseLeave={() => setHoveredDayIndex(null)}
+                  onClick={() => setHoveredDayIndex(hoveredDayIndex === i ? null : i)}
+                  className="cursor-pointer group"
+                >
+                  <title>
+                    {`${p.activeEvents.join(' & ')} (Day +${p.day}, ${p.date}): Gross Profit ₹${(p.dailyGrossProfit || 0).toLocaleString()} (${(p.grossProfitChangePct ?? 0) >= 0 ? '+' : ''}${p.grossProfitChangePct ?? 0}% from last day)`}
+                  </title>
                   <rect
                     x={xStart}
                     y={paddingTop}
                     width={xEnd - xStart}
                     height={chartHeight - paddingTop - paddingBottom}
                     fill="url(#bandHatch)"
-                    opacity="0.85"
+                    opacity={isHovered ? 1 : 0.85}
                   />
                   <rect
                     x={xStart}
                     y={paddingTop}
                     width={xEnd - xStart}
                     height={chartHeight - paddingTop - paddingBottom}
-                    fill="#fef3c7"
-                    opacity="0.35"
+                    fill={isHovered ? '#fde68a' : '#fef3c7'}
+                    opacity={isHovered ? 0.6 : 0.35}
                   />
                 </g>
               );
@@ -1387,6 +1401,55 @@ export default function PredictiveCashRunwayCard() {
                 </g>
               );
             })}
+
+            {/* Floating Festival Gross Profit Pin Tooltip in Chart SVG */}
+            {hoveredPoint && hoveredPoint.activeEvents?.length > 0 && isFestivalAdjustmentOn && (
+              <g className="pointer-events-none animate-in fade-in">
+                <line
+                  x1={getX(hoveredDayIndex)}
+                  y1={paddingTop}
+                  x2={getX(hoveredDayIndex)}
+                  y2={chartHeight - paddingBottom}
+                  stroke="#f59e0b"
+                  strokeWidth="1.5"
+                  strokeDasharray="2 2"
+                  opacity="0.8"
+                />
+                <g transform={`translate(${Math.max(paddingLeft + 5, Math.min(chartWidth - paddingRight - 210, getX(hoveredDayIndex) - 105))}, ${paddingTop + 5})`}>
+                  <rect
+                    width="210"
+                    height="42"
+                    rx="8"
+                    fill="#171717"
+                    stroke="#f59e0b"
+                    strokeWidth="1.2"
+                    filter="drop-shadow(0 4px 8px rgba(0,0,0,0.4))"
+                  />
+                  <text
+                    x="105"
+                    y="17"
+                    textAnchor="middle"
+                    fill="#fbbf24"
+                    fontSize="10"
+                    fontWeight="700"
+                    fontFamily="sans-serif"
+                  >
+                    🎉 {hoveredPoint.activeEvents[0]}
+                  </text>
+                  <text
+                    x="105"
+                    y="32"
+                    textAnchor="middle"
+                    fill={(hoveredPoint.grossProfitChangePct ?? 0) >= 0 ? '#34d399' : '#f87171'}
+                    fontSize="10"
+                    fontWeight="800"
+                    fontFamily="monospace"
+                  >
+                    Gross Profit: {(hoveredPoint.grossProfitChangePct ?? 0) >= 0 ? '▲ +' : '▼ '}{hoveredPoint.grossProfitChangePct ?? 0}% vs last day
+                  </text>
+                </g>
+              </g>
+            )}
           </svg>
 
           {/* Interactive Tooltip Card on Hover for History Points (Yesterday / Today) */}
@@ -1457,11 +1520,84 @@ export default function PredictiveCashRunwayCard() {
                   )}
 
                   {hoveredPoint.activeEvents?.length > 0 && isFestivalAdjustmentOn && (
-                    <span className="bg-amber-400/20 text-yellow-300 font-bold px-2 py-0.5 rounded-full text-[10px] border border-yellow-400/30">
-                      {hoveredPoint.activeEvents[0]}
+                    <span className="bg-amber-400/20 text-yellow-300 font-bold px-2 py-0.5 rounded-full text-[10px] border border-yellow-400/30 flex items-center space-x-1">
+                      <span>🎉</span>
+                      <span>{hoveredPoint.activeEvents[0]}</span>
                     </span>
                   )}
                 </div>
+
+                {/* UPCOMING FESTIVAL DETAILS & GROSS PROFIT PERCENTAGE RAISED FROM LAST DAY */}
+                {hoveredPoint.activeEvents?.length > 0 && isFestivalAdjustmentOn && (
+                  <div className="p-3.5 rounded-xl bg-linear-to-r from-amber-500/20 via-amber-600/10 to-neutral-800/90 border border-amber-400/40 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-lg">🎉</span>
+                        <div>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="font-extrabold text-amber-300 text-xs">
+                              {hoveredPoint.activeEvents.join(' & ')}
+                            </span>
+                            <span className="text-[10px] text-amber-200/80 font-medium">
+                              (Upcoming Festival Window)
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-neutral-400 font-mono">
+                            Demand multiplier: &times;{Number(hoveredPoint.multBase).toFixed(2)} on baseline
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Percentage Gross Profit Raised Badge */}
+                      <div className="flex items-center space-x-1.5 shrink-0">
+                        <span
+                          className={`px-3 py-1 rounded-xl text-xs font-black font-mono border flex items-center space-x-1 shadow-sm ${
+                            (hoveredPoint.grossProfitChangePct ?? 0) >= 0
+                              ? 'bg-emerald-500/25 text-emerald-300 border-emerald-400/60'
+                              : 'bg-rose-500/25 text-rose-300 border-rose-400/60'
+                          }`}
+                        >
+                          <span className="text-sm">{(hoveredPoint.grossProfitChangePct ?? 0) >= 0 ? '▲' : '▼'}</span>
+                          <span>
+                            {(hoveredPoint.grossProfitChangePct ?? 0) >= 0 ? '+' : ''}
+                            {hoveredPoint.grossProfitChangePct ?? 0}% Gross Profit
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Financial Comparison: That Day vs Last Day */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono pt-1">
+                      <div className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-xl border border-neutral-700/60">
+                        <span className="text-neutral-400">Festival Day Gross Profit:</span>
+                        <strong className="text-emerald-400 font-bold text-xs">
+                          ₹{(hoveredPoint.dailyGrossProfit ?? 0).toLocaleString()}
+                        </strong>
+                      </div>
+                      <div className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-xl border border-neutral-700/60">
+                        <span className="text-neutral-400">Last Day Gross Profit:</span>
+                        <strong className="text-neutral-300 text-xs">
+                          ₹{(hoveredPoint.prevDayGrossProfit ?? 0).toLocaleString()}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between text-[10px] text-neutral-300 font-sans pt-0.5 border-t border-amber-400/20">
+                      <span>
+                        Net Gross Profit Raised:{' '}
+                        <strong className="font-mono text-emerald-300 font-bold">
+                          {(hoveredPoint.grossProfitDiff ?? 0) >= 0 ? '+' : ''}₹{(hoveredPoint.grossProfitDiff ?? 0).toLocaleString()}
+                        </strong>{' '}
+                        from last day ({analytics.grossMarginPct}% gross margin on forecast sales of ₹{(hoveredPoint.adjSalesBase ?? 0).toLocaleString()})
+                      </span>
+                      {hoveredPoint.grossProfitVsBaselinePct !== undefined && (
+                        <span className="text-amber-300 font-mono font-semibold">
+                          +{hoveredPoint.grossProfitVsBaselinePct}% vs normal baseline
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Dues Breakdown: Merged list, total, and balance step */}
                 {hoveredPoint.hasDues && (
@@ -1677,6 +1813,9 @@ export default function PredictiveCashRunwayCard() {
                         </span>
                         <span className="text-[9px] text-neutral-400 block font-mono">
                           [{Number(mult.low).toFixed(2)} - {Number(mult.high).toFixed(2)}]
+                        </span>
+                        <span className={`text-[9.5px] font-bold block font-mono mt-0.5 ${isBoost ? 'text-emerald-600' : isSlump ? 'text-rose-600' : 'text-neutral-500'}`}>
+                          {mult.base >= 1.0 ? `▲ +${Math.round((mult.base - 1.0) * 100)}% Gross Profit` : `▼ ${Math.round((mult.base - 1.0) * 100)}% Gross Profit`}
                         </span>
                       </div>
                     </div>

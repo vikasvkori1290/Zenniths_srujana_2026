@@ -74,13 +74,36 @@ export const getFinanceSummary = async (req, res) => {
       }
     }
 
+    // Deduplicate eKhata returned from DB
+    const seenKhata = new Map();
+    const cleanDbKhata = [];
+    for (const c of ekhata) {
+      const normName = c.name?.trim().toLowerCase();
+      if (normName && seenKhata.has(normName)) {
+        continue;
+      }
+      if (normName) seenKhata.set(normName, true);
+      cleanDbKhata.push(c);
+    }
+
+    // Deduplicate daily income returned from DB
+    const seenIncome = new Set();
+    const cleanDbIncome = [];
+    for (const i of income) {
+      const key = `${i.date}__${i.time}__${i.amount}__${i.source?.trim().toLowerCase()}`;
+      if (!seenIncome.has(key)) {
+        seenIncome.add(key);
+        cleanDbIncome.push(i);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       isDbConnected: true,
       data: {
-        ekhata: ekhata.map((c) => ({
-          id: c.clientId || `khata-${c.idNumber}`,
-          idNumber: c.idNumber,
+        ekhata: cleanDbKhata.map((c, idx) => ({
+          id: c.clientId || `khata-${c.idNumber || idx + 1}`,
+          idNumber: Number(c.idNumber) || idx + 1,
           name: c.name,
           phone: c.phone || '',
           totalAmount: c.totalAmount || 0,
@@ -109,8 +132,8 @@ export const getFinanceSummary = async (req, res) => {
           category: u.category,
           status: u.status,
         })),
-        dailyIncome: income.map((i) => ({
-          id: i.entryId || `inc-${i._id}`,
+        dailyIncome: cleanDbIncome.map((i, idx) => ({
+          id: i.entryId || `inc-${i._id || idx + 1}`,
           date: i.date,
           source: i.source,
           amount: i.amount,
@@ -188,22 +211,59 @@ export const syncEKhataList = async (req, res) => {
     await EKhataCustomer.deleteMany({ userId });
 
     if (customers.length > 0) {
-      const docs = customers.map((c, idx) => ({
-        userId,
-        clientId: c.id || `khata-${c.idNumber || idx + 1}`,
-        idNumber: Number(c.idNumber) || idx + 1,
-        name: c.name?.trim() || 'Customer',
-        phone: c.phone || '',
-        totalAmount: Number(c.totalAmount) || 0,
-        dueDate: c.dueDate || 'Not Specified',
-        status: c.status || 'Pending',
-        lastUpdated: c.lastUpdated || 'Today',
-        history: Array.isArray(c.history) ? c.history : [],
-      }));
-      await EKhataCustomer.insertMany(docs);
+      const seenNames = new Map();
+      const seenIds = new Set();
+      const cleanDocs = [];
+
+      for (const c of customers) {
+        if (!c) continue;
+        const normName = String(c.name || '').trim().toLowerCase();
+        const id = c.id || c.clientId;
+
+        if (normName && seenNames.has(normName)) {
+          const existing = seenNames.get(normName);
+          if (c.totalAmount && Number(c.totalAmount) > existing.totalAmount) {
+            existing.totalAmount = Number(c.totalAmount);
+          }
+          if (Array.isArray(c.history)) {
+            const hSet = new Set((existing.history || []).map((h) => `${h.date}_${h.amount}_${h.note}`));
+            for (const h of c.history) {
+              const k = `${h.date}_${h.amount}_${h.note}`;
+              if (!hSet.has(k)) {
+                hSet.add(k);
+                existing.history.push(h);
+              }
+            }
+          }
+          continue;
+        }
+
+        if (id && seenIds.has(id)) continue;
+        if (id) seenIds.add(id);
+
+        const doc = {
+          userId,
+          clientId: id || `khata-${cleanDocs.length + 1}`,
+          idNumber: cleanDocs.length + 1,
+          name: c.name?.trim() || `Customer #${cleanDocs.length + 1}`,
+          phone: c.phone || '',
+          totalAmount: Number(c.totalAmount) || 0,
+          dueDate: c.dueDate || 'Not Specified',
+          status: c.status || (Number(c.totalAmount) === 0 ? 'Settled' : 'Pending'),
+          lastUpdated: c.lastUpdated || 'Today',
+          history: Array.isArray(c.history) ? [...c.history] : [],
+        };
+        if (normName) seenNames.set(normName, doc);
+        cleanDocs.push(doc);
+      }
+
+      if (cleanDocs.length > 0) {
+        await EKhataCustomer.insertMany(cleanDocs);
+      }
+      return res.status(200).json({ success: true, count: cleanDocs.length });
     }
 
-    return res.status(200).json({ success: true, count: customers.length });
+    return res.status(200).json({ success: true, count: 0 });
   } catch (err) {
     console.error('[Sync eKhata Error]:', err);
     return res.status(500).json({ success: false, message: err.message });
@@ -370,22 +430,36 @@ export const syncDailyIncome = async (req, res) => {
     await DailyIncome.deleteMany({ userId });
 
     if (records.length > 0) {
-      const docs = records.map((r, idx) => ({
-        userId,
-        entryId: r.id || `inc-${idx + 1}`,
-        date: r.date || new Date().toISOString().split('T')[0],
-        source: r.source?.trim() || 'Daily Sales',
-        amount: Number(r.amount) || 0,
-        mode: r.mode || 'Cash',
-        time: r.time || '12:00 PM',
-        category: r.category || 'In-Store Retail',
-        isConfirmed: r.isConfirmed !== false,
-        unconfirmed: r.unconfirmed === true,
-      }));
-      await DailyIncome.insertMany(docs);
+      const seenIncome = new Set();
+      const docs = [];
+
+      for (const r of records) {
+        if (!r) continue;
+        const key = `${r.date}__${r.time}__${r.amount}__${String(r.source || '').trim().toLowerCase()}`;
+        if (!seenIncome.has(key)) {
+          seenIncome.add(key);
+          docs.push({
+            userId,
+            entryId: r.id || `inc-${docs.length + 1}`,
+            date: r.date || new Date().toISOString().split('T')[0],
+            source: r.source?.trim() || 'Daily Sales',
+            amount: Number(r.amount) || 0,
+            mode: r.mode || 'Cash',
+            time: r.time || '12:00 PM',
+            category: r.category || 'In-Store Retail',
+            isConfirmed: r.isConfirmed !== false,
+            unconfirmed: r.unconfirmed === true,
+          });
+        }
+      }
+
+      if (docs.length > 0) {
+        await DailyIncome.insertMany(docs);
+      }
+      return res.status(200).json({ success: true, count: docs.length });
     }
 
-    return res.status(200).json({ success: true, count: records.length });
+    return res.status(200).json({ success: true, count: 0 });
   } catch (err) {
     console.error('[Sync Income Error]:', err);
     return res.status(500).json({ success: false, message: err.message });

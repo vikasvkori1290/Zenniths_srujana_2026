@@ -4,6 +4,7 @@ import {
   getStoredFixedExpenses,
   deduplicateFixedExpenses,
   deduplicateUpcomingExpenses,
+  deduplicateEKhataCustomers,
 } from '../services/expenseSync';
 import {
   syncFixedExpensesToDb,
@@ -122,11 +123,11 @@ export default function ProfileDashboard({ setActivePage }) {
 
   // Load eKhata customer credits to show total cash to receive
   const [eKhataCustomers, setEKhataCustomers] = useState(() => {
-    const saved = localStorage.getItem('aurum_ekhata_data');
+    const saved = localStorage.getItem('aurum_ekhata_data') || localStorage.getItem('aurum_ekhata_customers');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return deduplicateEKhataCustomers(parsed);
       } catch (e) {}
     }
     return [];
@@ -139,16 +140,26 @@ export default function ProfileDashboard({ setActivePage }) {
 
   useEffect(() => {
     const handleKhataSync = () => {
-      const saved = localStorage.getItem('aurum_ekhata_data');
+      const saved = localStorage.getItem('aurum_ekhata_data') || localStorage.getItem('aurum_ekhata_customers');
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setEKhataCustomers(parsed);
+          if (Array.isArray(parsed)) {
+            const clean = deduplicateEKhataCustomers(parsed);
+            setEKhataCustomers((prev) => {
+              if (JSON.stringify(prev) === JSON.stringify(clean)) return prev;
+              return clean;
+            });
+          }
         } catch (e) {}
       }
     };
     window.addEventListener('aurum_ekhata_updated', handleKhataSync);
-    return () => window.removeEventListener('aurum_ekhata_updated', handleKhataSync);
+    window.addEventListener('storage', handleKhataSync);
+    return () => {
+      window.removeEventListener('aurum_ekhata_updated', handleKhataSync);
+      window.removeEventListener('storage', handleKhataSync);
+    };
   }, []);
 
   // Sync with upcoming expenses stored in localStorage (with equality guard)

@@ -39,7 +39,7 @@ export default function LoginPage({ onLoginSuccess }) {
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    const res = await login(loginEmail, loginPassword);
+    const res = await login(loginEmail.trim(), loginPassword);
     if (res.success && onLoginSuccess) {
       onLoginSuccess();
     }
@@ -161,14 +161,17 @@ export default function LoginPage({ onLoginSuccess }) {
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div>
               <label className="text-xs font-bold text-neutral-700 block mb-1">
-                Merchant Email
+                Email, Phone Number, or Name
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-neutral-400 absolute left-3 top-3.5 sm:top-3" />
                 <input
-                  type="email"
+                  type="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   required
-                  placeholder="demo@finsafe.com or your email"
+                  placeholder="nin46642@gmail.com or mobile number"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 min-h-[44px] rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"

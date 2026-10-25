@@ -1,5 +1,8 @@
 {
   "appId": "com.zenniths.finsafe",
   "appName": "FinSafe",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "cleartext": true
+  }
 }

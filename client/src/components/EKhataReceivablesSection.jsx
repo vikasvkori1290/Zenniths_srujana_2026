@@ -14,6 +14,8 @@ import {
   IndianRupee,
 } from 'lucide-react';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
+import { deduplicateEKhataCustomers, deduplicateDailyIncomeRecords } from '../services/expenseSync';
+import { syncEKhataListToDb, syncDailyIncomeToDb } from '../services/api';
 
 const DEFAULT_KHATA_SEED = [];
 
@@ -130,15 +132,12 @@ export function evaluateCustomerDueWindow(dueDateStr) {
 
 export default function EKhataReceivablesSection({ setActivePage }) {
   const [khataList, setKhataList] = useState(() => {
-    const saved = localStorage.getItem('aurum_ekhata_data');
+    const saved = localStorage.getItem('aurum_ekhata_data') || localStorage.getItem('aurum_ekhata_customers');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.map((item, idx) => ({
-            ...item,
-            idNumber: item.idNumber !== undefined && item.idNumber !== null ? item.idNumber : idx + 1,
-          }));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return deduplicateEKhataCustomers(parsed);
         }
       } catch (e) {}
     }
@@ -162,17 +161,16 @@ export default function EKhataReceivablesSection({ setActivePage }) {
   // Sync with eKhata changes in localStorage
   useEffect(() => {
     const syncKhata = () => {
-      const saved = localStorage.getItem('aurum_ekhata_data');
+      const saved = localStorage.getItem('aurum_ekhata_data') || localStorage.getItem('aurum_ekhata_customers');
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-            setKhataList(
-              parsed.map((item, idx) => ({
-                ...item,
-                idNumber: item.idNumber !== undefined && item.idNumber !== null ? item.idNumber : idx + 1,
-              }))
-            );
+            const clean = deduplicateEKhataCustomers(parsed);
+            setKhataList((prev) => {
+              if (JSON.stringify(prev) === JSON.stringify(clean)) return prev;
+              return clean;
+            });
           }
         } catch (e) {}
       }
@@ -284,25 +282,43 @@ export default function EKhataReceivablesSection({ setActivePage }) {
       return item;
     });
 
-    // Save updated eKhata to localStorage
-    localStorage.setItem('aurum_ekhata_data', JSON.stringify(updatedList));
-    setKhataList(updatedList);
+    // Deduplicate and save updated eKhata to localStorage & MongoDB Atlas
+    const cleanKhata = deduplicateEKhataCustomers(updatedList);
+    localStorage.setItem('aurum_ekhata_data', JSON.stringify(cleanKhata));
+    localStorage.setItem('aurum_ekhata_customers', JSON.stringify(cleanKhata));
+    setKhataList(cleanKhata);
     window.dispatchEvent(new Event('aurum_ekhata_updated'));
+    window.dispatchEvent(new Event('storage'));
+    syncEKhataListToDb(cleanKhata).catch(() => {});
 
-    // Also credit to Today's Income
+    // Also credit to Today's Income & All Income History
     try {
-      const savedIncome = localStorage.getItem('aurum_today_income');
-      const incomeList = savedIncome ? JSON.parse(savedIncome) : [];
+      const todayStr = new Date().toISOString().split('T')[0];
+      const savedToday = localStorage.getItem('aurum_today_income');
+      const todayList = savedToday ? JSON.parse(savedToday) : [];
+
+      const savedAll = localStorage.getItem('aurum_all_income_records');
+      const allList = savedAll ? JSON.parse(savedAll) : [];
+
       const newIncomeItem = {
         id: 'inc-' + Date.now(),
+        date: todayStr,
         source: `eKhata Credit Repayment (${customer.name})`,
         amount: amt,
         time: nowFormatted,
         mode: 'Cash / Transfer',
+        category: 'Credit Settlement',
+        isConfirmed: true,
       };
-      const updatedIncome = [newIncomeItem, ...(Array.isArray(incomeList) ? incomeList : [])];
-      localStorage.setItem('aurum_today_income', JSON.stringify(updatedIncome));
+
+      const updatedToday = deduplicateDailyIncomeRecords([newIncomeItem, ...(Array.isArray(todayList) ? todayList : [])]);
+      const updatedAll = deduplicateDailyIncomeRecords([newIncomeItem, ...(Array.isArray(allList) ? allList : [])]);
+
+      localStorage.setItem('aurum_today_income', JSON.stringify(updatedToday));
+      localStorage.setItem('aurum_all_income_records', JSON.stringify(updatedAll));
       window.dispatchEvent(new Event('aurum_income_updated'));
+      window.dispatchEvent(new Event('storage'));
+      syncDailyIncomeToDb(updatedAll).catch(() => {});
     } catch (err) {}
 
     setSettleModal({ isOpen: false, customer: null, amountToReceive: '' });

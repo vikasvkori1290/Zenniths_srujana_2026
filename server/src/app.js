@@ -2,13 +2,24 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import apiRoutes from './routes/index.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
 
 const app = express();
 
 // Security HTTP headers
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
 
 // CORS Configuration
 const allowedOrigins = [
@@ -41,21 +52,22 @@ if (process.env.NODE_ENV !== 'test') {
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-// Root health & welcome check
-app.get('/', (req, res) => {
-  res.json({
-    status: 'online',
-    message: 'MERN Stack Backend API is operational',
-    endpoints: {
-      health: '/api/v1/health',
-      items: '/api/v1/items',
-    },
-  });
-});
-
 // Mount API Routes
 app.use('/api/v1', apiRoutes);
 app.use('/api', apiRoutes); // Alias for convenience
+
+// Serve static frontend assets from client/dist
+app.use(express.static(clientDistPath));
+
+// SPA catch-all: serve index.html for non-API client routes
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
+    if (err) next();
+  });
+});
 
 // Error Handling Middlewares
 app.use(notFound);

@@ -19,6 +19,7 @@ import {
   getDueEvents,
   deduplicateUpcomingExpenses,
   deduplicateFixedExpenses,
+  deduplicateEKhataCustomers,
 } from '../services/expenseSync';
 import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
 import { getRetainedCashBeforeDueDate } from '../services/contextAdjuster';
@@ -238,7 +239,7 @@ export default function UpcomingExpensesSection() {
     try {
       const todayIncome = JSON.parse(localStorage.getItem('aurum_today_income') || '[]');
       const allFixed = getStoredFixedExpenses();
-      const khata = JSON.parse(localStorage.getItem('aurum_ekhata_data') || '[]');
+      const khata = deduplicateEKhataCustomers(JSON.parse(localStorage.getItem('aurum_ekhata_data') || '[]'));
       const isFestivalOn = localStorage.getItem('aurum_festival_toggle') !== 'false';
       const bType = localStorage.getItem('aurum_business_type') || 'kirana';
       const cacheKey = `aurum_context_adjustments_${bType.toLowerCase()}_bengaluru_${new Date().toISOString().slice(0, 7)}`;
