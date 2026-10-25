@@ -278,7 +278,10 @@ export default function UpcomingExpensesSection() {
     });
   }, [upcomingExpenses, fixedExpensesDue]);
 
+  const combinedExpenses = dueEventsData.events || [];
+
   // Compute cashflow timeline to know the exact retained cash before each due date and evaluate stock reserve auto-restock
+
   const cashflowTimeline = useMemo(() => {
     try {
       const todayIncome = JSON.parse(localStorage.getItem('aurum_today_income') || '[]');
