@@ -13,6 +13,7 @@ import {
   AlertCircle,
   ArrowRight,
 } from 'lucide-react';
+import { useBodyScrollLock } from '../services/useBodyScrollLock';
 
 export default function FixedExpensesPage() {
   const [fixedExpenses, setFixedExpenses] = useState(() => {
@@ -68,6 +69,9 @@ export default function FixedExpensesPage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+
+  // Lock background scroll when Add Fixed Expense modal is open
+  useBodyScrollLock(isModalOpen);
 
   const [form, setForm] = useState({
     title: '',
@@ -159,18 +163,18 @@ export default function FixedExpensesPage() {
             </span>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 text-xs overflow-x-auto pb-1 sm:pb-0 max-w-full scrollbar-none">
             <Link
-              to="/upcoming-expenses"
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs"
+              to="/"
+              className="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs whitespace-nowrap flex items-center shrink-0"
             >
-              15-Day Payables &rarr;
+              &larr; Home Overview
             </Link>
             <Link
-              to="/runway"
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs"
+              to="/income"
+              className="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs whitespace-nowrap flex items-center shrink-0"
             >
-              Runway Forecast &rarr;
+              Today's Income &rarr;
             </Link>
           </div>
         </div>
@@ -178,10 +182,10 @@ export default function FixedExpensesPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Page Hero Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-neutral-200/80 gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-200/80 gap-4">
           <div>
             <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center border border-amber-500/20">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center border border-amber-500/20 shrink-0">
                 <CreditCard className="w-5 h-5 stroke-[2.5]" />
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-black font-['Outfit'] tracking-tight">
@@ -193,16 +197,16 @@ export default function FixedExpensesPage() {
             </p>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <div className="text-right hidden sm:block">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
+            <div className="text-left sm:text-right">
               <span className="text-[10px] uppercase font-bold text-neutral-400 block">Monthly Total</span>
-              <span className="text-2xl font-black text-black font-['Outfit']">
+              <span className="text-xl sm:text-2xl font-black text-black font-['Outfit']">
                 ₹{totalMonthlyFixed.toLocaleString()}
               </span>
             </div>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="gold-button-gradient px-4 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 flex items-center space-x-1.5 shadow-sm cursor-pointer"
+              className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer min-h-[44px] w-full sm:w-auto"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>+ Add Fixed Expense</span>
@@ -236,7 +240,7 @@ export default function FixedExpensesPage() {
           {fixedExpenses.map((expense) => (
             <div
               key={expense.id}
-              className="p-6 rounded-3xl bg-neutral-50/70 border border-neutral-200/80 hover:border-amber-400/80 transition-all flex flex-col justify-between group"
+              className="p-5 sm:p-6 rounded-3xl bg-neutral-50/70 border border-neutral-200/80 hover:border-amber-400/80 transition-all flex flex-col justify-between group"
             >
               <div>
                 <div className="flex items-start justify-between gap-2 mb-3">
@@ -245,7 +249,7 @@ export default function FixedExpensesPage() {
                   </span>
                   <button
                     onClick={() => handleToggleStatus(expense.id)}
-                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-all cursor-pointer ${
+                    className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all cursor-pointer min-h-[32px] sm:min-h-0 ${
                       expense.status === 'Paid'
                         ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                         : 'bg-amber-100 text-amber-800 border-amber-300'
@@ -287,14 +291,15 @@ export default function FixedExpensesPage() {
                 <div className="flex items-center space-x-1.5">
                   <button
                     onClick={() => handleToggleStatus(expense.id)}
-                    className="px-3 py-1 rounded-xl text-xs font-bold bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-800 cursor-pointer"
+                    className="min-h-[44px] px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-800 cursor-pointer flex items-center"
                   >
                     {expense.status === 'Paid' ? 'Mark Due' : 'Mark Paid'}
                   </button>
                   <button
                     onClick={() => handleDelete(expense.id)}
-                    className="p-1.5 rounded-lg text-neutral-300 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-neutral-400 sm:text-neutral-300 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 cursor-pointer"
                     title="Delete commitment"
+                    aria-label="Delete commitment"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -305,10 +310,13 @@ export default function FixedExpensesPage() {
         </div>
       </div>
 
-      {/* Add Fixed Expense Modal */}
+      {/* Add Fixed Expense Modal (Responsive Bottom Sheet on Mobile) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md border border-neutral-200 shadow-2xl animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 w-full max-w-md border border-neutral-200 shadow-2xl max-h-[90dvh] overflow-y-auto">
+            {/* Mobile Drag Handle */}
+            <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-3" />
+
             <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
@@ -318,7 +326,8 @@ export default function FixedExpensesPage() {
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-neutral-400 hover:text-black p-1 rounded-lg"
+                className="text-neutral-400 hover:text-black p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-neutral-100 cursor-pointer"
+                aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -326,19 +335,19 @@ export default function FixedExpensesPage() {
 
             <form onSubmit={handleAddExpense} className="mt-4 space-y-4 text-xs font-semibold">
               <div>
-                <label className="block text-neutral-600 mb-1">Expense Title</label>
+                <label className="block text-neutral-600 mb-1">Expense Title *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Warehouse Lease, Machining Loan EMI"
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs min-h-[44px] sm:min-h-0"
                 />
               </div>
 
               <div>
-                <label className="block text-neutral-600 mb-1">Monthly Amount (₹)</label>
+                <label className="block text-neutral-600 mb-1">Monthly Amount (₹) *</label>
                 <input
                   type="number"
                   required
@@ -346,17 +355,17 @@ export default function FixedExpensesPage() {
                   placeholder="e.g. 15000"
                   value={form.amount}
                   onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs font-mono font-bold"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-mono font-bold min-h-[44px] sm:min-h-0"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-neutral-600 mb-1">Category</label>
                   <select
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs min-h-[44px] sm:min-h-0"
                   >
                     <option value="Rent">Store / Warehouse Rent</option>
                     <option value="EMI">Machinery / Loan EMI</option>
@@ -375,7 +384,7 @@ export default function FixedExpensesPage() {
                     required
                     value={form.dueDay}
                     onChange={(e) => setForm({ ...form, dueDay: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-mono min-h-[44px] sm:min-h-0"
                   />
                 </div>
               </div>
@@ -387,21 +396,21 @@ export default function FixedExpensesPage() {
                   placeholder="e.g. Landlord account details, auto-debit bank schedule"
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
                 />
               </div>
 
-              <div className="pt-3 flex items-center justify-end space-x-3">
+              <div className="pt-3 flex flex-col-reverse sm:flex-row items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-neutral-600 hover:text-black cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-neutral-600 hover:text-black border border-neutral-200 min-h-[44px] flex items-center justify-center cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="gold-button-gradient px-5 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer"
+                  className="w-full sm:w-auto gold-button-gradient px-5 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer min-h-[44px] flex items-center justify-center"
                 >
                   Save Commitment
                 </button>

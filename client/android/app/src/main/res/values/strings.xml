@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AURUMFLOW</string>
+    <string name="title_activity_main">AURUMFLOW</string>
+    <string name="package_name">com.zenniths.aurumflow</string>
+    <string name="custom_url_scheme">com.zenniths.aurumflow</string>
+</resources>

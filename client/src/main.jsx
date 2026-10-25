@@ -96,10 +96,58 @@ if (localStorage.getItem('aurum_user_dataset') !== 'v40k_10k_fixed30k') {
     })
   );
 
-  // 4. Upcoming liabilities & customer udhar cleared for user to add manually
-  localStorage.setItem('aurum_upcoming_expenses', JSON.stringify([]));
-  localStorage.setItem('aurum_ekhata_data', JSON.stringify([]));
-  localStorage.setItem('aurum_ekhata_customers', JSON.stringify([]));
+  // 4. Default seed for customer receivables if not already populated
+  const existingKhata = localStorage.getItem('aurum_ekhata_data');
+  if (!existingKhata || existingKhata === '[]') {
+    const seed = [
+      {
+        id: 'cust-1',
+        idNumber: 1,
+        name: 'Nitish',
+        totalAmount: 240,
+        dueDate: '29 October',
+        phone: '+91 98765 43210',
+        status: 'Pending',
+        lastUpdated: 'Today at 04:36 PM',
+        history: [
+          { amount: 150, date: 'Today at 04:15 PM', note: 'Initial Khata balance' },
+          { amount: 20, date: 'Today at 04:26 PM', note: 'Added ₹20 via voice' },
+          { amount: 70, date: 'Today at 04:36 PM', note: 'Added ₹70 via voice' },
+        ],
+      },
+      {
+        id: 'cust-2',
+        idNumber: 2,
+        name: 'Rahul Sharma',
+        totalAmount: 420,
+        dueDate: 'Undated / On-Demand',
+        phone: '+91 91234 56789',
+        status: 'Pending',
+        lastUpdated: 'Yesterday at 06:30 PM',
+        history: [
+          { amount: 420, date: 'Yesterday at 06:30 PM', note: 'Supplies credit' },
+        ],
+      },
+      {
+        id: 'cust-3',
+        idNumber: 3,
+        name: 'Priya Stores',
+        totalAmount: 850,
+        dueDate: '5 November',
+        phone: '+91 98111 22334',
+        status: 'Pending',
+        lastUpdated: '2 days ago',
+        history: [
+          { amount: 850, date: '2 days ago', note: 'Provisions ledger credit' },
+        ],
+      },
+    ];
+    localStorage.setItem('aurum_ekhata_data', JSON.stringify(seed));
+    localStorage.setItem('aurum_ekhata_customers', JSON.stringify(seed));
+  }
+  if (!localStorage.getItem('aurum_upcoming_expenses')) {
+    localStorage.setItem('aurum_upcoming_expenses', JSON.stringify([]));
+  }
 
   // 5. Cash-Flow Onboarding Parameters: Margin 25%, Running Costs ₹500/day, Buffer ₹1,500
   localStorage.setItem(

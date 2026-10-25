@@ -33,6 +33,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { parseLocalSmartIntent, parseWithGroqAI, checkGroqStatus } from '../services/voiceParser';
+import { useBodyScrollLock } from '../services/useBodyScrollLock';
 
 function WhatsAppIcon({ className = 'w-3.5 h-3.5' }) {
   return (
@@ -65,7 +66,7 @@ export default function EKhataPage() {
         idNumber: 1,
         name: 'Nitish',
         totalAmount: 240,
-        dueDate: '30 November',
+        dueDate: '29 October',
         phone: '+91 98765 43210',
         status: 'Pending',
         lastUpdated: 'Today at 04:36 PM',
@@ -80,12 +81,25 @@ export default function EKhataPage() {
         idNumber: 2,
         name: 'Rahul Sharma',
         totalAmount: 420,
-        dueDate: '28 November',
+        dueDate: 'Undated / On-Demand',
         phone: '+91 91234 56789',
         status: 'Pending',
         lastUpdated: 'Yesterday at 06:30 PM',
         history: [
           { amount: 420, date: 'Yesterday at 06:30 PM', note: 'Supplies credit' },
+        ],
+      },
+      {
+        id: 'cust-3',
+        idNumber: 3,
+        name: 'Priya Stores',
+        totalAmount: 850,
+        dueDate: '5 November',
+        phone: '+91 98111 22334',
+        status: 'Pending',
+        lastUpdated: '2 days ago',
+        history: [
+          { amount: 850, date: '2 days ago', note: 'Provisions ledger credit' },
         ],
       },
     ];
@@ -116,6 +130,9 @@ export default function EKhataPage() {
 
   // Add New Customer Modal states
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+
+  // Lock body scroll when any modal is open in eKhata
+  useBodyScrollLock(Boolean(isGroqModalOpen || selectedCustomerHistory || editingCustomer || isAddCustomerModalOpen));
   const [newCustomerForm, setNewCustomerForm] = useState({
     name: '',
     phone: '',
@@ -978,21 +995,21 @@ Thank you for your business! 🙏
           </div>
 
           {/* Quick Metrics */}
-          <div className="flex items-center space-x-3">
-            <div className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200 text-right">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:space-x-3 w-full sm:w-auto">
+            <div className="flex-1 sm:flex-initial p-3 rounded-2xl bg-amber-50/80 border border-amber-200 text-left sm:text-right">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
                 Total Outstanding
               </span>
-              <div className="text-2xl font-black text-black font-['Outfit']">
+              <div className="text-xl sm:text-2xl font-black text-black font-['Outfit']">
                 ₹{totalOutstanding.toLocaleString()}
               </div>
             </div>
 
-            <div className="p-3 rounded-2xl bg-neutral-50 border border-neutral-200 text-right">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+            <div className="flex-1 sm:flex-initial p-3 rounded-2xl bg-neutral-50 border border-neutral-200 text-left sm:text-right">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-600 block">
                 Active Khata
               </span>
-              <div className="text-2xl font-black text-black font-['Outfit']">
+              <div className="text-xl sm:text-2xl font-black text-black font-['Outfit']">
                 {khataList.filter((k) => k.totalAmount > 0).length}
               </div>
             </div>
@@ -1002,8 +1019,9 @@ Thank you for your business! 🙏
                 setTempKeyInput(groqKey);
                 setIsGroqModalOpen(true);
               }}
-              className="p-3 rounded-2xl bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 text-neutral-700 hover:text-black transition-colors"
+              className="p-3 min-w-[44px] min-h-[44px] rounded-2xl bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 text-neutral-700 hover:text-black transition-colors flex items-center justify-center cursor-pointer"
               title="Groq Key Settings"
+              aria-label="Groq Key Settings"
             >
               <Key className="w-5 h-5 text-amber-600" />
             </button>
@@ -1041,60 +1059,63 @@ Thank you for your business! 🙏
 
         {/* COMPACT VOICE CRUD COMMAND BAR (Very Small Mic) */}
         <div className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/90 shadow-sm space-y-2.5">
-          <form onSubmit={handleManualSubmit} className="flex items-center gap-2">
-            {/* Very Small Mic Button */}
-            <div className="relative shrink-0">
-              {isListening && (
-                <div className="absolute -inset-1 rounded-full bg-yellow-400 opacity-70 animate-ping"></div>
-              )}
-              <button
-                type="button"
-                onClick={toggleListening}
-                className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm ${
-                  isListening
-                    ? 'bg-yellow-400 text-black scale-105 border-2 border-black'
-                    : 'bg-black text-yellow-300 hover:bg-neutral-800 border border-yellow-400/80 hover:scale-105'
-                }`}
-                title={isListening ? 'Listening... click to stop' : 'Tap to speak voice CRUD command'}
-              >
-                <Mic className={`w-3.5 h-3.5 ${isListening ? 'animate-pulse text-black' : 'text-yellow-300'}`} />
-              </button>
-            </div>
+          <form onSubmit={handleManualSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="flex items-center gap-2 flex-1">
+              {/* Very Small Mic Button */}
+              <div className="relative shrink-0">
+                {isListening && (
+                  <div className="absolute -inset-1 rounded-full bg-yellow-400 opacity-70 animate-ping"></div>
+                )}
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`relative w-9 h-9 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm min-w-[36px] min-h-[36px] ${
+                    isListening
+                      ? 'bg-yellow-400 text-black scale-105 border-2 border-black'
+                      : 'bg-black text-yellow-300 hover:bg-neutral-800 border border-yellow-400/80 hover:scale-105'
+                  }`}
+                  title={isListening ? 'Listening... click to stop' : 'Tap to speak voice CRUD command'}
+                  aria-label="Voice command microphone"
+                >
+                  <Mic className={`w-4 h-4 sm:w-3.5 sm:h-3.5 ${isListening ? 'animate-pulse text-black' : 'text-yellow-300'}`} />
+                </button>
+              </div>
 
-            {/* Input field */}
-            <div className="relative flex-1">
-              <input
-                type="text"
-                placeholder={
-                  isListening
-                    ? 'Listening... say e.g. "remove 20rs from nitish" or "change name from nitish to vikas"'
-                    : 'Say: "add 20rs to nitish" / "remove 20rs from nitish" / "change name from nitish to vikas" / "delete nitish"'
-                }
-                value={manualText}
-                onChange={(e) => setManualText(e.target.value)}
-                className={`w-full pl-3.5 pr-20 py-2 rounded-xl bg-white border text-xs focus:border-yellow-400 outline-none text-black placeholder:text-neutral-400 shadow-sm ${
-                  isListening ? 'border-amber-400 bg-amber-50/30' : 'border-neutral-200'
-                }`}
-              />
-              {isListening && (
-                <span className="absolute right-3 top-2.5 flex items-center space-x-1 text-[10px] font-bold text-amber-600 animate-pulse">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                  <span>Listening</span>
-                </span>
-              )}
+              {/* Input field */}
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder={
+                    isListening
+                      ? 'Listening... say e.g. "remove 20rs from nitish" or "change name from nitish to vikas"'
+                      : 'Say: "add 20rs to nitish" / "remove 20rs from nitish" / "delete nitish"'
+                  }
+                  value={manualText}
+                  onChange={(e) => setManualText(e.target.value)}
+                  className={`w-full pl-3.5 pr-20 py-2.5 sm:py-2 rounded-xl bg-white border text-base sm:text-xs focus:border-yellow-400 outline-none text-black placeholder:text-neutral-400 shadow-sm min-h-[44px] sm:min-h-0 ${
+                    isListening ? 'border-amber-400 bg-amber-50/30' : 'border-neutral-200'
+                  }`}
+                />
+                {isListening && (
+                  <span className="absolute right-3 top-3 sm:top-2.5 flex items-center space-x-1 text-[10px] font-bold text-amber-600 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    <span>Listening</span>
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Execute Button */}
             <button
               type="submit"
               disabled={isProcessing}
-              className="gold-button-gradient px-4 py-2 rounded-xl text-xs font-bold text-black border border-yellow-400/80 cursor-pointer shadow-sm shrink-0 flex items-center space-x-1"
+              className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400/80 cursor-pointer shadow-sm shrink-0 flex items-center justify-center space-x-1 min-h-[44px] w-full sm:w-auto"
             >
               {isProcessing ? (
                 <span>Executing Groq...</span>
               ) : (
                 <>
-                  <Zap className="w-3 h-3 text-black fill-black" />
+                  <Zap className="w-3.5 h-3.5 text-black fill-black" />
                   <span>Execute Voice CRUD</span>
                 </>
               )}
@@ -1160,7 +1181,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('add 20rs to id number 1')}
-                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1"
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
               >
                 <Plus className="w-3 h-3 text-emerald-600" />
                 <span>"add 20rs to id number 1"</span>
@@ -1170,7 +1191,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('add 31 november to id number 2')}
-                className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1"
+                className="px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
               >
                 <Calendar className="w-3 h-3 text-sky-600" />
                 <span>"add 31 november to id number 2"</span>
@@ -1180,7 +1201,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('add 20rs to nitish')}
-                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1"
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
               >
                 <Plus className="w-3 h-3 text-emerald-600" />
                 <span>"add 20rs to nitish"</span>
@@ -1190,7 +1211,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('remove 20rs from id number 1')}
-                className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1"
+                className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
               >
                 <MinusCircle className="w-3 h-3 text-amber-600" />
                 <span>"remove 20rs from id number 1"</span>
@@ -1200,7 +1221,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('change name from nitish to vikas')}
-                className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-300 text-purple-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1"
+                className="px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-300 text-purple-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
               >
                 <Edit3 className="w-3 h-3 text-purple-600" />
                 <span>"change name from nitish to vikas"</span>
@@ -1210,7 +1231,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('remove the complete number from nitish remove the person totally from the list')}
-                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1"
+                className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
               >
                 <XCircle className="w-3 h-3 text-rose-600" />
                 <span>"remove nitish totally from list"</span>
@@ -1219,7 +1240,7 @@ Thank you for your business! 🙏
           </div>
         </div>
 
-        {/* CUSTOMER LEDGER TABLE */}
+        {/* CUSTOMER LEDGER SECTION */}
         <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-neutral-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-neutral-50/50">
             <div className="flex items-center space-x-2">
@@ -1231,15 +1252,15 @@ Thank you for your business! 🙏
               </span>
             </div>
 
-            <div className="flex items-center space-x-2 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
               <div className="relative w-full sm:w-60">
-                <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-3" />
+                <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-3.5 sm:top-3" />
                 <input
                   type="text"
                   placeholder="Search customer or due date..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-neutral-200 text-xs text-black focus:border-yellow-400 outline-none"
+                  className="w-full pl-8 pr-3 py-2 sm:py-1.5 rounded-xl bg-white border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
                 />
               </div>
 
@@ -1247,11 +1268,11 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => setIsAddCustomerModalOpen(true)}
-                className="gold-button-gradient px-3.5 py-1.5 rounded-xl text-xs font-bold text-black border border-yellow-400 flex items-center space-x-1.5 shrink-0 shadow-xs cursor-pointer hover:scale-[1.02] transition-transform"
+                className="gold-button-gradient px-3.5 py-2 sm:py-1.5 rounded-xl text-xs font-bold text-black border border-yellow-400 flex items-center justify-center space-x-1.5 shrink-0 shadow-xs cursor-pointer hover:scale-[1.02] transition-transform min-h-[44px] sm:min-h-0"
                 title="Add New Customer Manually or Dictate via Voice"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span className="hidden xs:inline">+ Add Customer</span>
+                <span>+ Add Customer</span>
                 <span className="p-0.5 rounded bg-black/10">
                   <Mic className="w-3 h-3 text-black" />
                 </span>
@@ -1259,7 +1280,146 @@ Thank you for your business! 🙏
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile Stacked Card View (< md) */}
+          <div className="block md:hidden p-4 space-y-3">
+            {filteredList.length === 0 ? (
+              <div className="py-10 text-center text-neutral-400 text-xs bg-neutral-50/50 rounded-2xl border border-dashed border-neutral-200 p-4">
+                No Khata records found. Tap the small microphone above or the yellow + button to record an entry!
+              </div>
+            ) : (
+              filteredList.map((customer) => (
+                <div
+                  key={customer.id}
+                  className="p-4 rounded-2xl bg-neutral-50/80 border border-neutral-200/90 space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="w-9 h-9 rounded-full bg-black text-yellow-300 flex items-center justify-center font-bold text-xs border border-yellow-400 shrink-0">
+                        {customer.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-black text-sm">{customer.name}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-black font-mono bg-yellow-300 text-black border border-yellow-400">
+                            #{customer.idNumber}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-1.5 text-xs text-neutral-600 mt-0.5">
+                          <Phone className="w-3 h-3 text-neutral-400" />
+                          {customer.phone && customer.phone !== 'Not Added' ? (
+                            <span className="font-semibold">{customer.phone}</span>
+                          ) : (
+                            <button
+                              onClick={() => setEditingCustomer(customer)}
+                              className="text-amber-600 underline font-bold cursor-pointer"
+                            >
+                              + Add Phone
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase border shrink-0 ${
+                        customer.totalAmount === 0
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                          : 'bg-amber-50 text-amber-800 border-amber-300'
+                      }`}
+                    >
+                      {customer.totalAmount === 0 ? 'Settled' : 'Pending'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-neutral-200/60 text-xs">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-neutral-400 block">Due Date</span>
+                      <div className="flex items-center space-x-1 font-medium text-neutral-800 mt-0.5">
+                        <Calendar className="w-3 h-3 text-amber-500" />
+                        <span>{customer.dueDate}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] uppercase font-bold text-neutral-400 block">Total Due</span>
+                      <div className="font-mono text-base font-black text-neutral-900">
+                        <span className="text-amber-600 mr-0.5">₹</span>
+                        <span className={customer.totalAmount > 0 ? 'text-black font-extrabold' : 'text-neutral-400'}>
+                          {customer.totalAmount.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions Row */}
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 pt-2 border-t border-neutral-200/60">
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        onClick={() => handleWhatsAppNotify(customer)}
+                        className="min-h-[44px] px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center space-x-1.5 transition-all shadow-2xs cursor-pointer"
+                        title={`Fetch WhatsApp application for ${customer.name}`}
+                      >
+                        <WhatsAppIcon className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Notify</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setEditingCustomer({ ...customer });
+                          setEditTab('TXN');
+                          setNewTxType('ADD');
+                          setNewTxAmount('');
+                          setNewTxNote('');
+                        }}
+                        className="min-h-[44px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs"
+                        style={{
+                          backgroundColor: '#3D2E18',
+                          color: '#F9DEBF',
+                        }}
+                        title={`Edit ${customer.name} & Transactions`}
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => setSelectedCustomerHistory(customer)}
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 hover:text-black transition-colors cursor-pointer"
+                        title="View Audit Logs"
+                        aria-label="View Audit Logs"
+                      >
+                        <History className="w-4 h-4" />
+                      </button>
+
+                      {customer.totalAmount > 0 && (
+                        <button
+                          onClick={() => handleSettle(customer.id)}
+                          className="min-h-[44px] px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center space-x-1 cursor-pointer"
+                          title="Mark as fully settled"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Settle</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleDelete(customer.id, customer.name)}
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl hover:bg-rose-50 text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer"
+                        title="Delete customer"
+                        aria-label="Delete customer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop/Tablet Table View (md and up) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-neutral-100/70 text-neutral-600 font-semibold uppercase text-[10px] tracking-wider border-b border-neutral-200">
                 <tr>
@@ -1429,13 +1589,16 @@ Thank you for your business! 🙏
           </div>
         </div>
 
-        {/* GROQ CONFIGURATION MODAL */}
+        {/* GROQ CONFIGURATION MODAL (Responsive Bottom Sheet on Mobile) */}
         {isGroqModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white border border-neutral-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white border border-neutral-200 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
+              {/* Mobile Drag Handle */}
+              <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-2" />
+
               <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-amber-400 text-black flex items-center justify-center font-bold shadow-sm">
+                  <div className="w-9 h-9 rounded-xl bg-amber-400 text-black flex items-center justify-center font-bold shadow-sm shrink-0">
                     <Zap className="w-5 h-5 fill-black" />
                   </div>
                   <div>
@@ -1449,7 +1612,8 @@ Thank you for your business! 🙏
                 </div>
                 <button
                   onClick={() => setIsGroqModalOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black"
+                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black cursor-pointer"
+                  aria-label="Close modal"
                 >
                   ✕
                 </button>
@@ -1475,7 +1639,7 @@ Thank you for your business! 🙏
                       href="https://console.groq.com/keys"
                       target="_blank"
                       rel="noreferrer"
-                      className="text-amber-600 hover:underline flex items-center space-x-0.5 text-[11px] font-semibold"
+                      className="text-amber-600 hover:underline flex items-center space-x-0.5 text-[11px] font-semibold min-h-[44px] sm:min-h-0 items-center inline-flex"
                     >
                       <span>Get Free Key</span>
                       <ExternalLink className="w-3 h-3" />
@@ -1486,7 +1650,7 @@ Thank you for your business! 🙏
                     placeholder="gsk_..."
                     value={tempKeyInput}
                     onChange={(e) => setTempKeyInput(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono text-xs focus:border-yellow-400 outline-none"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
                   />
                   <p className="text-[10px] text-neutral-500 mt-1">
                     Groq provides a 100% free tier with 30 requests/min and near-instant (&lt;200ms) execution speed.
@@ -1504,16 +1668,16 @@ Thank you for your business! 🙏
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-neutral-200 flex justify-end space-x-2">
+              <div className="pt-2 border-t border-neutral-200 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
                 <button
                   onClick={() => setIsGroqModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-neutral-100 text-neutral-700 text-xs font-semibold hover:bg-neutral-200"
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-neutral-100 text-neutral-700 text-xs font-semibold hover:bg-neutral-200 min-h-[44px] flex items-center justify-center cursor-pointer"
                 >
                   Close
                 </button>
                 <button
                   onClick={handleSaveGroqKey}
-                  className="gold-button-gradient px-4 py-2 rounded-xl text-black text-xs font-bold border border-yellow-400 shadow-sm"
+                  className="w-full sm:w-auto gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-black text-xs font-bold border border-yellow-400 shadow-sm min-h-[44px] flex items-center justify-center cursor-pointer"
                 >
                   Save
                 </button>
@@ -1522,13 +1686,16 @@ Thank you for your business! 🙏
           </div>
         )}
 
-        {/* CUSTOMER HISTORY AUDIT MODAL */}
+        {/* CUSTOMER HISTORY AUDIT MODAL (Responsive Bottom Sheet on Mobile) */}
         {selectedCustomerHistory && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white border border-neutral-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white border border-neutral-200 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
+              {/* Mobile Drag Handle */}
+              <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-2" />
+
               <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-black text-yellow-300 flex items-center justify-center font-bold text-sm border-2 border-yellow-400">
+                  <div className="w-10 h-10 rounded-full bg-black text-yellow-300 flex items-center justify-center font-bold text-sm border-2 border-yellow-400 shrink-0">
                     {selectedCustomerHistory.name.charAt(0)}
                   </div>
                   <div>
@@ -1542,7 +1709,8 @@ Thank you for your business! 🙏
                 </div>
                 <button
                   onClick={() => setSelectedCustomerHistory(null)}
-                  className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black"
+                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black cursor-pointer"
+                  aria-label="Close modal"
                 >
                   ✕
                 </button>
@@ -1573,7 +1741,7 @@ Thank you for your business! 🙏
               <div className="pt-2 border-t border-neutral-200 flex justify-end">
                 <button
                   onClick={() => setSelectedCustomerHistory(null)}
-                  className="px-4 py-2 rounded-xl bg-black text-white text-xs font-bold hover:bg-neutral-800"
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-black text-white text-xs font-bold hover:bg-neutral-800 min-h-[44px] flex items-center justify-center cursor-pointer"
                 >
                   Close
                 </button>
@@ -1582,18 +1750,21 @@ Thank you for your business! 🙏
           </div>
         )}
 
-        {/* SINGLE EDIT MODAL (SIMPLE NEW TRANSACTION & CUSTOMER DETAILS) */}
+        {/* SINGLE EDIT MODAL (SIMPLE NEW TRANSACTION & CUSTOMER DETAILS) (Responsive Bottom Sheet on Mobile) */}
         {editingCustomer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
             <div
-              className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border"
+              className="bg-white rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 border max-h-[90dvh] overflow-y-auto"
               style={{ borderColor: '#F9DEBF' }}
             >
+              {/* Mobile Drag Handle */}
+              <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-2" />
+
               {/* Header */}
               <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: '#F9DEBF' }}>
                 <div className="flex items-center space-x-2.5">
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shadow-xs"
+                    className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shadow-xs shrink-0"
                     style={{ backgroundColor: '#3D2E18', color: '#F9DEBF' }}
                   >
                     {editingCustomer.name ? editingCustomer.name.charAt(0) : 'C'}
@@ -1610,8 +1781,9 @@ Thank you for your business! 🙏
                 <button
                   type="button"
                   onClick={() => setEditingCustomer(null)}
-                  className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
+                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
                   style={{ color: '#8A91A0' }}
+                  aria-label="Close modal"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1622,7 +1794,7 @@ Thank you for your business! 🙏
                 <button
                   type="button"
                   onClick={() => setEditTab('TXN')}
-                  className="py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
+                  className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-[44px] sm:min-h-0"
                   style={{
                     backgroundColor: editTab === 'TXN' ? '#3D2E18' : 'transparent',
                     color: editTab === 'TXN' ? '#F9DEBF' : '#8A91A0',
@@ -1634,7 +1806,7 @@ Thank you for your business! 🙏
                 <button
                   type="button"
                   onClick={() => setEditTab('DETAILS')}
-                  className="py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
+                  className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-[44px] sm:min-h-0"
                   style={{
                     backgroundColor: editTab === 'DETAILS' ? '#3D2E18' : 'transparent',
                     color: editTab === 'DETAILS' ? '#F9DEBF' : '#8A91A0',
@@ -1669,7 +1841,7 @@ Thank you for your business! 🙏
                     <button
                       type="button"
                       onClick={() => setNewTxType('ADD')}
-                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
+                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-[44px]"
                       style={{
                         backgroundColor: newTxType === 'ADD' ? '#3D2E18' : 'transparent',
                         color: newTxType === 'ADD' ? '#F9DEBF' : '#8A91A0',
@@ -1681,7 +1853,7 @@ Thank you for your business! 🙏
                     <button
                       type="button"
                       onClick={() => setNewTxType('PAY')}
-                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
+                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-[44px]"
                       style={{
                         backgroundColor: newTxType === 'PAY' ? '#3D2E18' : 'transparent',
                         color: newTxType === 'PAY' ? '#F9DEBF' : '#8A91A0',
@@ -1698,7 +1870,7 @@ Thank you for your business! 🙏
                       Amount (₹) *
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3.5 top-2.5 font-mono text-base font-bold" style={{ color: '#3D2E18' }}>
+                      <span className="absolute left-3.5 top-3 font-mono text-base font-bold" style={{ color: '#3D2E18' }}>
                         ₹
                       </span>
                       <input
@@ -1709,7 +1881,7 @@ Thank you for your business! 🙏
                         placeholder="0"
                         value={newTxAmount}
                         onChange={(e) => setNewTxAmount(e.target.value)}
-                        className="w-full pl-8 pr-3 py-2.5 rounded-xl text-lg font-mono font-bold outline-none border transition-all"
+                        className="w-full pl-8 pr-3 py-2.5 rounded-xl text-base font-mono font-bold outline-none border transition-all min-h-[44px]"
                         style={{
                           borderColor: '#3D2E18',
                           color: '#3D2E18',
@@ -1729,7 +1901,7 @@ Thank you for your business! 🙏
                           key={amt}
                           type="button"
                           onClick={() => setNewTxAmount(String(amt))}
-                          className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer min-h-[36px]"
                           style={{
                             backgroundColor: Number(newTxAmount) === amt ? '#3D2E18' : '#F9DEBF',
                             color: Number(newTxAmount) === amt ? '#F9DEBF' : '#3D2E18',
@@ -1743,7 +1915,7 @@ Thank you for your business! 🙏
                         <button
                           type="button"
                           onClick={() => setNewTxAmount(String(editingCustomer.totalAmount))}
-                          className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer min-h-[36px]"
                           style={{
                             backgroundColor: Number(newTxAmount) === editingCustomer.totalAmount ? '#3D2E18' : '#F9DEBF',
                             color: Number(newTxAmount) === editingCustomer.totalAmount ? '#F9DEBF' : '#3D2E18',
@@ -1766,7 +1938,7 @@ Thank you for your business! 🙏
                       placeholder={newTxType === 'ADD' ? 'e.g. Groceries credit, supplies' : 'e.g. Cash received / UPI'}
                       value={newTxNote}
                       onChange={(e) => setNewTxNote(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl text-xs outline-none border transition-all"
+                      className="w-full px-3 py-2.5 sm:py-2 rounded-xl text-base sm:text-xs outline-none border transition-all min-h-[44px] sm:min-h-0"
                       style={{
                         borderColor: '#8A91A0',
                         color: '#3D2E18',
@@ -1795,18 +1967,18 @@ Thank you for your business! 🙏
                   )}
 
                   {/* Buttons */}
-                  <div className="pt-2 border-t flex items-center justify-end space-x-2" style={{ borderColor: '#F9DEBF' }}>
+                  <div className="pt-2 border-t flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2" style={{ borderColor: '#F9DEBF' }}>
                     <button
                       type="button"
                       onClick={() => setEditingCustomer(null)}
-                      className="px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                      className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[44px] flex items-center justify-center"
                       style={{ color: '#8A91A0' }}
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer hover:opacity-90 flex items-center space-x-1.5"
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer hover:opacity-90 flex items-center justify-center space-x-1.5 min-h-[44px]"
                       style={{
                         backgroundColor: '#3D2E18',
                         color: '#F9DEBF',
@@ -1831,7 +2003,7 @@ Thank you for your business! 🙏
                       required
                       value={editingCustomer.name}
                       onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl text-black font-semibold text-xs outline-none border transition-all"
+                      className="w-full px-3 py-2.5 sm:py-2 rounded-xl text-black font-semibold text-base sm:text-xs outline-none border transition-all min-h-[44px] sm:min-h-0"
                       style={{ borderColor: '#3D2E18' }}
                       placeholder="Customer Name"
                     />
@@ -1842,13 +2014,13 @@ Thank you for your business! 🙏
                       WhatsApp / Mobile Number *
                     </label>
                     <div className="relative">
-                      <Phone className="w-3.5 h-3.5 absolute left-3 top-2.5" style={{ color: '#8A91A0' }} />
+                      <Phone className="w-3.5 h-3.5 absolute left-3 top-3.5 sm:top-2.5" style={{ color: '#8A91A0' }} />
                       <input
                         type="text"
                         required
                         value={editingCustomer.phone === 'Not Added' ? '' : editingCustomer.phone}
                         onChange={(e) => setEditingCustomer({ ...editingCustomer, phone: e.target.value })}
-                        className="w-full pl-8 pr-3 py-2 rounded-xl text-black font-mono text-xs outline-none border transition-all"
+                        className="w-full pl-8 pr-3 py-2.5 sm:py-2 rounded-xl text-black font-mono text-base sm:text-xs outline-none border transition-all min-h-[44px] sm:min-h-0"
                         style={{ borderColor: '#3D2E18' }}
                         placeholder="e.g. +91 98765 43210 or 9876543210"
                       />
@@ -1866,13 +2038,13 @@ Thank you for your business! 🙏
                       type="text"
                       value={editingCustomer.dueDate || ''}
                       onChange={(e) => setEditingCustomer({ ...editingCustomer, dueDate: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl text-black text-xs outline-none border transition-all"
+                      className="w-full px-3 py-2.5 sm:py-2 rounded-xl text-black text-base sm:text-xs outline-none border transition-all min-h-[44px] sm:min-h-0"
                       style={{ borderColor: '#8A91A0' }}
                       placeholder="e.g. 30 November"
                     />
                   </div>
 
-                  <div className="pt-3 border-t flex items-center justify-between" style={{ borderColor: '#F9DEBF' }}>
+                  <div className="pt-3 border-t flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2" style={{ borderColor: '#F9DEBF' }}>
                     {editingCustomer.phone && editingCustomer.phone !== 'Not Added' && (
                       <button
                         type="button"
@@ -1880,7 +2052,7 @@ Thank you for your business! 🙏
                           sendWhatsAppMessage(editingCustomer);
                           setEditingCustomer(null);
                         }}
-                        className="px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center space-x-1 cursor-pointer transition-colors"
+                        className="w-full sm:w-auto px-3 py-2.5 sm:py-1.5 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1 cursor-pointer transition-colors min-h-[44px] sm:min-h-0"
                         style={{
                           backgroundColor: '#F9DEBF',
                           borderColor: '#3D2E18',
@@ -1893,18 +2065,18 @@ Thank you for your business! 🙏
                       </button>
                     )}
 
-                    <div className="flex items-center space-x-2 ml-auto">
+                    <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 sm:ml-auto">
                       <button
                         type="button"
                         onClick={() => setEditingCustomer(null)}
-                        className="px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[44px] flex items-center justify-center"
                         style={{ color: '#8A91A0' }}
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="px-4 py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all hover:opacity-90"
+                        className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all hover:opacity-90 min-h-[44px] flex items-center justify-center"
                         style={{
                           backgroundColor: '#3D2E18',
                           color: '#F9DEBF',
@@ -1920,13 +2092,16 @@ Thank you for your business! 🙏
           </div>
         )}
 
-        {/* 3. ADD NEW CUSTOMER MODAL (MANUAL + VOICE DICTATION) */}
+        {/* 3. ADD NEW CUSTOMER MODAL (MANUAL + VOICE DICTATION) (Responsive Bottom Sheet on Mobile) */}
         {isAddCustomerModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white border border-neutral-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white border border-neutral-200 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
+              {/* Mobile Drag Handle */}
+              <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-2" />
+
               <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-yellow-300 text-black flex items-center justify-center font-bold shadow-sm border border-yellow-400">
+                  <div className="w-9 h-9 rounded-xl bg-yellow-300 text-black flex items-center justify-center font-bold shadow-sm border border-yellow-400 shrink-0">
                     <UserPlus className="w-4 h-4 text-black" />
                   </div>
                   <div>
@@ -1940,14 +2115,15 @@ Thank you for your business! 🙏
                 </div>
                 <button
                   onClick={() => setIsAddCustomerModalOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black cursor-pointer"
+                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black cursor-pointer"
+                  aria-label="Close modal"
                 >
                   ✕
                 </button>
               </div>
 
               {/* VOICE DICTATION BANNER */}
-              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-center justify-between gap-3">
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-0.5">
                   <span className="text-xs font-bold text-amber-950 flex items-center space-x-1">
                     <Sparkles className="w-3.5 h-3.5 text-amber-600" />
@@ -1961,7 +2137,7 @@ Thank you for your business! 🙏
                 <button
                   type="button"
                   onClick={handleDictateNewCustomer}
-                  className={`p-2.5 rounded-xl border transition-all cursor-pointer shadow-xs shrink-0 flex items-center space-x-1 ${
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer shadow-xs shrink-0 flex items-center justify-center space-x-1 min-h-[44px] w-full sm:w-auto ${
                     isDictatingCustomer
                       ? 'bg-rose-500 text-white border-rose-600 animate-pulse'
                       : 'bg-yellow-300 hover:bg-yellow-400 text-black border-yellow-400'
@@ -1986,7 +2162,7 @@ Thank you for your business! 🙏
                     onChange={(e) =>
                       setNewCustomerForm({ ...newCustomerForm, name: e.target.value })
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-semibold text-xs focus:border-yellow-400 outline-none"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-semibold text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
                   />
                 </div>
 
@@ -1995,7 +2171,7 @@ Thank you for your business! 🙏
                     WhatsApp / Mobile Number *
                   </label>
                   <div className="relative">
-                    <Phone className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-2.5" />
+                    <Phone className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-3.5 sm:top-2.5" />
                     <input
                       type="text"
                       required
@@ -2004,7 +2180,7 @@ Thank you for your business! 🙏
                       onChange={(e) =>
                         setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })
                       }
-                      className="w-full pl-8 pr-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono text-xs focus:border-yellow-400 outline-none"
+                      className="w-full pl-8 pr-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
                     />
                   </div>
                 </div>
@@ -2021,7 +2197,7 @@ Thank you for your business! 🙏
                           key={amt}
                           type="button"
                           onClick={() => setNewCustomerForm({ ...newCustomerForm, amount: String(amt) })}
-                          className="px-1.5 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 text-[10px] font-mono text-neutral-700 cursor-pointer"
+                          className="px-2 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-[10px] font-mono text-neutral-700 cursor-pointer min-h-[32px] sm:min-h-0"
                         >
                           ₹{amt}
                         </button>
@@ -2036,7 +2212,7 @@ Thank you for your business! 🙏
                     onChange={(e) =>
                       setNewCustomerForm({ ...newCustomerForm, amount: e.target.value })
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono font-bold text-xs focus:border-yellow-400 outline-none"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono font-bold text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
                   />
                 </div>
 
@@ -2046,13 +2222,13 @@ Thank you for your business! 🙏
                     <label className="text-neutral-700 font-bold">
                       Due Date
                     </label>
-                    <div className="flex items-center space-x-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       {['Tomorrow', '30 November', '7 Days', '15 Days'].map((dt) => (
                         <button
                           key={dt}
                           type="button"
                           onClick={() => setNewCustomerForm({ ...newCustomerForm, dueDate: dt })}
-                          className="px-1.5 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 text-[10px] text-neutral-700 cursor-pointer"
+                          className="px-2 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-[10px] text-neutral-700 cursor-pointer min-h-[32px] sm:min-h-0"
                         >
                           {dt}
                         </button>
@@ -2066,7 +2242,7 @@ Thank you for your business! 🙏
                     onChange={(e) =>
                       setNewCustomerForm({ ...newCustomerForm, dueDate: e.target.value })
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black text-xs focus:border-yellow-400 outline-none"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
                   />
                 </div>
 
@@ -2081,7 +2257,7 @@ Thank you for your business! 🙏
                     onChange={(e) =>
                       setNewCustomerForm({ ...newCustomerForm, note: e.target.value })
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black text-xs focus:border-yellow-400 outline-none"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
                   />
                 </div>
 
@@ -2093,7 +2269,7 @@ Thank you for your business! 🙏
                     onChange={(e) =>
                       setNewCustomerForm({ ...newCustomerForm, notifyImmediately: e.target.checked })
                     }
-                    className="w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
+                    className="w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500 shrink-0"
                   />
                   <div className="text-[11px] leading-tight">
                     <span className="font-bold text-emerald-950 block">
@@ -2105,17 +2281,17 @@ Thank you for your business! 🙏
                   </div>
                 </label>
 
-                <div className="pt-2 border-t border-neutral-200 flex items-center justify-end space-x-2">
+                <div className="pt-2 border-t border-neutral-200 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setIsAddCustomerModalOpen(false)}
-                    className="px-4 py-2 rounded-xl bg-neutral-100 text-neutral-700 text-xs font-semibold hover:bg-neutral-200 cursor-pointer"
+                    className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-neutral-100 text-neutral-700 text-xs font-semibold hover:bg-neutral-200 cursor-pointer min-h-[44px] flex items-center justify-center"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="gold-button-gradient px-5 py-2 rounded-xl text-black text-xs font-bold border border-yellow-400 shadow-sm cursor-pointer"
+                    className="w-full sm:w-auto gold-button-gradient px-5 py-2.5 sm:py-2 rounded-xl text-black text-xs font-bold border border-yellow-400 shadow-sm cursor-pointer min-h-[44px] flex items-center justify-center"
                   >
                     Create Customer
                   </button>
@@ -2124,6 +2300,23 @@ Thank you for your business! 🙏
             </div>
           </div>
         )}
+
+        {/* Floating Voice Ledger Thumb Button (Mobile & Tablet) */}
+        <div className="lg:hidden fixed bottom-20 right-4 z-40">
+          <button
+            type="button"
+            onClick={toggleListening}
+            className={`w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all cursor-pointer border-2 ${
+              isListening
+                ? 'bg-yellow-400 text-black border-black scale-110 animate-pulse'
+                : 'bg-black text-yellow-300 border-yellow-400 hover:scale-105'
+            }`}
+            title={isListening ? 'Listening... tap to stop' : 'Tap to speak voice ledger command'}
+            aria-label="Voice ledger recorder"
+          >
+            <Mic className={`w-6 h-6 ${isListening ? 'animate-pulse text-black' : 'text-yellow-300'}`} />
+          </button>
+        </div>
       </div>
     </div>
   );

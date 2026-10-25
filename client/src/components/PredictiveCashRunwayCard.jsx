@@ -39,6 +39,7 @@ import {
   sanitizeAdjustments,
 } from '../services/contextAdjuster';
 import calendarData from '../data/calendar.js';
+import { useBodyScrollLock } from '../services/useBodyScrollLock';
 
 const BUSINESS_TYPE_OPTIONS = [
   { id: 'kirana', label: 'Retail Kirana & Provisions', margin: 20 },
@@ -252,12 +253,17 @@ export default function PredictiveCashRunwayCard() {
     }));
   };
 
+  // Lock background scroll when assumptions drawer is open
+  useBodyScrollLock(isSettingsOpen);
+
   // SVG Chart Geometry calculations for 60-day timeline
   const timelinePoints = analytics.timeline || [];
-  const chartHeight = 220;
+  const chartHeight = 260;
   const chartWidth = 960;
-  const paddingX = 35;
-  const paddingY = 25;
+  const paddingLeft = 58;
+  const paddingRight = 24;
+  const paddingTop = 20;
+  const paddingBottom = 42;
 
   const minVal = useMemo(() => {
     if (timelinePoints.length === 0) return 0;
@@ -265,7 +271,7 @@ export default function PredictiveCashRunwayCard() {
       ...timelinePoints.map((d) => Math.min(d.balance, d.balanceLow || d.balance)),
       analytics.safetyBuffer || 1500
     );
-    return Math.max(0, lowest - 8000);
+    return Math.max(0, lowest - 6000);
   }, [timelinePoints, analytics.safetyBuffer]);
 
   const maxVal = useMemo(() => {
@@ -278,12 +284,23 @@ export default function PredictiveCashRunwayCard() {
   }, [timelinePoints, analytics.receivedCashInHand]);
 
   const getX = (index) =>
-    paddingX + (index / Math.max(1, timelinePoints.length - 1)) * (chartWidth - paddingX * 2);
+    paddingLeft + (index / Math.max(1, timelinePoints.length - 1)) * (chartWidth - paddingLeft - paddingRight);
 
   const getY = (val) =>
     chartHeight -
-    paddingY -
-    ((val - minVal) / Math.max(1, maxVal - minVal)) * (chartHeight - paddingY * 2);
+    paddingBottom -
+    ((val - minVal) / Math.max(1, maxVal - minVal)) * (chartHeight - paddingTop - paddingBottom);
+
+  // Reference Y-axis guideline levels
+  const yAxisTicks = useMemo(() => {
+    if (timelinePoints.length === 0) return [];
+    const step = (maxVal - minVal) / 3;
+    return [
+      { val: maxVal, label: `₹${Math.round(maxVal / 1000)}k` },
+      { val: minVal + step * 2, label: `₹${Math.round((minVal + step * 2) / 1000)}k` },
+      { val: minVal + step, label: `₹${Math.round((minVal + step) / 1000)}k` },
+    ];
+  }, [minVal, maxVal, timelinePoints]);
 
   // Base Forecast line path
   const basePath = useMemo(() => {
@@ -326,7 +343,7 @@ export default function PredictiveCashRunwayCard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-neutral-100 gap-4 relative z-10">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-800 flex items-center justify-center border border-amber-400/30">
+            <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-800 flex items-center justify-center border border-amber-400/30 shrink-0">
               <Activity className="w-4 h-4 stroke-[2.5]" />
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-black font-['Outfit'] tracking-tight">
@@ -350,12 +367,12 @@ export default function PredictiveCashRunwayCard() {
         </div>
 
         {/* Dynamic Horizon / Next Risk Date Card */}
-        <div className="flex items-center space-x-3">
-          <div className="text-right">
+        <div className="flex items-center justify-between sm:justify-end space-x-3 w-full sm:w-auto p-3 sm:p-0 rounded-2xl bg-neutral-50 sm:bg-transparent border sm:border-0 border-neutral-200/80">
+          <div className="text-left sm:text-right">
             <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">
               {analytics.headlineLabel}
             </span>
-            <div className="flex items-baseline justify-end space-x-1">
+            <div className="flex items-baseline justify-start sm:justify-end space-x-1">
               <span
                 className={`text-xl sm:text-2xl font-black font-['Outfit'] ${
                   analytics.runwayStatus === 'SAFE'
@@ -374,7 +391,7 @@ export default function PredictiveCashRunwayCard() {
           </div>
 
           <div
-            className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center border shrink-0 ${
               analytics.runwayStatus === 'SAFE'
                 ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
                 : analytics.runwayStatus === 'WATCH'
@@ -589,7 +606,7 @@ export default function PredictiveCashRunwayCard() {
         <div className="relative w-full overflow-x-auto bg-white rounded-xl border border-neutral-200/80 p-2">
           <svg
             viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-            className="w-full h-56 select-none"
+            className="w-full h-44 sm:h-52 md:h-60 select-none"
             preserveAspectRatio="none"
           >
             <defs>
@@ -602,26 +619,56 @@ export default function PredictiveCashRunwayCard() {
               </pattern>
             </defs>
 
+            {/* Y-axis background horizontal grid lines & currency labels */}
+            {yAxisTicks.map((tick, idx) => {
+              const y = getY(tick.val);
+              if (y < paddingTop || y > chartHeight - paddingBottom) return null;
+              return (
+                <g key={`y-grid-${idx}`}>
+                  <line
+                    x1={paddingLeft}
+                    y1={y}
+                    x2={chartWidth - paddingRight}
+                    y2={y}
+                    stroke="#f3f4f6"
+                    strokeWidth="1"
+                    strokeDasharray="4 4"
+                  />
+                  <text
+                    x={paddingLeft - 8}
+                    y={y + 3.5}
+                    textAnchor="end"
+                    fontSize="10"
+                    fontWeight="600"
+                    fill="#9ca3af"
+                    fontFamily="monospace"
+                  >
+                    {tick.label}
+                  </text>
+                </g>
+              );
+            })}
+
             {/* Shaded Event Window Bands */}
             {timelinePoints.map((p, i) => {
               if (!p.activeEvents || p.activeEvents.length === 0 || !isFestivalAdjustmentOn) return null;
-              const xStart = Math.max(0, getX(i) - 6);
-              const xEnd = Math.min(chartWidth, getX(i) + 6);
+              const xStart = Math.max(paddingLeft, getX(i) - 6);
+              const xEnd = Math.min(chartWidth - paddingRight, getX(i) + 6);
               return (
                 <g key={`event-band-${i}`}>
                   <rect
                     x={xStart}
-                    y={paddingY}
+                    y={paddingTop}
                     width={xEnd - xStart}
-                    height={chartHeight - paddingY * 2}
+                    height={chartHeight - paddingTop - paddingBottom}
                     fill="url(#bandHatch)"
                     opacity="0.85"
                   />
                   <rect
                     x={xStart}
-                    y={paddingY}
+                    y={paddingTop}
                     width={xEnd - xStart}
-                    height={chartHeight - paddingY * 2}
+                    height={chartHeight - paddingTop - paddingBottom}
                     fill="#fef3c7"
                     opacity="0.35"
                   />
@@ -629,17 +676,40 @@ export default function PredictiveCashRunwayCard() {
               );
             })}
 
-            {/* Safety Reserve Threshold Dashed Line */}
-            {safetyLineY >= paddingY && safetyLineY <= chartHeight - paddingY && (
-              <line
-                x1={paddingX}
-                y1={safetyLineY}
-                x2={chartWidth - paddingX}
-                y2={safetyLineY}
-                stroke="#f43f5e"
-                strokeWidth="1.5"
-                strokeDasharray="4 3"
-              />
+            {/* Safety Reserve Threshold Dashed Line & Badge */}
+            {safetyLineY >= paddingTop && safetyLineY <= chartHeight - paddingBottom && (
+              <g>
+                <line
+                  x1={paddingLeft}
+                  y1={safetyLineY}
+                  x2={chartWidth - paddingRight}
+                  y2={safetyLineY}
+                  stroke="#f43f5e"
+                  strokeWidth="1.5"
+                  strokeDasharray="4 3"
+                />
+                <rect
+                  x={chartWidth - paddingRight - 118}
+                  y={safetyLineY - 14}
+                  width="118"
+                  height="14"
+                  fill="#ffffff"
+                  rx="3"
+                  stroke="#fecdd3"
+                  strokeWidth="0.5"
+                />
+                <text
+                  x={chartWidth - paddingRight - 6}
+                  y={safetyLineY - 3}
+                  textAnchor="end"
+                  fontSize="9.5"
+                  fontWeight="700"
+                  fill="#e11d48"
+                  fontFamily="sans-serif"
+                >
+                  Buffer (₹{analytics.safetyBuffer.toLocaleString()})
+                </text>
+              </g>
             )}
 
             {/* Low-High Confidence Area Light Band */}
@@ -659,6 +729,57 @@ export default function PredictiveCashRunwayCard() {
               />
             )}
 
+            {/* X-axis baseline */}
+            <line
+              x1={paddingLeft}
+              y1={chartHeight - paddingBottom}
+              x2={chartWidth - paddingRight}
+              y2={chartHeight - paddingBottom}
+              stroke="#e5e7eb"
+              strokeWidth="1.5"
+            />
+
+            {/* X-axis Day & Date Tick Marks & Labels */}
+            {[0, 15, 30, 45, 59].map((dayIdx) => {
+              if (dayIdx >= timelinePoints.length) return null;
+              const p = timelinePoints[dayIdx];
+              const x = getX(dayIdx);
+              return (
+                <g key={`x-tick-${dayIdx}`}>
+                  <line
+                    x1={x}
+                    y1={chartHeight - paddingBottom}
+                    x2={x}
+                    y2={chartHeight - paddingBottom + 5}
+                    stroke="#9ca3af"
+                    strokeWidth="1.5"
+                  />
+                  <text
+                    x={x}
+                    y={chartHeight - paddingBottom + 16}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="700"
+                    fill="#374151"
+                    fontFamily="sans-serif"
+                  >
+                    {dayIdx === 0 ? 'Today' : `+${dayIdx}d`}
+                  </text>
+                  <text
+                    x={x}
+                    y={chartHeight - paddingBottom + 28}
+                    textAnchor="middle"
+                    fontSize="8.5"
+                    fontWeight="500"
+                    fill="#9ca3af"
+                    fontFamily="sans-serif"
+                  >
+                    {p.date}
+                  </text>
+                </g>
+              );
+            })}
+
             {/* Interactive Data Point Handles */}
             {timelinePoints.map((p, i) => {
               const cx = getX(i);
@@ -672,14 +793,16 @@ export default function PredictiveCashRunwayCard() {
                   key={`point-${i}`}
                   onMouseEnter={() => setHoveredDayIndex(i)}
                   onMouseLeave={() => setHoveredDayIndex(null)}
+                  onClick={() => setHoveredDayIndex(hoveredDayIndex === i ? null : i)}
+                  onTouchStart={() => setHoveredDayIndex(i)}
                   className="cursor-pointer"
                 >
-                  {/* Invisible hit target for smooth hovering */}
+                  {/* Hit target for smooth hovering / tapping */}
                   <rect
-                    x={cx - 7}
-                    y={paddingY}
-                    width="14"
-                    height={chartHeight - paddingY * 2}
+                    x={cx - 10}
+                    y={paddingTop}
+                    width="20"
+                    height={chartHeight - paddingTop - paddingBottom}
                     fill="transparent"
                   />
 
@@ -865,148 +988,155 @@ export default function PredictiveCashRunwayCard() {
         </div>
       </div>
 
-      {/* Onboarding Parameters Drawer / Modal */}
+      {/* Onboarding Parameters Drawer / Modal (Responsive Bottom Sheet on Mobile, Centered Modal on Tablet/Desktop) */}
       {isSettingsOpen && (
-        <div className="p-5 rounded-2xl bg-neutral-50 border border-neutral-300 space-y-4 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
-            <div>
-              <h3 className="text-sm font-bold text-black font-['Outfit']">
-                Onboarding & Operational Cash Flow Parameters
-              </h3>
-              <p className="text-[11px] text-neutral-500">
-                Calibrate profit margins and non-rent daily operating costs for accurate retained cash math.
-              </p>
-            </div>
-            <button
-              onClick={() => setIsSettingsOpen(false)}
-              className="text-neutral-400 hover:text-black cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-xs p-0 md:p-4 animate-in fade-in duration-200">
+          <div className="w-full md:max-w-3xl bg-white rounded-t-3xl md:rounded-3xl border border-neutral-300 p-5 sm:p-7 space-y-5 shadow-2xl max-h-[90dvh] overflow-y-auto">
+            {/* Mobile drag handle */}
+            <div className="w-12 h-1.5 bg-neutral-300 rounded-full mx-auto md:hidden"></div>
 
-          <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Input 1: Gross Margin % */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-neutral-700 block">
-                  Gross Profit Margin (%)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="99"
-                  value={settingsForm.grossMarginPct}
-                  onChange={(e) =>
-                    setSettingsForm({ ...settingsForm, grossMarginPct: Number(e.target.value) })
-                  }
-                  className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-1.5 text-black font-bold focus:ring-2 focus:ring-yellow-400"
-                />
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPresetMargin(20)}
-                    className="text-[9px] px-1.5 py-0.5 rounded bg-white border border-neutral-200 hover:border-black"
-                  >
-                    Kirana (20%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPresetMargin(35)}
-                    className="text-[9px] px-1.5 py-0.5 rounded bg-white border border-neutral-200 hover:border-black"
-                  >
-                    Sweets (35%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPresetMargin(25)}
-                    className="text-[9px] px-1.5 py-0.5 rounded bg-white border border-neutral-200 hover:border-black"
-                  >
-                    Standard (25%)
-                  </button>
-                </div>
+            <div className="flex items-start justify-between pb-3 border-b border-neutral-200">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-black font-['Outfit']">
+                  Cash Flow Assumptions & Operating Parameters
+                </h3>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Calibrate profit margins and non-rent daily operating costs for accurate retained cash math.
+                </p>
               </div>
-
-              {/* Input 2: Daily Running Cost */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-neutral-700 block">
-                  Daily Running Costs (₹/day)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={settingsForm.dailyRunningCost}
-                  onChange={(e) => {
-                    const cost = Number(e.target.value);
-                    setSettingsForm({
-                      ...settingsForm,
-                      dailyRunningCost: cost,
-                      safetyBuffer: cost * 3,
-                    });
-                  }}
-                  className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-1.5 text-black font-bold focus:ring-2 focus:ring-yellow-400"
-                />
-                <span className="text-[10px] text-neutral-400 block">
-                  Helper wages, electricity, transport
-                </span>
-              </div>
-
-              {/* Input 3: Opening Cash */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-neutral-700 block">
-                  Opening Received Cash (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={settingsForm.openingCash}
-                  onChange={(e) =>
-                    setSettingsForm({ ...settingsForm, openingCash: Number(e.target.value) })
-                  }
-                  className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-1.5 text-black font-bold focus:ring-2 focus:ring-yellow-400"
-                />
-                <span className="text-[10px] text-neutral-400 block">
-                  Cash in hand + current account balance
-                </span>
-              </div>
-
-              {/* Input 4: Safety Buffer */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-neutral-700 block">
-                  Safety Buffer (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={settingsForm.safetyBuffer}
-                  onChange={(e) =>
-                    setSettingsForm({ ...settingsForm, safetyBuffer: Number(e.target.value) })
-                  }
-                  className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-1.5 text-black font-bold focus:ring-2 focus:ring-yellow-400"
-                />
-                <span className="text-[10px] text-neutral-400 block">
-                  Defaults to 3 days of running costs
-                </span>
-              </div>
-            </div>
-
-            {/* Save Buttons */}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-200">
               <button
                 type="button"
                 onClick={() => setIsSettingsOpen(false)}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-600 hover:text-black"
+                className="min-h-[44px] min-w-[44px] rounded-xl text-neutral-400 hover:text-black flex items-center justify-center cursor-pointer p-1"
+                aria-label="Close settings"
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-1.5 rounded-xl text-xs font-black bg-black text-yellow-300 hover:bg-neutral-800 transition-all shadow-xs cursor-pointer"
-              >
-                Save & Recompute Timeline
+                <X className="w-5 h-5" />
               </button>
             </div>
-          </form>
+
+            <form onSubmit={handleSaveSettings} className="space-y-5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Input 1: Gross Margin % */}
+                <div className="space-y-1.5 bg-neutral-50/80 p-3.5 rounded-2xl border border-neutral-200/80">
+                  <label className="font-bold text-neutral-800 text-xs sm:text-sm block">
+                    Gross Profit Margin (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="99"
+                    value={settingsForm.grossMarginPct}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, grossMarginPct: Number(e.target.value) })
+                    }
+                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-[44px]"
+                  />
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPresetMargin(20)}
+                      className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-white border border-neutral-200 hover:border-black min-h-[36px] flex items-center"
+                    >
+                      Kirana (20%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPresetMargin(35)}
+                      className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-white border border-neutral-200 hover:border-black min-h-[36px] flex items-center"
+                    >
+                      Sweets (35%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPresetMargin(25)}
+                      className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-white border border-neutral-200 hover:border-black min-h-[36px] flex items-center"
+                    >
+                      Standard (25%)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Input 2: Daily Running Cost */}
+                <div className="space-y-1.5 bg-neutral-50/80 p-3.5 rounded-2xl border border-neutral-200/80">
+                  <label className="font-bold text-neutral-800 text-xs sm:text-sm block">
+                    Daily Running Costs (₹/day)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settingsForm.dailyRunningCost}
+                    onChange={(e) => {
+                      const cost = Number(e.target.value);
+                      setSettingsForm({
+                        ...settingsForm,
+                        dailyRunningCost: cost,
+                        safetyBuffer: cost * 3,
+                      });
+                    }}
+                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-[44px]"
+                  />
+                  <span className="text-[11px] text-neutral-500 block">
+                    Helper wages, electricity, transport
+                  </span>
+                </div>
+
+                {/* Input 3: Opening Cash */}
+                <div className="space-y-1.5 bg-neutral-50/80 p-3.5 rounded-2xl border border-neutral-200/80">
+                  <label className="font-bold text-neutral-800 text-xs sm:text-sm block">
+                    Opening Received Cash (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settingsForm.openingCash}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, openingCash: Number(e.target.value) })
+                    }
+                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-[44px]"
+                  />
+                  <span className="text-[11px] text-neutral-500 block">
+                    Cash in hand + current account balance
+                  </span>
+                </div>
+
+                {/* Input 4: Safety Buffer */}
+                <div className="space-y-1.5 bg-neutral-50/80 p-3.5 rounded-2xl border border-neutral-200/80">
+                  <label className="font-bold text-neutral-800 text-xs sm:text-sm block">
+                    Safety Buffer (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settingsForm.safetyBuffer}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, safetyBuffer: Number(e.target.value) })
+                    }
+                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-[44px]"
+                  />
+                  <span className="text-[11px] text-neutral-500 block">
+                    Defaults to 3 days of running costs
+                  </span>
+                </div>
+              </div>
+
+              {/* Save & Cancel Buttons (Full width on phones, inline on desktop) */}
+              <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-3 border-t border-neutral-200">
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold text-neutral-600 hover:text-black border border-neutral-200 hover:bg-neutral-100 flex items-center justify-center cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto min-h-[44px] px-5 py-2 rounded-xl text-xs font-black bg-black text-yellow-300 hover:bg-neutral-800 transition-all shadow-md flex items-center justify-center cursor-pointer"
+                >
+                  Save & Recompute Timeline
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </section>

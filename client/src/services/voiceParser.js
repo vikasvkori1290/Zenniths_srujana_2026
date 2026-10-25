@@ -1,3 +1,5 @@
+import { API_BASE } from './api';
+
 // Intelligent Voice CRUD Parsing Service for eKhata
 // Handles: ADD, SUBTRACT, DELETE (COMPLETE REMOVE), RENAME, UPDATE_DUE_DATE, SETTLE
 // Powered by Groq Cloud LPU AI with Smart Local NLP fallback
@@ -303,7 +305,7 @@ function capitalize(s) {
 // Check if Groq backend service has active key
 export async function checkGroqStatus() {
   try {
-    const res = await fetch('/api/v1/groq/status');
+    const res = await fetch(`${API_BASE}/groq/status`);
     if (res.ok) {
       const data = await res.json();
       return data;
@@ -320,7 +322,7 @@ export async function parseWithGroqAI({ text, apiKey, currentCustomers }) {
 
   // 1. Try Backend Proxy endpoint first
   try {
-    const backendRes = await fetch('/api/v1/groq/parse-voice', {
+    const backendRes = await fetch(`${API_BASE}/groq/parse-voice`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: normalizedText, apiKey, currentCustomers }),

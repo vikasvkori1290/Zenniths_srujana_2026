@@ -35,7 +35,7 @@ export default function App() {
       <FinanceHeader />
 
       {/* Routed Main Content */}
-      <main className="flex-1 w-full bg-white">
+      <main className="flex-1 w-full bg-white pb-20 lg:pb-0">
         <Routes>
           {/* Public Authentication Route */}
           <Route
