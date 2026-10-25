@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   CreditCard,
   Plus,
@@ -12,10 +12,18 @@ import {
   AlertCircle,
   ArrowRight,
   Edit3,
+  Sparkles,
+  Package,
 } from 'lucide-react';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 import { syncFixedExpensesToDb, fetchFixedExpensesFromDb } from '../services/api';
 import { getStoredFixedExpenses, deduplicateFixedExpenses } from '../services/expenseSync';
+import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
+import {
+  saveCustomRestock,
+  clearCustomRestock,
+  getStoredCustomRestock,
+} from '../services/stockReserveEngine';
 
 export default function FixedExpensesPage() {
   const [fixedExpenses, setFixedExpenses] = useState(() => getStoredFixedExpenses());
@@ -25,8 +33,14 @@ export default function FixedExpensesPage() {
   const [editingId, setEditingId] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
+  // Stock-Reserve Auto Restock state
+  const [stockSyncKey, setStockSyncKey] = useState(0);
+  const [editingRestockModal, setEditingRestockModal] = useState(false);
+  const [restockForm, setRestockForm] = useState({ date: '', amount: '' });
+
   // Lock background scroll when modal is open
-  useBodyScrollLock(isModalOpen);
+  useBodyScrollLock(isModalOpen || editingRestockModal);
+
 
   const [form, setForm] = useState({
     title: '',
@@ -87,14 +101,65 @@ export default function FixedExpensesPage() {
     });
   }, [fixedExpenses, isLoadingDb]);
 
+  // Listen for stock reserve engine updates
+  useEffect(() => {
+    const handleStockSync = () => setStockSyncKey((k) => k + 1);
+    window.addEventListener('aurum_stock_reserve_updated', handleStockSync);
+    return () => {
+      window.removeEventListener('aurum_stock_reserve_updated', handleStockSync);
+    };
+  }, []);
+
+  const stockReserve = useMemo(() => {
+    try {
+      const todayIncome = JSON.parse(localStorage.getItem('aurum_today_income') || '[]');
+      const khata = JSON.parse(localStorage.getItem('aurum_ekhata_data') || '[]');
+      const up = JSON.parse(localStorage.getItem('aurum_upcoming_expenses') || '[]');
+      const isFestivalOn = localStorage.getItem('aurum_festival_toggle') !== 'false';
+      const analytics = calculatePredictiveCashRunway({
+        todayIncomeList: todayIncome,
+        fixedExpensesList: fixedExpenses,
+        upcomingExpensesList: up,
+        eKhataCustomersList: khata,
+        isFestivalAdjustmentOn: isFestivalOn,
+      });
+      return analytics.stockReserve;
+    } catch (e) {
+      return null;
+    }
+  }, [fixedExpenses, stockSyncKey]);
+
+  const handleOpenRestockEdit = () => {
+    if (!stockReserve) return;
+    setRestockForm({
+      date: stockReserve.restockPlan?.earliestDate || new Date().toISOString().split('T')[0],
+      amount: stockReserve.restockAmount || '',
+    });
+    setEditingRestockModal(true);
+  };
+
+  const handleSaveRestockEdit = (e) => {
+    e.preventDefault();
+    if (!restockForm.date || !restockForm.amount) return;
+    saveCustomRestock({
+      date: restockForm.date,
+      amount: Number(restockForm.amount),
+    });
+    setStockSyncKey((k) => k + 1);
+    setEditingRestockModal(false);
+    showToast(`Updated restock schedule: ₹${Number(restockForm.amount).toLocaleString()} on ${restockForm.date}`);
+  };
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const totalMonthlyFixed = fixedExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const totalMonthlyFixed = fixedExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0) +
+    (stockReserve?.triggered ? Number(stockReserve.restockAmount || 0) : 0);
   const paidCount = fixedExpenses.filter((item) => item.status === 'Paid').length;
-  const pendingCount = fixedExpenses.length - paidCount;
+  const pendingCount = fixedExpenses.length - paidCount + (stockReserve?.triggered ? 1 : 0);
+
 
   const handleToggleStatus = (id) => {
     setFixedExpenses(
@@ -253,7 +318,100 @@ export default function FixedExpensesPage() {
 
         {/* Grid of Fixed Expenses */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {/* Auto-Scheduled Stock Reserve Replenishment (One Month Only) */}
+          {stockReserve?.triggered && (
+            <div className="p-5 sm:p-6 rounded-3xl bg-linear-to-br from-orange-50/90 via-amber-50/50 to-white border-2 border-orange-300 shadow-sm flex flex-col justify-between group relative">
+              <div>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-white border border-orange-200 text-orange-950">
+                      Stock Replenishment
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-900 border border-orange-300 flex items-center space-x-1">
+                      <span>⚡</span>
+                      <span>Auto</span>
+                    </span>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                      stockReserve.status === 'RISK'
+                        ? 'bg-rose-100 text-rose-800 border-rose-300'
+                        : 'bg-amber-100 text-amber-800 border-amber-300'
+                    }`}
+                  >
+                    {stockReserve.status === 'RISK' ? '● Buffer Risk' : '● Scheduled'}
+                  </span>
+                </div>
+
+                <h3 className="text-base font-bold text-black mb-1 flex items-center gap-1.5">
+                  <span>Inventory Restock</span>
+                  <span className="text-[11px] font-normal text-neutral-500">(One month only)</span>
+                </h3>
+                <p className="text-xs text-neutral-600 leading-relaxed">
+                  Auto-scheduled restock because Khata collection was borrowed to cover{' '}
+                  <strong>{stockReserve.triggerDue?.primaryDueTitle}</strong> on {stockReserve.triggerDue?.date}.
+                </p>
+
+                {stockReserve.warning && (
+                  <div className="mt-3 p-2.5 rounded-xl bg-amber-100/70 border border-amber-300 text-amber-950 text-[11px] font-semibold flex items-start space-x-2">
+                    <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                    <span>{stockReserve.warning}</span>
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-neutral-700 font-medium">
+                  <div className="flex items-center space-x-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-orange-600" />
+                    <span className="font-mono font-bold">{stockReserve.restockPlan?.earliestDate}</span>
+                  </div>
+                  {stockReserve.restockPlan?.isSplit && (
+                    <span className="text-[10px] bg-white px-2 py-0.5 rounded-full border border-neutral-200 font-bold text-neutral-700">
+                      Split into {stockReserve.restockPlan.splitCount} instalments
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-orange-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-neutral-400 block">
+                    One-Month Outflow
+                  </span>
+                  <span className="text-lg font-black text-rose-600 font-['Outfit']">
+                    ₹{Number(stockReserve.restockAmount).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-1.5">
+                  {getStoredCustomRestock() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearCustomRestock();
+                        setStockSyncKey((k) => k + 1);
+                        showToast('Restored restock to auto-calculated buffer-safe date.');
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-white text-neutral-700 border border-neutral-300 hover:bg-neutral-100 cursor-pointer shadow-2xs"
+                    >
+                      Reset
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleOpenRestockEdit}
+                    className="min-h-11 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 cursor-pointer flex items-center space-x-1"
+                    title="Edit restock date or amount"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Edit Date</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {fixedExpenses.map((expense) => (
+
             <div
               key={expense.id}
               className="p-5 sm:p-6 rounded-3xl bg-neutral-50/70 border border-neutral-200/80 hover:border-amber-400/80 transition-all flex flex-col justify-between group"
@@ -457,6 +615,83 @@ export default function FixedExpensesPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Auto-Scheduled Restock Modal */}
+      {editingRestockModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 w-full max-w-md border border-neutral-200 shadow-2xl max-h-[90dvh] overflow-y-auto">
+            <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-3" />
+
+            <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-800 flex items-center justify-center border border-orange-200">
+                  <Package className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-black text-sm">Customize Restock Date</h3>
+                  <p className="text-[11px] text-neutral-500">FinSafe will verify this date against your safety buffer</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingRestockModal(false)}
+                className="text-neutral-400 hover:text-black p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRestockEdit} className="space-y-4 pt-4">
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-300 text-amber-950 text-xs">
+                FinSafe auto-scheduled this restock to avoid depleting your inventory after Khata cash covered a scheduled due.
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-neutral-700 block mb-1">
+                  Restock Amount (₹) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  value={restockForm.amount}
+                  onChange={(e) => setRestockForm({ ...restockForm, amount: e.target.value })}
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-xs text-black font-mono font-bold focus:border-yellow-400 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-neutral-700 block mb-1">
+                  Target Restock Outflow Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={restockForm.date}
+                  onChange={(e) => setRestockForm({ ...restockForm, date: e.target.value })}
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-xs text-black font-mono font-bold focus:border-yellow-400 outline-none"
+                />
+              </div>
+
+              <div className="pt-3 flex flex-col-reverse sm:flex-row items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingRestockModal(false)}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-neutral-600 hover:text-black border border-neutral-200 min-h-11 flex items-center justify-center cursor-pointer text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto gold-button-gradient px-5 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer min-h-11 flex items-center justify-center"
+                >
+                  Save &amp; Re-check Buffer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

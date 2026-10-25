@@ -25,8 +25,14 @@ import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
 import { getRetainedCashBeforeDueDate } from '../services/contextAdjuster';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 import { syncUpcomingExpensesToDb } from '../services/api';
+import {
+  saveCustomRestock,
+  clearCustomRestock,
+  getStoredCustomRestock,
+} from '../services/stockReserveEngine';
 
 const DEFAULT_UPCOMING_EXPENSES = [];
+
 
 export default function UpcomingExpensesSection() {
   // 1. One-off / scheduled upcoming expenses
@@ -49,6 +55,8 @@ export default function UpcomingExpensesSection() {
   );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
+  const [stockReserveSyncKey, setStockReserveSyncKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState('ALL');
   const [feedbackToast, setFeedbackToast] = useState(null);
@@ -64,6 +72,17 @@ export default function UpcomingExpensesSection() {
     urgency: 'Medium',
     category: 'Supplier Dues',
   });
+
+  // Listen for stock reserve engine updates
+  useEffect(() => {
+    const handleStockReserve = () => {
+      setStockReserveSyncKey((k) => k + 1);
+    };
+    window.addEventListener('aurum_stock_reserve_updated', handleStockReserve);
+    return () => {
+      window.removeEventListener('aurum_stock_reserve_updated', handleStockReserve);
+    };
+  }, []);
 
   // Sync manual upcoming expenses to localStorage and MongoDB with loop guard
   useEffect(() => {
@@ -103,6 +122,7 @@ export default function UpcomingExpensesSection() {
     };
   }, []);
 
+
   const showToast = (msg) => {
     setFeedbackToast(msg);
     setTimeout(() => setFeedbackToast(null), 4000);
@@ -139,6 +159,26 @@ export default function UpcomingExpensesSection() {
     if (!form.title || !form.amount) return;
 
     if (editingExpense) {
+      if (editingExpense.isStockRestock) {
+        saveCustomRestock({
+          date: form.dueDate,
+          amount: Number(form.amount),
+        });
+        setStockReserveSyncKey((k) => k + 1);
+        showToast(`Updated auto-restock schedule: ₹${Number(form.amount).toLocaleString()} on ${form.dueDate}`);
+        setForm({
+          title: '',
+          payee: '',
+          amount: '',
+          dueDate: new Date().toISOString().split('T')[0],
+          urgency: 'Medium',
+          category: 'Supplier Dues',
+        });
+        setEditingExpense(null);
+        setIsModalOpen(false);
+        return;
+      }
+
       if (editingExpense.isFixedMonthly) {
         const allFixed = getStoredFixedExpenses();
         const updatedFixed = allFixed.map((fx) => {
@@ -206,9 +246,16 @@ export default function UpcomingExpensesSection() {
   };
 
   const handleDeleteExpense = (id, title) => {
+    if (id?.toString().startsWith('auto-restock')) {
+      clearCustomRestock();
+      setStockReserveSyncKey((k) => k + 1);
+      showToast('Reset auto-restock schedule to optimal buffer-safe default.');
+      return;
+    }
     setUpcomingExpenses(upcomingExpenses.filter((item) => item.id !== id));
     showToast(`Removed expense: ${title || 'Entry'}`);
   };
+
 
   const handleToggleFixed = (fixedId, title, dueDate) => {
     toggleFixedExpenseStatus(fixedId, dueDate);
@@ -231,10 +278,7 @@ export default function UpcomingExpensesSection() {
     });
   }, [upcomingExpenses, fixedExpensesDue]);
 
-  const combinedExpenses = dueEventsData.events;
-  const totalUpcoming = dueEventsData.duesWithin15Days;
-
-  // Compute cashflow timeline to know the exact retained cash before each due date
+  // Compute cashflow timeline to know the exact retained cash before each due date and evaluate stock reserve auto-restock
   const cashflowTimeline = useMemo(() => {
     try {
       const todayIncome = JSON.parse(localStorage.getItem('aurum_today_income') || '[]');
@@ -256,13 +300,57 @@ export default function UpcomingExpensesSection() {
       return {
         timeline: analytics.timeline || [],
         retainedCashPerDay: analytics.retainedCashPerDay || 1500,
+        stockReserve: analytics.stockReserve || null,
+        safetyBuffer: analytics.safetyBuffer || 1500,
       };
     } catch (e) {
-      return { timeline: [], retainedCashPerDay: 1500 };
+      return { timeline: [], retainedCashPerDay: 1500, stockReserve: null, safetyBuffer: 1500 };
     }
-  }, [upcomingExpenses, fixedExpensesDue]);
+  }, [upcomingExpenses, fixedExpensesDue, stockReserveSyncKey]);
 
-  const filteredExpenses = combinedExpenses.filter((item) => {
+  // Combine manual upcoming expenses, fixed commitments, and auto-scheduled stock restock instalments
+  const allPayables = useMemo(() => {
+    const list = [...combinedExpenses];
+    const reserve = cashflowTimeline.stockReserve;
+
+    if (reserve?.triggered && reserve.restockPlan?.instalments?.length > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      reserve.restockPlan.instalments.forEach((inst, idx) => {
+        let diffDays = 0;
+        if (inst.date) {
+          const dParts = inst.date.split('-');
+          const dDate = new Date(Number(dParts[0]), Number(dParts[1]) - 1, Number(dParts[2]));
+          diffDays = Math.round((dDate - today) / (1000 * 60 * 60 * 24));
+        }
+
+        list.push({
+          id: `auto-restock-${inst.day || idx}`,
+          title: reserve.restockPlan.isSplit
+            ? `Inventory Restock (Instalment ${idx + 1}/${reserve.restockPlan.splitCount})`
+            : `Inventory Restock`,
+          payee: `Stock Reserve Replenishment (${reserve.triggerDue?.primaryDueTitle || 'Due Coverage'})`,
+          amount: inst.amount,
+          dueDate: inst.date,
+          diffDays,
+          urgency: reserve.status === 'RISK' ? 'Urgent' : 'High',
+          category: 'Stock Replenishment',
+          status: 'Upcoming',
+          isAuto: true,
+          isStockRestock: true,
+          restockParent: reserve,
+          notes: `Auto-scheduled: stock money ₹${(reserve.restockAmount || 0).toLocaleString()} used on ${reserve.triggerDue?.date}.`,
+        });
+      });
+    }
+
+    return list.sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+  }, [combinedExpenses, cashflowTimeline.stockReserve]);
+
+  const totalUpcoming = allPayables.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+  const filteredExpenses = allPayables.filter((item) => {
     const matchesSearch =
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.payee.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -271,6 +359,7 @@ export default function UpcomingExpensesSection() {
       urgencyFilter === 'ALL' || item.urgency.toUpperCase() === urgencyFilter;
     return matchesSearch && matchesUrgency;
   });
+
 
   return (
     <div className="w-full space-y-6">
@@ -366,8 +455,30 @@ export default function UpcomingExpensesSection() {
           </div>
         </div>
 
+        {/* Buffer Warning Banner for Auto-Scheduled Stock Reserve */}
+        {cashflowTimeline.stockReserve?.warning && (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-semibold flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+            <div className="flex items-start sm:items-center space-x-2.5">
+              <AlertCircle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
+              <span>{cashflowTimeline.stockReserve.warning}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                clearCustomRestock();
+                setStockReserveSyncKey((k) => k + 1);
+                showToast('Reset restock schedule to auto-calculated buffer-safe day.');
+              }}
+              className="px-3 py-1.5 rounded-xl bg-white text-amber-900 hover:bg-amber-100 border border-amber-400 font-bold text-xs shrink-0 cursor-pointer shadow-2xs"
+            >
+              Reset to Auto Schedule
+            </button>
+          </div>
+        )}
+
         {/* Mobile Stacked Card View (< md) */}
         <div className="block md:hidden space-y-3">
+
           {filteredExpenses.length === 0 ? (
             <div className="py-10 text-center text-neutral-400 text-xs bg-neutral-50/50 rounded-2xl border border-dashed border-neutral-200 p-4">
               No upcoming expenses found. Tap "+ Schedule Upcoming Expense" above to add one!
@@ -388,6 +499,15 @@ export default function UpcomingExpensesSection() {
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="font-bold text-black text-sm">{item.title}</span>
+                        {item.isAuto && (
+                          <span
+                            className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-900 border border-orange-300 shrink-0"
+                            title={item.notes || 'Auto-scheduled restock'}
+                          >
+                            <span>⚡</span>
+                            <span>Auto</span>
+                          </span>
+                        )}
                         {item.isFixedMonthly && (
                           <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                             <Repeat className="w-2.5 h-2.5 text-amber-700" />
@@ -395,6 +515,7 @@ export default function UpcomingExpensesSection() {
                           </span>
                         )}
                       </div>
+
                       <p className="text-xs text-neutral-600 font-medium">{item.payee}</p>
                     </div>
                     <span
@@ -541,6 +662,15 @@ export default function UpcomingExpensesSection() {
                     <td className="py-3.5 px-4">
                       <div className="flex items-center space-x-2">
                         <span className="font-bold text-black">{item.title}</span>
+                        {item.isAuto && (
+                          <span
+                            className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-900 border border-orange-300 shrink-0"
+                            title={item.notes || 'Auto-scheduled restock'}
+                          >
+                            <span>⚡</span>
+                            <span>Auto</span>
+                          </span>
+                        )}
                         {item.isFixedMonthly && (
                           <span
                             className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shrink-0"
@@ -551,11 +681,17 @@ export default function UpcomingExpensesSection() {
                           </span>
                         )}
                       </div>
+                      {item.isAuto && (
+                        <span className="text-[10px] text-orange-700 block font-normal mt-0.5">
+                          {item.notes}
+                        </span>
+                      )}
                       {item.isFixedMonthly && (
                         <span className="text-[10px] text-neutral-400 block font-normal mt-0.5">
                           Recurs every {item.dueDay}th of month
                         </span>
                       )}
+
                     </td>
                     <td className="py-3.5 px-4 text-neutral-600 font-medium">
                       {item.payee}
@@ -709,6 +845,34 @@ export default function UpcomingExpensesSection() {
               </div>
             </div>
 
+            {editingExpense?.isStockRestock && (
+              <div className="mb-4 p-3.5 bg-orange-50 rounded-2xl border border-orange-200 text-orange-950 text-xs space-y-1.5">
+                <div className="flex items-center space-x-1.5 font-bold text-orange-900">
+                  <Sparkles className="w-3.5 h-3.5 text-orange-600" />
+                  <span>Auto-Scheduled Restock Schedule</span>
+                </div>
+                <p className="text-[11px] text-orange-800 leading-relaxed">
+                  FinSafe auto-scheduled this restock because customer Khata collections were borrowed to fund liabilities.
+                  You can edit the date or amount; FinSafe will re-evaluate against your safety buffer and warn if it breaches.
+                </p>
+                {getStoredCustomRestock() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearCustomRestock();
+                      setStockReserveSyncKey((k) => k + 1);
+                      setIsModalOpen(false);
+                      setEditingExpense(null);
+                      showToast('Restored restock to auto-calculated buffer-safe schedule.');
+                    }}
+                    className="text-[11px] font-bold text-orange-900 underline hover:text-black cursor-pointer pt-1 block"
+                  >
+                    Reset to FinSafe Auto-Calculated Date
+                  </button>
+                )}
+              </div>
+            )}
+
             <form onSubmit={handleAddExpense} className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-neutral-700 block mb-1">
@@ -778,6 +942,7 @@ export default function UpcomingExpensesSection() {
                     className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                   >
                     <option value="Supplier Dues">Supplier Dues</option>
+                    <option value="Stock Replenishment">Stock Replenishment</option>
                     <option value="Taxes & Compliance">Taxes & Compliance</option>
                     <option value="Packaging">Packaging</option>
                     <option value="Logistics">Logistics</option>
@@ -823,6 +988,7 @@ export default function UpcomingExpensesSection() {
                 </button>
               </div>
             </form>
+
           </div>
         </div>
       )}

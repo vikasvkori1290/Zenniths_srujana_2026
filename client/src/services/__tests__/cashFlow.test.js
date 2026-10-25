@@ -9,6 +9,7 @@ import {
 } from '../predictiveAnalytics.js';
 import { getDueEvents } from '../expenseSync.js';
 import { simulateScenarioTimeline, compareMitigationResponses } from '../scenarioSimulator.js';
+import { evaluateStockReserveRestock } from '../stockReserveEngine.js';
 
 describe('FinSafe Cash-Flow Engine & Retained Cash Specifications', () => {
   // Test 1: The worked example ₹8,000 → ₹1,500
@@ -780,6 +781,257 @@ describe('Scenario Simulator & Response Comparison Specifications', () => {
     assert.ok(best, 'Must identify and rank the best response');
   });
 });
+
+describe('Stock-Reserve Logic & Auto-Scheduled Restock Specifications', () => {
+  // Test 1: K = 20,000 at 25% margin, due 20,000 on day 3: restock 15,000 is scheduled on the earliest day in [day 6, day 24] where every later balance stays >= buffer
+  it('Test 1: K = 20,000 at 25% margin, due 20,000 on day 3: restock 15,000 is scheduled on the earliest day in [day 6, day 24] where every later balance stays >= buffer', () => {
+    const timeline = [];
+    let runningBal = 1500;
+    const buffer = 1500;
+
+    for (let d = 1; d <= 60; d++) {
+      const dayRecv = d === 1 ? 20000 : 0;
+      const dayDuesTotal = d === 3 ? 20000 : 0;
+      const retained = 1500;
+      const balAfterDues = runningBal - dayDuesTotal;
+      runningBal = balAfterDues + retained + dayRecv;
+
+      timeline.push({
+        day: d,
+        date: `2026-10-${String(d).padStart(2, '0')}`,
+        dayRecv,
+        dayDuesTotal,
+        dayDues: dayDuesTotal > 0 ? [{ title: 'Supplier Payment', amount: dayDuesTotal }] : [],
+        expectedBalanceAfterDues: balAfterDues,
+        balanceAfterDues: balAfterDues,
+        expectedBalance: runningBal,
+        balance: runningBal,
+      });
+    }
+
+    const result = evaluateStockReserveRestock({
+      timeline,
+      grossMarginPct: 25,
+      safetyBuffer: buffer,
+      khataStockCostDeductedAtSale: false,
+      restockWindowDays: 21,
+    });
+
+    assert.equal(result.triggered, true, 'Stock reserve borrow must trigger');
+    assert.equal(result.restockAmount, 15000, 'Restock amount must be exactly 15,000 (min(20k * 0.75, 20k))');
+    assert.equal(result.restockPlan.passes, true, 'Should find a passing day in the window');
+    assert.ok(result.restockPlan.earliestDay >= 6 && result.restockPlan.earliestDay <= 24, 'Scheduled day must be within [day 6, day 24]');
+
+    for (let d = result.restockPlan.earliestDay; d <= 60; d++) {
+      const pt = timeline[d - 1];
+      assert.ok(pt.expectedBalanceAfterDues - 15000 >= buffer, `Day ${d} balance must stay >= buffer`);
+    }
+  });
+
+  // Test 2: If no single day passes, the restock is split into 2 or 3 instalments
+  it('Test 2: If no single day passes, the restock is split into 2 or 3 instalments', () => {
+    const timeline = [];
+    let runningBal = 1500;
+    const buffer = 1500;
+
+    for (let d = 1; d <= 60; d++) {
+      const dayRecv = d === 1 ? 20000 : 0;
+      const dayDuesTotal = d === 3 ? 20000 : 0;
+      // In initial window (d <= 24), retained is 600/day (balance maxes at ~14.1k, so single 15k fails)
+      // Across the full month (d > 24), retained increases to 1500/day so split instalments pass cleanly
+      const retained = d <= 24 ? 600 : 1500;
+      const balAfterDues = runningBal - dayDuesTotal;
+      runningBal = balAfterDues + retained + dayRecv;
+
+      timeline.push({
+        day: d,
+        date: `2026-10-${String(d).padStart(2, '0')}`,
+        dayRecv,
+        dayDuesTotal,
+        dayDues: dayDuesTotal > 0 ? [{ title: 'Wholesale Invoice', amount: dayDuesTotal }] : [],
+        expectedBalanceAfterDues: balAfterDues,
+        balanceAfterDues: balAfterDues,
+        expectedBalance: runningBal,
+        balance: runningBal,
+      });
+    }
+
+    const result = evaluateStockReserveRestock({
+      timeline,
+      grossMarginPct: 25,
+      safetyBuffer: buffer,
+      khataStockCostDeductedAtSale: false,
+      restockWindowDays: 21,
+    });
+
+    assert.equal(result.triggered, true);
+    assert.equal(result.restockPlan.isSplit, true, 'Restock should be split into instalments when single day fails');
+    assert.ok([2, 3].includes(result.restockPlan.splitCount), 'Split count must be 2 or 3');
+    assert.equal(result.restockPlan.passes, true, 'Split plan should pass the buffer check');
+  });
+
+  // Test 3: If nothing passes, status is RISK and Path B is offered
+  it('Test 3: If nothing passes, status is RISK and Path B is offered', () => {
+    const timeline = [];
+    let runningBal = 1500;
+    const buffer = 1500;
+
+    for (let d = 1; d <= 60; d++) {
+      const dayRecv = d === 1 ? 20000 : 0;
+      const dayDuesTotal = d === 3 ? 20000 : 0;
+      const retained = 0;
+      const balAfterDues = runningBal - dayDuesTotal;
+      runningBal = balAfterDues + retained + dayRecv;
+
+      timeline.push({
+        day: d,
+        date: `2026-10-${String(d).padStart(2, '0')}`,
+        dayRecv,
+        dayDuesTotal,
+        dayDues: dayDuesTotal > 0 ? [{ title: 'Vendor Rent', amount: dayDuesTotal }] : [],
+        expectedBalanceAfterDues: balAfterDues,
+        balanceAfterDues: balAfterDues,
+        expectedBalance: runningBal,
+        balance: runningBal,
+      });
+    }
+
+    const result = evaluateStockReserveRestock({
+      timeline,
+      grossMarginPct: 25,
+      safetyBuffer: buffer,
+      khataStockCostDeductedAtSale: false,
+      restockWindowDays: 21,
+    });
+
+    assert.equal(result.triggered, true);
+    assert.equal(result.status, 'RISK', 'Status must be RISK when no plan clears buffer');
+    assert.equal(result.restockPlan.passes, false);
+    assert.ok(result.restockPlan.gap > 0, 'Gap must be reported');
+    assert.ok(result.pathB, 'Path B options must be provided');
+    assert.ok(result.pathB.options.length >= 3, 'Must provide loan, delay supplier, and owner cash options');
+  });
+
+  // Test 4: With the setting "stock cost already deducted" = Yes, no restock is scheduled
+  it('Test 4: With the setting "stock cost already deducted" = Yes, no restock is scheduled', () => {
+    const timeline = [];
+    let runningBal = 1500;
+    const buffer = 1500;
+
+    for (let d = 1; d <= 60; d++) {
+      const dayRecv = d === 1 ? 20000 : 0;
+      const dayDuesTotal = d === 3 ? 20000 : 0;
+      const retained = 1500;
+      const balAfterDues = runningBal - dayDuesTotal;
+      runningBal = balAfterDues + retained + dayRecv;
+
+      timeline.push({
+        day: d,
+        date: `2026-10-${String(d).padStart(2, '0')}`,
+        dayRecv,
+        dayDuesTotal,
+        dayDues: dayDuesTotal > 0 ? [{ title: 'Supplier Payment', amount: dayDuesTotal }] : [],
+        expectedBalanceAfterDues: balAfterDues,
+        balanceAfterDues: balAfterDues,
+        expectedBalance: runningBal,
+        balance: runningBal,
+      });
+    }
+
+    const result = evaluateStockReserveRestock({
+      timeline,
+      grossMarginPct: 25,
+      safetyBuffer: buffer,
+      khataStockCostDeductedAtSale: true,
+      restockWindowDays: 21,
+    });
+
+    assert.equal(result.triggered, false, 'Should not trigger when stock cost is already deducted at sale');
+    assert.equal(result.restockAmount, 0, 'Restock amount should be 0');
+    assert.equal(result.restockPlan, null, 'No restock plan should be scheduled');
+  });
+
+  // Test 5: Editing the restock date to a day that breaks the buffer triggers a warning
+  it('Test 5: Editing the restock date to a day that breaks the buffer triggers a warning', () => {
+    const timeline = [];
+    let runningBal = 1500;
+    const buffer = 1500;
+
+    for (let d = 1; d <= 60; d++) {
+      const dayRecv = d === 1 ? 20000 : 0;
+      const dayDuesTotal = d === 3 ? 20000 : 0;
+      const retained = 1500;
+      const balAfterDues = runningBal - dayDuesTotal;
+      runningBal = balAfterDues + retained + dayRecv;
+
+      timeline.push({
+        day: d,
+        date: `2026-10-${String(d).padStart(2, '0')}`,
+        dayRecv,
+        dayDuesTotal,
+        dayDues: dayDuesTotal > 0 ? [{ title: 'Supplier Payment', amount: dayDuesTotal }] : [],
+        expectedBalanceAfterDues: balAfterDues,
+        balanceAfterDues: balAfterDues,
+        expectedBalance: runningBal,
+        balance: runningBal,
+      });
+    }
+
+    const result = evaluateStockReserveRestock({
+      timeline,
+      grossMarginPct: 25,
+      safetyBuffer: buffer,
+      khataStockCostDeductedAtSale: false,
+      restockWindowDays: 21,
+      customRestock: { day: 4, date: '2026-10-04', amount: 15000 },
+    });
+
+    assert.equal(result.triggered, true);
+    assert.ok(result.warning, 'Must trigger a warning message');
+    assert.ok(result.warning.includes('breaching'), 'Warning must detail the buffer breach');
+    assert.equal(result.status, 'RISK', 'Status must be RISK when custom date breaks buffer');
+  });
+
+  // Test 6: Top chart without any khata-funded due is unchanged
+  it('Test 6: Top chart without any khata-funded due is unchanged', () => {
+    const timeline = [];
+    let runningBal = 50000;
+    const buffer = 1500;
+
+    for (let d = 1; d <= 60; d++) {
+      const dayRecv = d === 1 ? 5000 : 0;
+      const dayDuesTotal = d === 3 ? 2000 : 0;
+      const retained = 1500;
+      const balAfterDues = runningBal - dayDuesTotal;
+      runningBal = balAfterDues + retained + dayRecv;
+
+      timeline.push({
+        day: d,
+        date: `2026-10-${String(d).padStart(2, '0')}`,
+        dayRecv,
+        dayDuesTotal,
+        dayDues: dayDuesTotal > 0 ? [{ title: 'Phone Bill', amount: dayDuesTotal }] : [],
+        expectedBalanceAfterDues: balAfterDues,
+        balanceAfterDues: balAfterDues,
+        expectedBalance: runningBal,
+        balance: runningBal,
+      });
+    }
+
+    const result = evaluateStockReserveRestock({
+      timeline,
+      grossMarginPct: 25,
+      safetyBuffer: buffer,
+      khataStockCostDeductedAtSale: false,
+      restockWindowDays: 21,
+    });
+
+    assert.equal(result.triggered, false, 'Should not trigger when dues are covered by normal cash');
+    assert.equal(result.restockPlan, null, 'No restock should be scheduled');
+    assert.equal(result.status, 'SAFE', 'Status remains SAFE');
+  });
+});
+
 
 
 

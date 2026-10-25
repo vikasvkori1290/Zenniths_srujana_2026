@@ -16,8 +16,18 @@ import {
   clampOverlap,
 } from './contextAdjuster.js';
 import { getDueEvents } from './expenseSync.js';
+import {
+  evaluateStockReserveRestock,
+  getStoredStockReserveSettings,
+  DEFAULT_STOCK_RESERVE_SETTINGS,
+} from './stockReserveEngine.js';
 
-export { getDueEvents };
+export {
+  getDueEvents,
+  evaluateStockReserveRestock,
+  getStoredStockReserveSettings,
+  DEFAULT_STOCK_RESERVE_SETTINGS,
+};
 
 /**
  * Timezone-safe local YYYY-MM-DD formatter (avoids UTC date shift in IST/non-UTC timezones)
@@ -434,6 +444,7 @@ export function calculateTimelineCashflow({
   salesHistory = [],
   ownerTargetDailySales = 8000,
   openingDate = '2026-10-01',
+  enableStockReserve = false,
 }) {
   const marginFraction = Number(grossMarginPct || 0) / 100;
   const runningCost = Number(dailyRunningCost || 0);
@@ -768,6 +779,57 @@ export function calculateTimelineCashflow({
     duesWithin15Days += list.reduce((s, i) => s + i.amount, 0);
   }
 
+  // 8. Stock-Reserve Logic & Auto-Scheduled Restock
+  let stockReserve = null;
+  if (enableStockReserve) {
+    const stockReserveSettings = getStoredStockReserveSettings();
+    let customRestock = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const customSaved = localStorage.getItem('aurum_custom_restock');
+        if (customSaved) customRestock = JSON.parse(customSaved);
+      } catch (e) {}
+    }
+
+    stockReserve = evaluateStockReserveRestock({
+      timeline,
+      grossMarginPct,
+      safetyBuffer,
+      khataStockCostDeductedAtSale: stockReserveSettings.khataStockCostDeductedAtSale,
+      restockWindowDays: stockReserveSettings.restockWindowDays,
+      customRestock,
+      startDate,
+    });
+
+    if (stockReserve.triggered && stockReserve.restockPlan?.instalments?.length > 0) {
+      for (const inst of stockReserve.restockPlan.instalments) {
+        for (let i = 0; i < timeline.length; i++) {
+          const pt = timeline[i];
+          if (pt.day === inst.day) {
+            pt.isRestockOutflow = true;
+            pt.restockAmount = (pt.restockAmount || 0) + inst.amount;
+            pt.markerColor = 'orange';
+            pt.restockTooltip = `Restock Rs ${inst.amount.toLocaleString()} (auto-scheduled, stock money used on ${stockReserve.triggerDue.date})`;
+          }
+          if (pt.day >= inst.day) {
+            pt.expectedBalanceAfterDues -= inst.amount;
+            pt.expectedBalance -= inst.amount;
+            pt.balanceAfterDues -= inst.amount;
+            pt.balance -= inst.amount;
+            pt.isBelowBuffer = pt.expectedBalanceAfterDues < safetyBuffer;
+            pt.isDeficit = pt.expectedBalanceAfterDues < 0;
+          }
+        }
+      }
+
+      if (stockReserve.status === 'WATCH' && status === 'SAFE') {
+        status = 'WATCH';
+      } else if (stockReserve.status === 'RISK') {
+        status = 'RISK';
+      }
+    }
+  }
+
   return {
     // Free Cash & Baseline
     freeCashToday,
@@ -796,6 +858,9 @@ export function calculateTimelineCashflow({
     nextRiskDateFormatted,
     firstRisk,
     minProjectedBalance: minBalance,
+
+    // Stock-Reserve Info & Auto-Scheduled Restock Plan
+    stockReserve,
 
     // Context / Festival flags
     isFestivalAdjustmentOn,
@@ -859,6 +924,7 @@ export function calculatePredictiveCashRunway({
     isFestivalAdjustmentOn,
     salesHistory,
     startDate,
+    enableStockReserve: true,
   });
 
   // Informational advisory message

@@ -34,6 +34,10 @@ import {
   DEFAULT_MARGINS_BY_TYPE,
 } from '../services/predictiveAnalytics';
 import {
+  getStoredStockReserveSettings,
+  saveStockReserveSettings,
+} from '../services/stockReserveEngine';
+import {
   getStoredFixedExpenses,
   deduplicateEKhataCustomers,
   deduplicateUpcomingExpenses,
@@ -89,10 +93,15 @@ export default function PredictiveCashRunwayCard() {
     return saved ? deduplicateEKhataCustomers(JSON.parse(saved)) : [];
   });
 
-  // Onboarding & Cashflow Settings (Margin, Running Cost, Opening Cash, Buffer)
+  // Onboarding & Cashflow Settings (Margin, Running Cost, Opening Cash, Buffer, Stock Reserve)
   const [cashflowSettings, setCashflowSettings] = useState(() => getStoredCashflowSettings());
+  const [stockSettings, setStockSettings] = useState(() => getStoredStockReserveSettings());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsForm, setSettingsForm] = useState(cashflowSettings);
+  const [settingsForm, setSettingsForm] = useState(() => ({
+    ...cashflowSettings,
+    khataStockCostDeductedAtSale: stockSettings.khataStockCostDeductedAtSale,
+    restockWindowDays: stockSettings.restockWindowDays,
+  }));
 
   // Expected vs Reality toggle mode ('expected' | 'reality')
   const [timelineMode, setTimelineMode] = useState(() => {
@@ -282,6 +291,8 @@ export default function PredictiveCashRunwayCard() {
     window.addEventListener('aurum_expenses_updated', refreshData);
     window.addEventListener('aurum_ekhata_updated', refreshData);
     window.addEventListener('aurum_cashflow_settings_updated', refreshData);
+    window.addEventListener('aurum_stock_reserve_updated', refreshData);
+    window.addEventListener('aurum_custom_restock_updated', refreshData);
     window.addEventListener('aurum_festival_toggle_updated', refreshData);
     window.addEventListener('aurum_business_type_updated', refreshData);
     window.addEventListener('aurum_timeline_mode_updated', refreshData);
@@ -325,6 +336,14 @@ export default function PredictiveCashRunwayCard() {
     e.preventDefault();
     const updated = saveCashflowSettings(settingsForm);
     setCashflowSettings(updated);
+    saveStockReserveSettings({
+      khataStockCostDeductedAtSale: Boolean(settingsForm.khataStockCostDeductedAtSale),
+      restockWindowDays: Number(settingsForm.restockWindowDays || 21),
+    });
+    setStockSettings({
+      khataStockCostDeductedAtSale: Boolean(settingsForm.khataStockCostDeductedAtSale),
+      restockWindowDays: Number(settingsForm.restockWindowDays || 21),
+    });
     setIsSettingsOpen(false);
   };
 
@@ -1334,7 +1353,10 @@ export default function PredictiveCashRunwayCard() {
               let isMarker = false;
               let markerFill = null;
 
-              if (p.hasDues) {
+              if (p.isRestockOutflow) {
+                isMarker = true;
+                markerFill = '#f97316'; // Orange marker for auto-scheduled restock
+              } else if (p.hasDues) {
                 isMarker = true;
                 markerFill = curBalanceAfterDues < analytics.safetyBuffer ? '#ef4444' : '#eab308';
               } else if (p.hasKhata) {
@@ -1368,7 +1390,17 @@ export default function PredictiveCashRunwayCard() {
                   {isMarker && (
                     <g>
                       {/* Aura halo for critical points */}
-                      {p.hasDues && curBalanceAfterDues < analytics.safetyBuffer && (
+                      {p.isRestockOutflow && (
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={isHovered ? 10 : 8}
+                          fill="#f97316"
+                          opacity="0.3"
+                          className="animate-pulse"
+                        />
+                      )}
+                      {p.hasDues && !p.isRestockOutflow && curBalanceAfterDues < analytics.safetyBuffer && (
                         <circle
                           cx={cx}
                           cy={cy}
@@ -1378,7 +1410,7 @@ export default function PredictiveCashRunwayCard() {
                           className="animate-pulse"
                         />
                       )}
-                      {p.hasDues && curBalanceAfterDues >= analytics.safetyBuffer && (
+                      {p.hasDues && !p.isRestockOutflow && curBalanceAfterDues >= analytics.safetyBuffer && (
                         <circle
                           cx={cx}
                           cy={cy}
@@ -1387,7 +1419,7 @@ export default function PredictiveCashRunwayCard() {
                           opacity="0.2"
                         />
                       )}
-                      {p.hasKhata && !p.hasDues && (
+                      {p.hasKhata && !p.hasDues && !p.isRestockOutflow && (
                         <circle
                           cx={cx}
                           cy={cy}
@@ -1401,7 +1433,7 @@ export default function PredictiveCashRunwayCard() {
                       <circle
                         cx={cx}
                         cy={cy}
-                        r={isHovered ? 6 : p.hasDues ? 5 : p.hasKhata ? 4.5 : 3.5}
+                        r={isHovered ? 6 : p.isRestockOutflow ? 5.5 : p.hasDues ? 5 : p.hasKhata ? 4.5 : 3.5}
                         fill={markerFill}
                         stroke="#ffffff"
                         strokeWidth={isHovered ? 2 : 1.5}
@@ -1505,6 +1537,13 @@ export default function PredictiveCashRunwayCard() {
                   <span className="font-mono font-bold text-amber-400 text-sm">
                     Day +{hoveredPoint.day} ({hoveredPoint.date})
                   </span>
+
+                  {hoveredPoint.isRestockOutflow && (
+                    <span className="bg-orange-500/20 text-orange-300 border border-orange-500/40 px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1">
+                      <span>📦</span>
+                      <span>{hoveredPoint.restockTooltip || `Restock ₹${hoveredPoint.restockAmount?.toLocaleString()} (auto-scheduled)`}</span>
+                    </span>
+                  )}
 
                   {hoveredPoint.hasDues && (
                     <span
@@ -1878,6 +1917,144 @@ export default function PredictiveCashRunwayCard() {
         )}
       </div>
 
+      {/* Path A vs Path B Comparison Panel & Table */}
+      {analytics.stockReserve?.triggered && (
+        <div id="stock-comparison" className="p-5 sm:p-6 rounded-3xl bg-neutral-900 text-white border border-neutral-800 shadow-xl space-y-5 animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-800 gap-3">
+            <div>
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center font-bold border border-orange-500/30">
+                  📦
+                </div>
+                <h3 className="text-base sm:text-lg font-black font-['Outfit'] text-white">
+                  Stock-Reserve Borrowing & Mitigation Comparison
+                </h3>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${
+                  analytics.stockReserve.status === 'WATCH'
+                    ? 'bg-amber-400/20 text-yellow-300 border-yellow-400/40'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                }`}>
+                  Status: {analytics.stockReserve.status}
+                </span>
+              </div>
+              <p className="text-xs text-neutral-400 mt-1">
+                A Khata collection of <strong>₹{analytics.stockReserve.triggerDue?.khataAvailable?.toLocaleString()}</strong> was used on {analytics.stockReserve.triggerDue?.date} to fund <strong>{analytics.stockReserve.triggerDue?.primaryDueTitle}</strong> (₹{analytics.stockReserve.triggerDue?.dueAmount?.toLocaleString()}), borrowing from inventory stock replacement.
+              </p>
+            </div>
+            <div className="shrink-0 text-left sm:text-right">
+              <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">Auto-Scheduled Restock</span>
+              <span className="text-base sm:text-lg font-mono font-black text-orange-400">
+                ₹{analytics.stockReserve.restockAmount?.toLocaleString()}
+              </span>
+              <span className="text-[10px] text-neutral-400 block">
+                {analytics.stockReserve.restockPlan?.isSplit
+                  ? `Split into ${analytics.stockReserve.restockPlan.splitCount} instalments`
+                  : `Scheduled on ${analytics.stockReserve.restockPlan?.earliestDate}`}
+              </span>
+            </div>
+          </div>
+
+          {/* Comparison Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-neutral-800 text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+                  <th className="py-2.5 px-3">Strategy</th>
+                  <th className="py-2.5 px-3">Lowest Balance & Date</th>
+                  <th className="py-2.5 px-3">First Date Below Buffer</th>
+                  <th className="py-2.5 px-3">Restock Date & Amount</th>
+                  <th className="py-2.5 px-3">Extra Cost</th>
+                  <th className="py-2.5 px-3">Recommendation</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-800/60 text-xs">
+                {/* Path A */}
+                <tr className="bg-amber-400/5 hover:bg-amber-400/10 transition-colors">
+                  <td className="py-3 px-3 font-bold text-amber-300">
+                    <div className="flex items-center space-x-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                      <span>Path A: Use Khata Cash (Auto-Restock)</span>
+                    </div>
+                    <span className="text-[10px] text-neutral-400 block font-normal mt-0.5">
+                      Fund due from Khata, auto-restock in window
+                    </span>
+                  </td>
+                  <td className="py-3 px-3 font-mono">
+                    ₹{analytics.stockReserve.pathA?.lowestBalance?.toLocaleString()}
+                    <span className="text-[10px] text-neutral-400 block font-sans">
+                      {analytics.stockReserve.pathA?.lowestBalanceDate}
+                    </span>
+                  </td>
+                  <td className="py-3 px-3">
+                    <span className={analytics.stockReserve.pathA?.firstDateBelowBuffer?.includes('None') ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-bold'}>
+                      {analytics.stockReserve.pathA?.firstDateBelowBuffer}
+                    </span>
+                  </td>
+                  <td className="py-3 px-3 font-mono">
+                    ₹{analytics.stockReserve.pathA?.restockAmount?.toLocaleString()}
+                    <span className="text-[10px] text-neutral-400 block font-sans">
+                      {analytics.stockReserve.pathA?.restockDate}
+                    </span>
+                  </td>
+                  <td className="py-3 px-3 font-mono text-emerald-400 font-bold">
+                    ₹0 (No interest)
+                  </td>
+                  <td className="py-3 px-3">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      ★ Recommended
+                    </span>
+                    <span className="text-[11px] text-neutral-300 block mt-0.5">
+                      {analytics.stockReserve.pathA?.recommendation}
+                    </span>
+                  </td>
+                </tr>
+
+                {/* Path B Options */}
+                {analytics.stockReserve.pathB?.options?.map((opt) => (
+                  <tr key={opt.id} className="hover:bg-neutral-800/40 transition-colors">
+                    <td className="py-3 px-3 font-medium text-neutral-200">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="w-2 h-2 rounded-full bg-neutral-500"></span>
+                        <span>Path B: {opt.name}</span>
+                      </div>
+                      <span className="text-[10px] text-neutral-400 block mt-0.5">
+                        {opt.description}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 font-mono">
+                      ₹{opt.lowestBalance?.toLocaleString()}
+                      <span className="text-[10px] text-neutral-400 block font-sans">
+                        {opt.lowestBalanceDate}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-emerald-400 font-semibold">
+                      {opt.firstDateBelowBuffer}
+                    </td>
+                    <td className="py-3 px-3 text-neutral-400">
+                      Immediate (Preserved)
+                    </td>
+                    <td className="py-3 px-3 font-mono font-bold">
+                      {opt.extraCost > 0 ? (
+                        <span className="text-amber-400">+₹{opt.extraCost?.toLocaleString()}</span>
+                      ) : (
+                        <span className="text-emerald-400">₹0</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-[11px] text-neutral-300">
+                      {opt.id === 'path-b-delay-supplier'
+                        ? 'Low friction if supplier permits a 14-day extension.'
+                        : opt.id === 'path-b-loan'
+                        ? 'Immediate liquidity but incurs financing interest.'
+                        : 'Clears shortage without borrowing cost.'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
 
 
       {/* Onboarding Parameters Drawer / Modal (Responsive Bottom Sheet on Mobile, Centered Modal on Tablet/Desktop) */}
@@ -2053,6 +2230,58 @@ export default function PredictiveCashRunwayCard() {
                   />
                   <span className="text-[11px] text-neutral-500 block">
                     Defaults to 3 days of running costs (₹{(Number(settingsForm.dailyRunningCost || 500) * 3).toLocaleString()})
+                  </span>
+                </div>
+
+                {/* Input 7: Khata Stock Cost Deducted at Sale (Stock-Reserve Logic Setting) */}
+                <div className="space-y-1.5 bg-neutral-50/80 p-3.5 rounded-2xl border border-neutral-200/80 sm:col-span-2">
+                  <label className="font-bold text-neutral-800 text-xs sm:text-sm block">
+                    Khata stock cost already deducted at sale?
+                  </label>
+                  <div className="flex items-center space-x-4 pt-1">
+                    <label className="flex items-center space-x-2 text-xs font-semibold cursor-pointer">
+                      <input
+                        type="radio"
+                        name="khataStockCostDeducted"
+                        checked={!settingsForm.khataStockCostDeductedAtSale}
+                        onChange={() => setSettingsForm({ ...settingsForm, khataStockCostDeductedAtSale: false })}
+                        className="text-amber-600 focus:ring-amber-500"
+                      />
+                      <span>No (Default - Auto-schedule inventory restock when Khata funds dues)</span>
+                    </label>
+                    <label className="flex items-center space-x-2 text-xs font-semibold cursor-pointer">
+                      <input
+                        type="radio"
+                        name="khataStockCostDeducted"
+                        checked={Boolean(settingsForm.khataStockCostDeductedAtSale)}
+                        onChange={() => setSettingsForm({ ...settingsForm, khataStockCostDeductedAtSale: true })}
+                        className="text-amber-600 focus:ring-amber-500"
+                      />
+                      <span>Yes (Schedule nothing)</span>
+                    </label>
+                  </div>
+                  <span className="text-[11px] text-neutral-500 block mt-1">
+                    When set to No, FinSafe guards your working capital by auto-scheduling a restock if Khata money is used for liabilities.
+                  </span>
+                </div>
+
+                {/* Input 8: Restock Window Days */}
+                <div className="space-y-1.5 bg-neutral-50/80 p-3.5 rounded-2xl border border-neutral-200/80 sm:col-span-2">
+                  <label className="font-bold text-neutral-800 text-xs sm:text-sm block">
+                    Restock Window (days)
+                  </label>
+                  <input
+                    type="number"
+                    min="7"
+                    max="45"
+                    value={settingsForm.restockWindowDays || 21}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, restockWindowDays: Number(e.target.value) })
+                    }
+                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-11"
+                  />
+                  <span className="text-[11px] text-neutral-500 block">
+                    Horizon [T + 3 days, T + N days] in which to auto-schedule the restock without cash disruption (Default: 21 days).
                   </span>
                 </div>
               </div>
