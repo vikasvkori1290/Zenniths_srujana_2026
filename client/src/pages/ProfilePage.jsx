@@ -1,215 +1,259 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   User,
   Building2,
   Phone,
   Mail,
   CreditCard,
-  ShieldCheck,
   Edit3,
   CheckCircle2,
+  AlertCircle,
   X,
-  TrendingUp,
-  Calendar,
-  Wallet,
-  ArrowRight,
   LogOut,
-  Sparkles,
-  Zap,
-  BookOpen,
-  ArrowUpRight,
+  Lock,
+  Eye,
+  EyeOff,
+  KeyRound,
   Sliders,
+  Store,
+  Target,
+  Briefcase,
+  ArrowRight,
 } from 'lucide-react';
 import FirstTimeOnboardingModal from '../components/FirstTimeOnboardingModal';
 import { useAuth } from '../context/AuthContext';
-import { getFixedExpensesDueWithin15Days, getDueEvents } from '../services/expenseSync';
-import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 
+const DEFAULT_DEMO_UPI = 'demo.store@okhdfcbank';
+
+// Dynamically compute avatar letter or initial from user name
+export const getAvatarLetter = (name) => {
+  if (!name || typeof name !== 'string') return 'M';
+  const clean = name.trim();
+  if (!clean) return 'M';
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) {
+    // Single word name -> single letter (e.g. "nitish" -> "N")
+    return parts[0].charAt(0).toUpperCase();
+  }
+  // Two or more words -> initials (e.g. "Vikas Kori" -> "VK")
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+};
+
 export default function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updatePassword } = useAuth();
   const navigate = useNavigate();
 
+  // Load and sanitize profile data
   const [profile, setProfile] = useState(() => {
     const saved = localStorage.getItem('aurum_profile_info');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        const cleanPhone = (parsed.phone || user?.phone || '9198765432').replace(/\D/g, '').slice(0, 10);
         return {
           ...parsed,
-          businessType: parsed.businessType || user?.businessType || 'Retail Store',
-          upiId: parsed.upiId || user?.upiId || '',
+          phone: cleanPhone || '9198765432',
+          businessType: parsed.businessType || user?.businessType || 'Retail Store / General',
+          upiId: parsed.upiId || user?.upiId || DEFAULT_DEMO_UPI,
         };
       } catch (e) {}
     }
+    const cleanUserPhone = (user?.phone || '9198765432').replace(/\D/g, '').slice(0, 10);
     return {
-      name: user?.name || '',
-      initials: user?.name ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ME',
-      businessName: user?.businessName || '',
-      businessType: user?.businessType || 'Retail Store',
-      phone: user?.phone || '',
-      email: user?.email || '',
-      upiId: user?.upiId || '',
+      name: user?.name || 'nitish',
+      initials: user?.name ? user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() : 'N',
+      businessName: user?.businessName || 'nn',
+      businessType: user?.businessType || 'Retail Store / General',
+      phone: cleanUserPhone || '9198765432',
+      email: user?.email || 'nin46642@gmail.com',
+      upiId: user?.upiId || DEFAULT_DEMO_UPI,
       role: 'Owner & Primary Operator',
       currency: '₹',
-      dailyGoal: user?.dailyGoal || 10000,
+      dailyGoal: user?.dailyGoal || 20000,
       joinedDate: 'October 2026',
     };
   });
 
-  const [todayIncome] = useState(() => {
-    const saved = localStorage.getItem('aurum_today_income');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [{ amount: 5000 }, { amount: 3000 }];
-  });
-
-  const [fixedExpenses] = useState(() => {
-    const saved = localStorage.getItem('aurum_fixed_expenses');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [
-      { amount: 10000, dueDay: 5 },
-      { amount: 10000, dueDay: 10 },
-      { amount: 7000, dueDay: 7 },
-      { amount: 3000, dueDay: 18 },
-    ];
-  });
-
-  const [upcomingExpenses] = useState(() => {
-    const saved = localStorage.getItem('aurum_upcoming_expenses');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [];
-  });
-
-  const [eKhataCustomers] = useState(() => {
-    const saved = localStorage.getItem('aurum_ekhata_customers');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [];
-  });
-
-  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  // Modal states: 'personal' or 'store'
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('personal'); // 'personal' | 'store'
   const [isUpiModalOpen, setIsUpiModalOpen] = useState(false);
-  const [tempUpi, setTempUpi] = useState(profile.upiId || 'vikas.kori@okhdfcbank');
+  const [tempUpi, setTempUpi] = useState(profile.upiId || DEFAULT_DEMO_UPI);
   const [profileForm, setProfileForm] = useState(profile);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Lock background scroll when either modal is open
-  useBodyScrollLock(isEditProfileOpen || isUpiModalOpen);
+  // Update Password state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(null);
+
+  // Body scroll lock for modals
+  useBodyScrollLock(isEditModalOpen || isUpiModalOpen);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Sync with global storage and expense update events
+  // Sync if auth user updates
   useEffect(() => {
-    const refreshData = () => {
-      try {
-        const savedInc = localStorage.getItem('aurum_today_income');
-        if (savedInc) setTodayIncome(JSON.parse(savedInc));
+    if (user) {
+      setProfile((prev) => {
+        const cleanPhone = (user.phone || prev.phone || '9198765432').replace(/\D/g, '').slice(0, 10);
+        return {
+          ...prev,
+          name: user.name || prev.name,
+          businessName: user.businessName || prev.businessName,
+          businessType: user.businessType || prev.businessType,
+          email: user.email || prev.email,
+          phone: cleanPhone,
+          upiId: user.upiId || prev.upiId || DEFAULT_DEMO_UPI,
+        };
+      });
+    }
+  }, [user]);
 
-        const savedFix = localStorage.getItem('aurum_fixed_expenses');
-        if (savedFix) setFixedExpenses(JSON.parse(savedFix));
+  // Open modal for personal details
+  const handleOpenPersonalEdit = () => {
+    setProfileForm(profile);
+    setActiveTab('personal');
+    setIsEditModalOpen(true);
+  };
 
-        const savedUp = localStorage.getItem('aurum_upcoming_expenses');
-        if (savedUp) setUpcomingExpenses(JSON.parse(savedUp));
+  // Open modal for store details
+  const handleOpenStoreEdit = () => {
+    setProfileForm(profile);
+    setActiveTab('store');
+    setIsEditModalOpen(true);
+  };
 
-        const savedKhata = localStorage.getItem('aurum_ekhata_customers') || localStorage.getItem('aurum_ekhata_data');
-        if (savedKhata) setEKhataCustomers(JSON.parse(savedKhata));
-      } catch (e) {}
-    };
-
-    window.addEventListener('aurum_income_updated', refreshData);
-    window.addEventListener('aurum_fixed_expenses_updated', refreshData);
-    window.addEventListener('aurum_expenses_updated', refreshData);
-    window.addEventListener('aurum_ekhata_updated', refreshData);
-    window.addEventListener('storage', refreshData);
-
-    return () => {
-      window.removeEventListener('aurum_income_updated', refreshData);
-      window.removeEventListener('aurum_fixed_expenses_updated', refreshData);
-      window.removeEventListener('aurum_expenses_updated', refreshData);
-      window.removeEventListener('aurum_ekhata_updated', refreshData);
-      window.removeEventListener('storage', refreshData);
-    };
-  }, []);
-
-  const totalTodayIncome = todayIncome.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const totalMonthlyFixed = fixedExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  
-  // Use unified getDueEvents for real due dates and skipping paid dues
-  const dueEvents = useMemo(() => {
-    return getDueEvents({
-      fixedExpenses,
-      upcomingExpenses,
-      horizonDays: 15,
-    });
-  }, [fixedExpenses, upcomingExpenses]);
-
-  const totalUpcoming15 = dueEvents.duesWithin15Days;
-  const totalUdhar = eKhataCustomers.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
-  const goalPercentage = Math.min(Math.round((totalTodayIncome / (profile.dailyGoal || 10000)) * 100), 100);
-
-  // Compute live analytics matching the exact same engine on Home
-  const analytics = useMemo(() => {
-    return calculatePredictiveCashRunway({
-      startingBalance: 40000,
-      todayIncomeList: todayIncome,
-      fixedExpensesList: fixedExpenses,
-      upcomingExpensesList: upcomingExpenses,
-      eKhataCustomersList: eKhataCustomers,
-    });
-  }, [todayIncome, fixedExpenses, upcomingExpenses, eKhataCustomers]);
-
-  const handleSaveProfile = (e) => {
+  // Save personal details form
+  const handleSavePersonal = (e) => {
     e.preventDefault();
-    setProfile(profileForm);
-    localStorage.setItem('aurum_profile_info', JSON.stringify(profileForm));
-    if (profileForm.businessType) {
-      localStorage.setItem('aurum_business_type', profileForm.businessType);
+    const cleanPhone = (profileForm.phone || '').replace(/\D/g, '').slice(0, 10);
+    if (cleanPhone.length !== 10) {
+      showToast('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    const updated = {
+      ...profile,
+      name: profileForm.name.trim(),
+      phone: cleanPhone,
+      email: profileForm.email.trim(),
+      initials: getAvatarLetter(profileForm.name),
+    };
+
+    setProfile(updated);
+    localStorage.setItem('aurum_profile_info', JSON.stringify(updated));
+
+    try {
+      const u = JSON.parse(localStorage.getItem('aurum_auth_user') || '{}');
+      u.name = updated.name;
+      u.phone = updated.phone;
+      u.email = updated.email;
+      localStorage.setItem('aurum_auth_user', JSON.stringify(u));
+    } catch (err) {}
+
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('aurum_profile_updated'));
+    setIsEditModalOpen(false);
+    showToast('Personal details updated successfully!');
+  };
+
+  // Save store details form
+  const handleSaveStore = (e) => {
+    e.preventDefault();
+    const updated = {
+      ...profile,
+      businessName: profileForm.businessName.trim(),
+      businessType: profileForm.businessType || 'Retail Store / General',
+      dailyGoal: Number(profileForm.dailyGoal) || 20000,
+      upiId: (profileForm.upiId || '').trim() || DEFAULT_DEMO_UPI,
+    };
+
+    setProfile(updated);
+    localStorage.setItem('aurum_profile_info', JSON.stringify(updated));
+
+    if (updated.businessType) {
+      localStorage.setItem('aurum_business_type', updated.businessType);
       try {
         const u = JSON.parse(localStorage.getItem('aurum_auth_user') || '{}');
-        u.businessType = profileForm.businessType;
-        u.businessName = profileForm.businessName;
-        u.name = profileForm.name;
-        u.phone = profileForm.phone;
-        u.email = profileForm.email;
-        u.dailyGoal = profileForm.dailyGoal;
+        u.businessType = updated.businessType;
+        u.businessName = updated.businessName;
+        u.dailyGoal = updated.dailyGoal;
+        u.upiId = updated.upiId;
         localStorage.setItem('aurum_auth_user', JSON.stringify(u));
       } catch (err) {}
       window.dispatchEvent(new Event('aurum_business_type_updated'));
       window.dispatchEvent(new Event('storage'));
     }
-    setIsEditProfileOpen(false);
-    showToast('Profile information updated successfully!');
+
+    setIsEditModalOpen(false);
+    showToast('Store details updated successfully!');
   };
 
+  // Save UPI only
   const handleSaveUpiOnly = (e) => {
     e.preventDefault();
-    const cleaned = (tempUpi || '').trim();
-    if (!cleaned) return;
+    const cleaned = (tempUpi || '').trim() || DEFAULT_DEMO_UPI;
     const updated = { ...profile, upiId: cleaned };
     setProfile(updated);
     setProfileForm(updated);
     localStorage.setItem('aurum_profile_info', JSON.stringify(updated));
+    try {
+      const u = JSON.parse(localStorage.getItem('aurum_auth_user') || '{}');
+      u.upiId = cleaned;
+      localStorage.setItem('aurum_auth_user', JSON.stringify(u));
+    } catch (err) {}
     setIsUpiModalOpen(false);
-    showToast(`Merchant UPI ID updated to ${cleaned}!`);
+    showToast(`Merchant UPI ID saved: ${cleaned}`);
+  };
+
+  // Handle password update
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    if (!currentPassword) {
+      setPasswordError('Please enter your current password.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match. Please re-check.');
+      return;
+    }
+    if (newPassword === currentPassword) {
+      setPasswordError('New password must be different from current password.');
+      return;
+    }
+
+    setPasswordLoading(true);
+    const res = await updatePassword(currentPassword, newPassword);
+    setPasswordLoading(false);
+
+    if (res.success) {
+      setPasswordSuccess('Password updated successfully! Keep your credentials safe.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      showToast('Account password updated successfully!');
+    } else {
+      setPasswordError(res.error || 'Failed to update password. Please check your current password.');
+    }
   };
 
   const handleLogout = () => {
@@ -217,81 +261,28 @@ export default function ProfilePage() {
     navigate('/login');
   };
 
-  // Dedicated Financial Modules navigation data
-  const navigationHubs = [
-    {
-      title: 'Predictive Cash Runway',
-      path: '/#runway',
-      tag: 'AI Forecast',
-      tagColor: analytics.runwayStatus === 'SAFE' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : (analytics.runwayStatus === 'WATCH' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-rose-100 text-rose-800 border-rose-300'),
-      description: 'Dynamic burn rate engine, projected runway horizon, and What-If Udhar recovery simulator.',
-      icon: TrendingUp,
-      accent: 'amber',
-      metric: analytics.headlineMetric,
-      submetric: `Status: ${analytics.runwayStatus}`,
-    },
-    {
-      title: 'Upcoming Payables (15d)',
-      path: '/#payables',
-      tag: 'Liabilities',
-      tagColor: 'bg-rose-100 text-rose-800 border-rose-300',
-      description: 'Scheduled vendor dues, tax filings, and auto-synced monthly fixed obligations due in next 15 days.',
-      icon: Calendar,
-      accent: 'rose',
-      metric: `₹${totalUpcoming15.toLocaleString()}`,
-      submetric: `${dueEvents.length} dues scheduled`,
-    },
-    {
-      title: 'Customer Receivables (Udhar)',
-      path: '/#receivables',
-      tag: 'Cash Inflow',
-      tagColor: 'bg-blue-100 text-blue-800 border-blue-300',
-      description: 'Customer credit ledger with near-term and undated udhar, 1-click settlement crediting Today’s Income.',
-      icon: Wallet,
-      accent: 'blue',
-      metric: `₹${totalUdhar.toLocaleString()}`,
-      submetric: `${eKhataCustomers.length} debtor accounts`,
-    },
-    {
-      title: 'eKhata Smart Voice Ledger',
-      path: '/ekhata',
-      tag: 'AI Voice',
-      tagColor: 'bg-yellow-200 text-black border-yellow-400',
-      description: 'Multilingual Groq AI voice parsing (Hindi, Kannada, Tamil, English), customer #ID tags, and payment logs.',
-      icon: BookOpen,
-      accent: 'yellow',
-      metric: 'Voice Ledger',
-      submetric: 'Whisper Groq AI Active',
-    },
-    {
-      title: "Today's Live Income",
-      path: '/income',
-      tag: 'Daily Revenue',
-      tagColor: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      description: 'Real-time sales collection tracking across Cash, UPI QR, bank transfers, and daily target progress.',
-      icon: ArrowUpRight,
-      accent: 'emerald',
-      metric: `₹${totalTodayIncome.toLocaleString()}`,
-      submetric: `${goalPercentage}% of daily goal`,
-    },
-    {
-      title: 'Monthly Fixed Commitments',
-      path: '/fixed-expenses',
-      tag: 'Recurring',
-      tagColor: 'bg-neutral-100 text-neutral-800 border-neutral-300',
-      description: 'Commercial store rent, machinery EMIs, operator salaries, BESCOM electricity, and receipt uploads.',
-      icon: CreditCard,
-      accent: 'neutral',
-      metric: `₹${totalMonthlyFixed.toLocaleString()}`,
-      submetric: `${fixedExpenses.length} regular commitments`,
-    },
-  ];
+  // Password strength meter
+  const getPasswordStrength = (pwd) => {
+    if (!pwd) return { score: 0, label: '', color: 'bg-neutral-200', text: '' };
+    let score = 0;
+    if (pwd.length >= 6) score += 1;
+    if (pwd.length >= 8) score += 1;
+    if (/[0-9]/.test(pwd)) score += 1;
+    if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
+
+    if (score <= 1) return { score: 1, label: 'Weak', color: 'bg-rose-500', text: 'text-rose-600' };
+    if (score === 2) return { score: 2, label: 'Fair', color: 'bg-amber-500', text: 'text-amber-600' };
+    if (score === 3) return { score: 3, label: 'Good', color: 'bg-blue-500', text: 'text-blue-600' };
+    return { score: 4, label: 'Strong', color: 'bg-emerald-500', text: 'text-emerald-600' };
+  };
+
+  const strength = getPasswordStrength(newPassword);
 
   return (
-    <div className="w-full bg-white text-neutral-900 pb-20 font-['Plus_Jakarta_Sans']">
+    <div className="w-full h-full max-h-[calc(100vh-64px)] overflow-hidden bg-neutral-50/70 text-neutral-900 font-['Plus_Jakarta_Sans'] flex flex-col justify-between p-3 sm:p-4 lg:p-5 select-none">
       <FirstTimeOnboardingModal />
 
-      {/* Toast Notification */}
+      {/* Floating Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-5">
           <div className="px-5 py-3 rounded-2xl bg-black text-yellow-300 border border-yellow-400 shadow-2xl text-xs font-bold flex items-center space-x-2.5">
@@ -301,97 +292,70 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8 sm:space-y-10">
+      <div className="max-w-6xl mx-auto w-full h-full flex flex-col justify-between gap-3 sm:gap-3.5 overflow-hidden">
         {/* ========================================================= */}
-        {/* 1. USER PROFILE HEADER CARD                               */}
+        {/* 1. PERSONAL PROFILE SECTION (TOP - STICKY AT TOP)         */}
         {/* ========================================================= */}
-        <div className="glass-panel-gold rounded-3xl p-5 sm:p-8 border border-yellow-400/40 shadow-sm relative overflow-hidden">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl bg-black text-yellow-300 font-black text-xl sm:text-2xl flex items-center justify-center border-2 border-yellow-400 shadow-md">
-                {profile.initials || 'VK'}
+        <div className="glass-panel-gold rounded-2xl p-3 sm:p-4 border border-yellow-400/40 shadow-xs relative overflow-hidden shrink-0">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 relative z-10">
+            <div className="flex flex-row items-center gap-3 sm:gap-4">
+              {/* Personal Avatar Letter / Initial */}
+              <div className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-2xl bg-black text-yellow-300 font-black text-lg sm:text-xl flex items-center justify-center border-2 border-yellow-400 shadow-xs">
+                {getAvatarLetter(profile.name)}
               </div>
+
+              {/* Personal Details (No PRO or KYC badges) */}
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl sm:text-2xl font-black text-black font-['Outfit'] tracking-tight">
-                    {profile.name}
-                  </h1>
-                  <span className="px-2 py-0.5 rounded-md bg-black text-yellow-300 text-[10px] font-bold tracking-wider uppercase">
-                    PRO
-                  </span>
-                </div>
-                <p className="text-xs sm:text-sm font-semibold text-neutral-700 mt-0.5 flex flex-wrap items-center gap-1 sm:gap-2">
-                  <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>{profile.businessName}</span>
-                  <span className="text-neutral-400">•</span>
-                  <span className="text-neutral-500">{profile.role}</span>
+                <h1 className="text-lg sm:text-xl font-black text-black font-['Outfit'] tracking-tight truncate">
+                  {profile.name}
+                </h1>
+
+                <p className="text-[11px] sm:text-xs font-semibold text-neutral-600 mt-0.5 truncate">
+                  {profile.role || 'Owner & Primary Operator'}
                 </p>
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-3 text-xs text-neutral-600">
-                  <span className="flex items-center space-x-1">
-                    <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                    <span>{profile.phone}</span>
+
+                {/* Personal Contact Details */}
+                <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-neutral-700">
+                  {/* Personal Mobile Number */}
+                  <span className="flex items-center space-x-1.5 bg-white/95 border border-neutral-300/80 px-2 py-0.5 rounded-lg font-mono font-semibold">
+                    <Phone className="w-3 h-3 text-neutral-500 shrink-0" />
+                    <span>+91 {profile.phone}</span>
                   </span>
-                  <span className="flex items-center space-x-1">
-                    <Mail className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                    <span className="break-all">{profile.email}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempUpi(profile.upiId || 'vikas.kori@okhdfcbank');
-                      setIsUpiModalOpen(true);
-                    }}
-                    className="flex items-center space-x-1.5 font-semibold px-2.5 py-1.5 sm:py-1 min-h-11 sm:min-h-0 rounded-lg border font-mono transition-colors cursor-pointer group shadow-2xs max-w-full"
-                    style={{
-                      backgroundColor: '#F9DEBF',
-                      borderColor: '#3D2E18',
-                      color: '#3D2E18',
-                    }}
-                    title="Click to edit Merchant UPI ID"
-                  >
-                    <CreditCard className="w-3.5 h-3.5 shrink-0" style={{ color: '#3D2E18' }} />
-                    <span className="truncate">UPI: {profile.upiId || 'vikas.kori@okhdfcbank'}</span>
-                    <span className="text-[10px] font-sans underline font-bold ml-1 opacity-70 group-hover:opacity-100 shrink-0">
-                      Edit
-                    </span>
-                  </button>
-                  <span className="flex items-center space-x-1 text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                    <span>KYC Verified</span>
+
+                  {/* Personal Email Address */}
+                  <span className="flex items-center space-x-1.5 bg-white/95 border border-neutral-300/80 px-2 py-0.5 rounded-lg font-medium">
+                    <Mail className="w-3 h-3 text-neutral-500 shrink-0" />
+                    <span className="truncate max-w-[220px]">{profile.email}</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+            {/* Quick Action Buttons (Edit Personal Details link) */}
+            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-amber-300/40">
               <button
-                onClick={() => window.dispatchEvent(new Event('finsafe_open_setup_wizard'))}
-                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer min-h-11"
-                title="Configure store financial parameters & fixed commitments"
-              >
-                <Sliders className="w-3.5 h-3.5 text-amber-700" />
-                <span>Financial Setup Wizard</span>
-              </button>
-              <button
-                onClick={() => {
-                  setProfileForm(profile);
-                  setIsEditProfileOpen(true);
-                }}
-                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-black bg-yellow-300 hover:bg-yellow-400 border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer min-h-11"
+                type="button"
+                onClick={handleOpenPersonalEdit}
+                className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-bold text-black bg-yellow-300 hover:bg-yellow-400 border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer min-h-9"
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit Profile</span>
+                <span>Edit Personal Details</span>
               </button>
-              <Link
-                to="/ekhata"
-                className="justify-center min-h-11 gold-button-gradient px-4 py-2.5 rounded-xl text-xs font-black text-black border border-yellow-400 transition-all flex items-center space-x-1.5 shadow-sm"
-              >
-                <BookOpen className="w-4 h-4" />
-                <span>Open eKhata</span>
-              </Link>
+
               <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('finsafe_open_setup_wizard'))}
+                className="flex-1 sm:flex-none px-3 py-2 rounded-xl text-xs font-bold text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer min-h-9"
+                title="Configure store financial parameters & fixed commitments"
+              >
+                <Sliders className="w-3.5 h-3.5 text-amber-800" />
+                <span>Financial Wizard</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={handleLogout}
-                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer min-h-11"
+                className="flex-1 sm:flex-none px-3 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer min-h-9"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Sign Out</span>
@@ -401,387 +365,544 @@ export default function ProfilePage() {
         </div>
 
         {/* ========================================================= */}
-        {/* PERMANENT STORE FINANCIAL SETUP (Always in Profile)      */}
+        {/* 2. EQUAL-WIDTH 50/50 GRID:                                */}
+        {/*    (A) STORE IDENTITY & DETAILS | (B) UPDATE PASSWORD     */}
         {/* ========================================================= */}
-        <div className="p-4 sm:p-5 rounded-3xl bg-linear-to-r from-amber-50 via-yellow-50 to-amber-100/70 border border-amber-300 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center space-x-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-black text-yellow-300 flex items-center justify-center shrink-0 shadow-xs">
-              <Sliders className="w-5 h-5 text-yellow-300" />
-            </div>
-            <div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 flex-1 items-stretch min-h-0 overflow-hidden">
+          {/* ------------------------------------------------------- */}
+          {/* CARD A: STORE IDENTITY & DETAILS (EQUAL 50% WIDTH)      */}
+          {/* ------------------------------------------------------- */}
+          <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-neutral-200/90 shadow-2xs flex flex-col justify-start overflow-hidden">
+            <div className="flex items-center justify-between pb-2.5 border-b border-neutral-100 min-h-[42px]">
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-black text-black">Store Financial Parameters & Commitments</span>
-                <span className="text-[10px] font-bold bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full">Always Configurable</span>
+                <div className="w-7 h-7 rounded-lg bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-900">
+                  <Store className="w-3.5 h-3.5 text-amber-900" />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-black text-black font-['Outfit']">Store Identity & Details</h2>
+                  <p className="text-[10px] text-neutral-500">Commercial trade profile and settlement credentials.</p>
+                </div>
               </div>
-              <span className="text-xs text-neutral-600 block mt-0.5">
-                Customize opening cash reserves, gross margin %, daily running costs, and recurring commitments anytime.
-              </span>
+
+              <button
+                type="button"
+                onClick={handleOpenStoreEdit}
+                className="min-h-8 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold flex items-center space-x-1 cursor-pointer transition-colors"
+              >
+                <Edit3 className="w-3 h-3 text-amber-700" />
+                <span>Modify Store</span>
+              </button>
+            </div>
+
+            {/* Grid of Store Details - 3 Rows matching Password card exactly */}
+            <div className="space-y-2 mt-2.5">
+              {/* Row 1: Store Name & Shop Category (2 cols) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-neutral-50/90 border border-neutral-200/80">
+                  <div className="flex items-center space-x-1.5 text-neutral-400 mb-0.5">
+                    <Building2 className="w-3 h-3 text-amber-600" />
+                    <span className="text-[9px] uppercase font-bold tracking-wider">Store / Business Name</span>
+                  </div>
+                  <span className="text-xs sm:text-sm font-bold text-black block truncate">{profile.businessName}</span>
+                </div>
+
+                <div className="p-2 sm:p-2.5 rounded-xl bg-neutral-50/90 border border-neutral-200/80">
+                  <div className="flex items-center space-x-1.5 text-neutral-400 mb-0.5">
+                    <Briefcase className="w-3 h-3 text-amber-600" />
+                    <span className="text-[9px] uppercase font-bold tracking-wider">Shop Model / Category</span>
+                  </div>
+                  <span className="text-xs sm:text-sm font-bold text-amber-900 block font-['Outfit'] truncate">{profile.businessType}</span>
+                </div>
+              </div>
+
+              {/* Row 2: Daily Sales Target Goal */}
+              <div className="p-2 sm:p-2.5 rounded-xl bg-neutral-50/90 border border-neutral-200/80">
+                <div className="flex items-center space-x-1.5 text-neutral-400 mb-0.5">
+                  <Target className="w-3 h-3 text-amber-600" />
+                  <span className="text-[9px] uppercase font-bold tracking-wider">Daily Sales Target Goal</span>
+                </div>
+                <span className="text-sm sm:text-base font-black text-black block font-['Outfit']">
+                  ₹{Number(profile.dailyGoal || 20000).toLocaleString()} / day
+                </span>
+              </div>
+
+              {/* Row 3: Settlement UPI ID */}
+              <div className="p-2 sm:p-2.5 rounded-xl bg-neutral-50/90 border border-neutral-200/80">
+                <div className="flex items-center space-x-1.5 text-neutral-400 mb-0.5">
+                  <CreditCard className="w-3 h-3 text-amber-600" />
+                  <span className="text-[9px] uppercase font-bold tracking-wider">Settlement UPI ID</span>
+                </div>
+                <span className="text-xs sm:text-sm font-mono font-bold text-black block truncate">
+                  {profile.upiId || DEFAULT_DEMO_UPI}
+                </span>
+              </div>
+            </div>
+
+            {/* Row 4: Action Button - Full Width, perfectly aligned with Save New Password button */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setTempUpi(profile.upiId || DEFAULT_DEMO_UPI);
+                  setIsUpiModalOpen(true);
+                }}
+                className="w-full py-2 min-h-9 rounded-xl bg-black hover:bg-neutral-800 text-yellow-300 border border-yellow-400 font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs transition-all"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Update Settlement UPI ID</span>
+              </button>
             </div>
           </div>
-          <button
-            onClick={() => window.dispatchEvent(new Event('finsafe_open_setup_wizard'))}
-            className="gold-button-gradient px-4 py-2.5 rounded-xl text-xs font-black text-black border border-yellow-400 shadow-xs hover:scale-102 transition-transform cursor-pointer flex items-center justify-center space-x-1.5 shrink-0 min-h-11 sm:min-h-0"
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>Customize Store Financials</span>
-          </button>
-        </div>
 
-        {/* ========================================================= */}
-        {/* 2. EXECUTIVE OVERVIEW: 4 KEY FINANCIAL METRICS           */}
-        {/* ========================================================= */}
-        <div>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          {/* ------------------------------------------------------- */}
+          {/* CARD B: UPDATE PASSWORD (EQUAL 50% WIDTH)               */}
+          {/* ------------------------------------------------------- */}
+          <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-neutral-200/90 shadow-2xs flex flex-col justify-start overflow-hidden">
             <div>
-              <h2 className="text-lg font-black text-black font-['Outfit'] tracking-tight">
-                Executive Cash Flow Overview
-              </h2>
-              <p className="text-xs text-neutral-500">
-                High-level operational liquidity radar and commitment summary.
-              </p>
-            </div>
-            <div className="self-start sm:self-auto flex items-center space-x-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>MongoDB Atlas & Groq AI Active</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* KPI 1: Today's Income */}
-            <Link
-              to="/income"
-              className="bg-white rounded-2xl p-5 border border-neutral-200/90 hover:border-emerald-400 hover:shadow-md transition-all group block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase font-bold tracking-wider text-neutral-500">
-                  Today's Live Income
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2">
-                <span className="text-2xl font-black text-emerald-600 font-['Outfit']">
-                  ₹{totalTodayIncome.toLocaleString()}
-                </span>
-                <div className="flex items-center justify-between text-[11px] mt-1 text-emerald-700 font-semibold">
-                  <span>{goalPercentage}% of daily target</span>
-                  <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
-                </div>
-              </div>
-            </Link>
-
-            {/* KPI 2: Cash Runway */}
-            <Link
-              to="/#runway"
-              className="bg-white rounded-2xl p-5 border border-neutral-200/90 hover:border-amber-400 hover:shadow-md transition-all group block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase font-bold tracking-wider text-neutral-500">
-                  {analytics.headlineLabel || 'Cash Horizon'}
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Zap className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2">
-                <span className="text-xl font-black text-black font-['Outfit'] block truncate">
-                  {analytics.headlineMetric}
-                </span>
-                <div className="flex items-center justify-between text-[11px] mt-1 text-neutral-500 font-medium">
-                  <span className="text-emerald-700 font-bold">
-                    Retained: +₹{analytics.retainedCashPerDay.toLocaleString()}/day
-                  </span>
-                  <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
-                </div>
-              </div>
-            </Link>
-
-
-            {/* KPI 3: Upcoming Payables (15d) */}
-            <Link
-              to="/#payables"
-              className="bg-white rounded-2xl p-5 border border-neutral-200/90 hover:border-rose-400 hover:shadow-md transition-all group block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase font-bold tracking-wider text-neutral-500">
-                  Upcoming Payables (15d)
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Calendar className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2">
-                <span className="text-2xl font-black text-rose-600 font-['Outfit']">
-                  ₹{totalUpcoming15.toLocaleString()}
-                </span>
-                <div className="flex items-center justify-between text-[11px] mt-1 text-neutral-500 font-medium">
-                  <span>Fixed + Supplier dues</span>
-                  <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
-                </div>
-              </div>
-            </Link>
-
-            {/* KPI 4: Cash to Receive (Udhar) */}
-            <Link
-              to="/#receivables"
-              className="bg-white rounded-2xl p-5 border border-neutral-200/90 hover:border-blue-400 hover:shadow-md transition-all group block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase font-bold tracking-wider text-neutral-500">
-                  Customer Udhar (15D Span)
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Wallet className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2">
-                <span className="text-2xl font-black text-blue-600 font-['Outfit']">
-                  ₹{totalUdhar.toLocaleString()}
-                </span>
-                <div className="flex items-center justify-between text-[11px] mt-1 text-blue-600 font-semibold">
-                  <span>{eKhataCustomers.length} debtor accounts (due in &le;15d span)</span>
-                  <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
-                </div>
-              </div>
-            </Link>
-          </div>
-        </div>
-
-        {/* ========================================================= */}
-        {/* 3. DEDICATED FINANCIAL MODULES LAUNCHPAD                 */}
-        {/* ========================================================= */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-black text-black font-['Outfit'] tracking-tight">
-                Dedicated Financial Modules
-              </h2>
-              <p className="text-xs text-neutral-500">
-                Direct access to all individual financial tools and operating pages.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {navigationHubs.map((hub) => {
-              const Icon = hub.icon;
-              return (
-                <Link
-                  key={hub.path}
-                  to={hub.path}
-                  className="bg-white rounded-3xl p-6 border border-neutral-200/80 hover:border-yellow-400 hover:shadow-lg transition-all flex flex-col justify-between group relative overflow-hidden"
-                >
+              <div className="flex items-center justify-between pb-2.5 border-b border-neutral-100 min-h-[42px]">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-lg bg-yellow-100 border border-yellow-300 flex items-center justify-center text-black">
+                    <KeyRound className="w-3.5 h-3.5 text-black" />
+                  </div>
                   <div>
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-2xl bg-neutral-100 flex items-center justify-center border border-neutral-200 text-black group-hover:bg-yellow-300 group-hover:border-yellow-400 transition-colors">
-                        <Icon className="w-5 h-5" />
+                    <h2 className="text-sm sm:text-base font-black text-black font-['Outfit']">Update Password</h2>
+                    <p className="text-[10px] text-neutral-500">Secure your store ledger and credentials.</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-amber-900 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 flex items-center space-x-1">
+                  <ShieldCheck className="w-3 h-3 text-amber-600" />
+                  <span>Encrypted</span>
+                </span>
+              </div>
+
+              {/* Feedback Banners */}
+              {passwordError && (
+                <div className="mt-2 p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-medium flex items-center space-x-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                  <span>{passwordError}</span>
+                </div>
+              )}
+
+              {passwordSuccess && (
+                <div className="mt-2 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] font-bold flex items-center space-x-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>{passwordSuccess}</span>
+                </div>
+              )}
+
+              {/* Password Form - 3 Rows matching Store Details card exactly */}
+              <form onSubmit={handlePasswordSubmit} className="mt-2.5 space-y-2 text-xs font-semibold">
+                {/* Row 1: Current Password */}
+                <div>
+                  <label className="block text-neutral-700 mb-0.5 text-[11px]">Current Password *</label>
+                  <div className="relative">
+                    <Lock className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      required
+                      placeholder="Enter current password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full pl-8 pr-9 py-1.5 min-h-8 rounded-lg bg-neutral-50 border border-neutral-300/80 text-xs text-black focus:border-amber-400 focus:bg-white outline-hidden transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="min-w-8 min-h-8 flex items-center justify-center absolute right-0 top-0 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                    >
+                      {showCurrentPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Row 2: New Password */}
+                <div>
+                  <label className="block text-neutral-700 mb-0.5 text-[11px]">New Password (min 6 chars) *</label>
+                  <div className="relative">
+                    <Lock className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      placeholder="Create strong new password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full pl-8 pr-9 py-1.5 min-h-8 rounded-lg bg-neutral-50 border border-neutral-300/80 text-xs text-black focus:border-amber-400 focus:bg-white outline-hidden transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="min-w-8 min-h-8 flex items-center justify-center absolute right-0 top-0 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                    >
+                      {showNewPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    </button>
+                  </div>
+
+                  {/* Password Strength Indicator */}
+                  {newPassword && (
+                    <div className="mt-1 space-y-0.5">
+                      <div className="flex items-center justify-between text-[9px]">
+                        <span className="text-neutral-500 font-medium">Strength:</span>
+                        <span className={`font-bold ${strength.text}`}>{strength.label}</span>
                       </div>
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${hub.tagColor}`}>
-                        {hub.tag}
-                      </span>
+                      <div className="h-1 w-full bg-neutral-200 rounded-full overflow-hidden flex gap-1">
+                        <div className={`h-full flex-1 ${strength.score >= 1 ? strength.color : 'bg-neutral-200'}`} />
+                        <div className={`h-full flex-1 ${strength.score >= 2 ? strength.color : 'bg-neutral-200'}`} />
+                        <div className={`h-full flex-1 ${strength.score >= 3 ? strength.color : 'bg-neutral-200'}`} />
+                        <div className={`h-full flex-1 ${strength.score >= 4 ? strength.color : 'bg-neutral-200'}`} />
+                      </div>
                     </div>
+                  )}
+                </div>
 
-                    <h3 className="text-base font-black text-black font-['Outfit'] group-hover:text-amber-600 transition-colors">
-                      {hub.title}
-                    </h3>
-                    <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
-                      {hub.description}
-                    </p>
+                {/* Row 3: Confirm New Password */}
+                <div>
+                  <label className="block text-neutral-700 mb-0.5 text-[11px]">Confirm New Password *</label>
+                  <div className="relative">
+                    <Lock className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      placeholder="Re-type new password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full pl-8 pr-9 py-1.5 min-h-8 rounded-lg bg-neutral-50 border border-neutral-300/80 text-xs text-black focus:border-amber-400 focus:bg-white outline-hidden transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="min-w-8 min-h-8 flex items-center justify-center absolute right-0 top-0 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    </button>
                   </div>
+                </div>
 
-                  <div className="mt-6 pt-4 border-t border-neutral-100 flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-black text-black font-['Outfit'] block">
-                        {hub.metric}
-                      </span>
-                      <span className="text-[10px] text-neutral-400 font-medium">
-                        {hub.submetric}
-                      </span>
-                    </div>
-
-                    <div className="w-8 h-8 rounded-xl bg-neutral-50 group-hover:bg-black group-hover:text-yellow-300 flex items-center justify-center transition-colors">
-                      <ArrowRight className="w-4 h-4" />
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ========================================================= */}
-        {/* 4. BUSINESS SETTINGS & GSTIN VERIFICATION                */}
-        {/* ========================================================= */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-neutral-200/90 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-neutral-100">
-            <div>
-              <h2 className="text-lg font-black text-black font-['Outfit']">Business Settings & Verification</h2>
-              <p className="text-xs text-neutral-500">Essential tax, banking, and daily goal preferences.</p>
-            </div>
-            <button
-              onClick={() => {
-                setProfileForm(profile);
-                setIsEditProfileOpen(true);
-              }}
-              className="self-start sm:self-auto min-h-11 sm:min-h-0 py-2 sm:py-0 flex items-center text-xs font-bold text-amber-600 hover:underline cursor-pointer"
-            >
-              Modify Details
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80">
-              <span className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">Registered Shop Model</span>
-              <span className="font-extrabold text-black text-sm block font-['Outfit']">{profile.businessType || 'Retail Store'}</span>
-              <span className="text-[11px] text-amber-700 mt-1 block font-medium">Auto-derived from signup profile</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80">
-              <span className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">GSTIN Identification</span>
-              <span className="font-mono font-bold text-black text-sm block">29AABCK1290P1Z4</span>
-              <span className="text-[11px] text-emerald-700 mt-1 block">Active & Verified with GSTN</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80">
-              <span className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">Daily Inflow Target Goal</span>
-              <span className="font-extrabold text-black text-sm block">₹{(profile.dailyGoal || 20000).toLocaleString()} / day</span>
-              <span className="text-[11px] text-neutral-500 mt-1 block">Used for progress velocity tracker</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80">
-              <span className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">Primary Settlement Account</span>
-              <span className="font-mono font-bold text-black text-sm block">{profile.upiId || 'vikas.kori@okhdfcbank'}</span>
-              <span className="text-[11px] text-neutral-500 mt-1 block">Auto-generates Dynamic UPI QR codes</span>
+                {/* Row 4: Action Button - Full Width, perfectly aligned with Update Settlement UPI button */}
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={passwordLoading}
+                    className="w-full py-2 min-h-9 rounded-xl bg-black hover:bg-neutral-800 text-yellow-300 border border-yellow-400 font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs disabled:opacity-50 transition-all"
+                  >
+                    {passwordLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Updating Password...</span>
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="w-3.5 h-3.5" />
+                        <span>Save New Password</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Edit Profile Modal */}
-      {isEditProfileOpen && (
+      {/* ========================================================= */}
+      {/* MODAL: REGISTRATION-STYLE PROFILE & STORE UPDATER         */}
+      {/* Distinct Personal Details vs Store Details Tabs           */}
+      {/* ========================================================= */}
+      {isEditModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setIsEditProfileOpen(false);
+            if (e.target === e.currentTarget) setIsEditModalOpen(false);
           }}
         >
           <div
-            className="bg-white rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain border border-neutral-200 shadow-2xl animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95"
+            className="bg-white rounded-t-3xl sm:rounded-3xl p-5 sm:p-7 w-full max-w-xl max-h-[92dvh] overflow-y-auto overscroll-contain border border-neutral-200 shadow-2xl animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Mobile drag handle */}
             <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-3" />
 
-            <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-neutral-100">
-              <h3 className="text-base font-black text-black font-['Outfit']">Edit Merchant Profile</h3>
+            <div className="flex items-center justify-between pb-3.5 border-b border-neutral-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-yellow-300 border border-yellow-400 flex items-center justify-center text-black shadow-xs">
+                  {activeTab === 'personal' ? (
+                    <User className="w-5 h-5 text-black" />
+                  ) : (
+                    <Store className="w-5 h-5 text-black" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-black font-['Outfit']">
+                    {activeTab === 'personal' ? 'Update Personal Details' : 'Update Store Details'}
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">
+                    {activeTab === 'personal'
+                      ? 'Operator identity, contact mobile number, and email.'
+                      : 'Store name, business type, daily target goal, and UPI.'}
+                  </p>
+                </div>
+              </div>
               <button
-                onClick={() => setIsEditProfileOpen(false)}
-                className="min-w-11 min-h-11 flex items-center justify-center text-neutral-400 hover:text-black rounded-lg cursor-pointer"
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="min-w-10 min-h-10 flex items-center justify-center text-neutral-400 hover:text-black rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProfile} className="mt-4 space-y-4 text-xs font-semibold">
-              <div>
-                <label className="block text-neutral-600 mb-1">Full Operator Name</label>
-                <input
-                  type="text"
-                  required
-                  value={profileForm.name}
-                  onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
-                />
-              </div>
+            {/* Segmented Switcher for Two Distinct Views */}
+            <div className="flex rounded-xl bg-neutral-100 p-1 mt-4">
+              <button
+                type="button"
+                onClick={() => setActiveTab('personal')}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                  activeTab === 'personal'
+                    ? 'bg-white text-black shadow-xs'
+                    : 'text-neutral-500 hover:text-black'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Personal Details</span>
+              </button>
 
-              <div>
-                <label className="block text-neutral-600 mb-1">Business / Store Name</label>
-                <input
-                  type="text"
-                  required
-                  value={profileForm.businessName}
-                  onChange={(e) => setProfileForm({ ...profileForm, businessName: e.target.value })}
-                  className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
-                />
-              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('store')}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                  activeTab === 'store'
+                    ? 'bg-white text-black shadow-xs'
+                    : 'text-neutral-500 hover:text-black'
+                }`}
+              >
+                <Store className="w-3.5 h-3.5" />
+                <span>Store Details</span>
+              </button>
+            </div>
 
-              <div>
-                <label className="block text-neutral-600 mb-1">Shop Model / Business Type</label>
-                <select
-                  value={profileForm.businessType || 'Retail Store'}
-                  onChange={(e) => setProfileForm({ ...profileForm, businessType: e.target.value })}
-                  className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-semibold bg-white"
-                >
-                  <option value="Retail Store">Retail Store / General</option>
-                  <option value="Kirana / Groceries">Kirana / Groceries & Provisions</option>
-                  <option value="Sweets & Bakery">Sweets & Bakery</option>
-                  <option value="Hardware, Paints & Electricals">Hardware, Paints & Electricals</option>
-                  <option value="Books & Stationery">Books & Stationery</option>
-                  <option value="Garments & Apparel">Garments & Apparel</option>
-                  <option value="Retail Pharmacy">Retail Pharmacy / Chemist</option>
-                  <option value="Wholesale Trading">Wholesale Trading</option>
-                  <option value="Services / Agency">Services / Agency</option>
-                  <option value="Manufacturing">Manufacturing</option>
-                  <option value="Other">Other Business</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* VIEW 1: PERSONAL DETAILS FORM */}
+            {activeTab === 'personal' && (
+              <form onSubmit={handleSavePersonal} className="mt-4 space-y-4 text-xs font-semibold animate-in fade-in duration-200">
+                {/* Operator Full Name */}
                 <div>
-                  <label className="block text-neutral-600 mb-1">Phone Number</label>
-                  <input
-                    type="text"
-                    value={profileForm.phone}
-                    onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                    className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
-                  />
+                  <label className="text-xs font-bold text-neutral-700 block mb-1">
+                    Operator Full Name *
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Full Name"
+                      value={profileForm.name}
+                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                    />
+                  </div>
                 </div>
 
+                {/* Mobile Number: strictly digits only, max 10 digits */}
                 <div>
-                  <label className="block text-neutral-600 mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    value={profileForm.email}
-                    onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                    className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
-                  />
+                  <label className="text-xs font-bold text-neutral-700 block mb-1">
+                    Personal Mobile Number (10 digits) *
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                    <span className="absolute left-8 top-2.5 text-neutral-500 font-mono text-xs">+91</span>
+                    <input
+                      type="tel"
+                      required
+                      maxLength={10}
+                      placeholder="9198765432"
+                      value={profileForm.phone}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setProfileForm({ ...profileForm, phone: digits });
+                      }}
+                      className="w-full pl-16 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs font-mono font-bold text-black focus:border-yellow-400 focus:bg-white outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-neutral-400 mt-1 block">
+                    {profileForm.phone ? `${profileForm.phone.length}/10 digits entered` : 'Numbers only, strictly 10 digits'}
+                  </span>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-neutral-600 mb-1">Daily Target Goal (₹)</label>
-                <input
-                  type="number"
-                  min="1000"
-                  step="500"
-                  value={profileForm.dailyGoal || 20000}
-                  onChange={(e) => setProfileForm({ ...profileForm, dailyGoal: Number(e.target.value) })}
-                  className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-mono font-bold"
-                />
-              </div>
+                {/* Email Address */}
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 block mb-1">
+                    Personal Email Address *
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                    <input
+                      type="email"
+                      required
+                      placeholder="name@business.com"
+                      value={profileForm.email}
+                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                    />
+                  </div>
+                </div>
 
-              <div className="pt-3 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setIsEditProfileOpen(false)}
-                  className="px-4 py-2.5 min-h-11 rounded-xl text-neutral-600 hover:text-black font-semibold flex items-center justify-center cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="gold-button-gradient px-5 py-2.5 min-h-11 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm flex items-center justify-center cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
+                <div className="pt-2 flex items-center justify-between text-[11px] text-neutral-500">
+                  <span>Want to update store parameters?</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('store')}
+                    className="text-amber-800 font-bold hover:underline cursor-pointer flex items-center space-x-1"
+                  >
+                    <span>Switch to Store Details</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-3 border-t border-neutral-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2.5 min-h-11 rounded-xl text-neutral-600 hover:text-black font-semibold flex items-center justify-center cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="gold-button-gradient px-5 py-2.5 min-h-11 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer hover:scale-102 transition-transform"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Save Personal Details</span>
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* VIEW 2: STORE DETAILS FORM */}
+            {activeTab === 'store' && (
+              <form onSubmit={handleSaveStore} className="mt-4 space-y-4 text-xs font-semibold animate-in fade-in duration-200">
+                {/* Business / Store Name */}
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 block mb-1">
+                    Business / Store Name *
+                  </label>
+                  <div className="relative">
+                    <Building2 className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Store / Enterprise Name"
+                      value={profileForm.businessName}
+                      onChange={(e) => setProfileForm({ ...profileForm, businessName: e.target.value })}
+                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Shop Model / Industry Type */}
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 block mb-1">
+                    Shop Model / Industry Type
+                  </label>
+                  <div className="relative">
+                    <Briefcase className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                    <select
+                      value={profileForm.businessType || 'Retail Store / General'}
+                      onChange={(e) => setProfileForm({ ...profileForm, businessType: e.target.value })}
+                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none font-medium cursor-pointer"
+                    >
+                      <option value="Retail Store / General">Retail Store & Supermarket</option>
+                      <option value="Kirana / Groceries">Kirana / Provision Store</option>
+                      <option value="Hardware, Paints & Electricals">Hardware, Electricals & Paint</option>
+                      <option value="Sweets & Bakery">Sweets, Bakery & Cafe</option>
+                      <option value="Retail Pharmacy">Pharmacy & Healthcare</option>
+                      <option value="Garments & Apparel">Garments & Apparel</option>
+                      <option value="Books & Stationery">Books & Stationery</option>
+                      <option value="Wholesale Trading">Wholesale & Distribution</option>
+                      <option value="Services / Agency">Services, Tech & Agency</option>
+                      <option value="Manufacturing">Manufacturing & Fabrication</option>
+                      <option value="Other Business">Other Business</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Daily Target Goal */}
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 block mb-1">
+                    Daily Sales Target (₹)
+                  </label>
+                  <div className="relative">
+                    <Target className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                    <input
+                      type="number"
+                      min="1000"
+                      step="500"
+                      placeholder="Daily target in ₹"
+                      value={profileForm.dailyGoal || 20000}
+                      onChange={(e) => setProfileForm({ ...profileForm, dailyGoal: Number(e.target.value) })}
+                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs font-mono font-bold text-black focus:border-yellow-400 focus:bg-white outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Settlement UPI ID */}
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 block mb-1">
+                    Settlement UPI ID
+                  </label>
+                  <div className="relative">
+                    <CreditCard className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      placeholder={DEFAULT_DEMO_UPI}
+                      value={profileForm.upiId}
+                      onChange={(e) => setProfileForm({ ...profileForm, upiId: e.target.value })}
+                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs font-mono font-semibold text-black focus:border-yellow-400 focus:bg-white outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-neutral-400 mt-1 block">
+                    Default demo ID or your bank UPI VPA address
+                  </span>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between text-[11px] text-neutral-500">
+                  <span>Want to update personal details?</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('personal')}
+                    className="text-amber-800 font-bold hover:underline cursor-pointer flex items-center space-x-1"
+                  >
+                    <span>Switch to Personal Details</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-3 border-t border-neutral-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2.5 min-h-11 rounded-xl text-neutral-600 hover:text-black font-semibold flex items-center justify-center cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="gold-button-gradient px-5 py-2.5 min-h-11 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer hover:scale-102 transition-transform"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Save Store Details</span>
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
 
-      {/* Edit UPI Modal */}
+      {/* ========================================================= */}
+      {/* MODAL: EDIT UPI ID                                        */}
+      {/* ========================================================= */}
       {isUpiModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4"
@@ -797,10 +918,14 @@ export default function ProfilePage() {
             <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-3" />
 
             <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-neutral-100">
-              <h3 className="text-base font-black text-black font-['Outfit']">Edit Merchant UPI ID</h3>
+              <div>
+                <h3 className="text-base font-black text-black font-['Outfit']">Edit Merchant UPI ID</h3>
+                <p className="text-[11px] text-neutral-500">Auto-links customer QR codes to your account.</p>
+              </div>
               <button
+                type="button"
                 onClick={() => setIsUpiModalOpen(false)}
-                className="min-w-11 min-h-11 flex items-center justify-center text-neutral-400 hover:text-black rounded-lg cursor-pointer"
+                className="min-w-10 min-h-10 flex items-center justify-center text-neutral-400 hover:text-black rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -808,15 +933,30 @@ export default function ProfilePage() {
 
             <form onSubmit={handleSaveUpiOnly} className="mt-4 space-y-4 text-xs font-semibold">
               <div>
-                <label className="block text-neutral-600 mb-1">UPI VPA Address</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. yourname@okaxis"
-                  value={tempUpi}
-                  onChange={(e) => setTempUpi(e.target.value)}
-                  className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-mono"
-                />
+                <label className="block text-neutral-700 mb-1">UPI VPA Address *</label>
+                <div className="relative">
+                  <CreditCard className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    required
+                    placeholder={DEFAULT_DEMO_UPI}
+                    value={tempUpi}
+                    onChange={(e) => setTempUpi(e.target.value)}
+                    className="w-full pl-9 pr-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-sm sm:text-xs font-mono text-black font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Demo ID button */}
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-neutral-500">Need a placeholder?</span>
+                <button
+                  type="button"
+                  onClick={() => setTempUpi(DEFAULT_DEMO_UPI)}
+                  className="text-amber-800 font-bold hover:underline cursor-pointer"
+                >
+                  Use Demo ID
+                </button>
               </div>
 
               <div className="pt-2 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:space-x-3">

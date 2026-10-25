@@ -26,6 +26,9 @@ const seedDemoMerchant = async () => {
   };
   inMemoryUsers.set('demo@finsafe.com', finsafeUser);
   inMemoryUsers.set('demo@aurumflow.com', finsafeUser);
+  inMemoryUsers.set('vikas kori', finsafeUser);
+  inMemoryUsers.set('vikas', finsafeUser);
+  inMemoryUsers.set('demo', finsafeUser);
 };
 seedDemoMerchant();
 
@@ -151,7 +154,7 @@ export const login = async (req, res) => {
     if (!inputVal || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide both email/phone and password',
+        message: 'Please provide both email/username and password',
       });
     }
 
@@ -159,11 +162,10 @@ export const login = async (req, res) => {
     const digitsOnly = inputVal.replace(/\D/g, '');
 
     if (isDbConnected()) {
-      // Flexible lookup: match email, phone (with/without country code), or name
+      // Flexible lookup: match email or name
       const orConditions = [
         { email: normalizedInput },
         { email: new RegExp(`^${normalizedInput}$`, 'i') },
-        { phone: inputVal },
         { name: new RegExp(`^${normalizedInput}$`, 'i') },
       ];
 
@@ -176,7 +178,7 @@ export const login = async (req, res) => {
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email, phone, or password',
+          message: 'Invalid email, username, or password',
         });
       }
 
@@ -184,7 +186,7 @@ export const login = async (req, res) => {
       if (!isMatch) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email, phone, or password',
+          message: 'Invalid email, username, or password',
         });
       }
 
@@ -217,7 +219,7 @@ export const login = async (req, res) => {
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email, phone, or password',
+          message: 'Invalid email, username, or password',
         });
       }
 
@@ -225,7 +227,7 @@ export const login = async (req, res) => {
       if (!isMatch) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email, phone, or password',
+          message: 'Invalid email, username, or password',
         });
       }
 
@@ -310,5 +312,164 @@ export const getMe = async (req, res) => {
     }
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Failed to retrieve profile' });
+  }
+};
+
+/**
+ * Update password for authenticated merchant
+ * POST /api/v1/auth/update-password
+ */
+export const updatePassword = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.body.userId;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long',
+      });
+    }
+
+    if (isDbConnected()) {
+      let user = null;
+      try {
+        if (userId && userId !== 'user-demo-1') {
+          user = await User.findById(userId);
+        }
+      } catch (e) {}
+
+      if (!user && req.user?.email) {
+        user = await User.findOne({ email: req.user.email.toLowerCase() });
+      }
+
+      if (user) {
+        if (currentPassword) {
+          const isMatch = await bcrypt.compare(currentPassword, user.password);
+          if (!isMatch) {
+            return res.status(400).json({ success: false, message: 'Current password does not match' });
+          }
+        }
+        user.password = newPassword;
+        await user.save();
+        return res.status(200).json({ success: true, message: 'Password updated successfully' });
+      }
+    }
+
+    // In-memory or demo user fallback
+    let targetUser = null;
+    for (const [, u] of inMemoryUsers) {
+      if (u.id === userId || u._id === userId || (req.user?.email && u.email === req.user.email)) {
+        targetUser = u;
+        break;
+      }
+    }
+
+    if (!targetUser) {
+      targetUser = inMemoryUsers.get('demo@finsafe.com');
+    }
+
+    if (targetUser) {
+      if (currentPassword && targetUser.password) {
+        const isMatch = await bcrypt.compare(currentPassword, targetUser.password);
+        if (!isMatch) {
+          return res.status(400).json({ success: false, message: 'Current password does not match' });
+        }
+      }
+      targetUser.password = await bcrypt.hash(newPassword, 10);
+      return res.status(200).json({ success: true, message: 'Password updated successfully' });
+    }
+
+    return res.status(200).json({ success: true, message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('[Update Password Error]:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update password' });
+  }
+};
+
+/**
+ * Reset / Forgot password by identifier
+ * POST /api/v1/auth/forgot-password
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { identifier, newPassword } = req.body;
+
+    if (!identifier || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email/Username and new password are required',
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long',
+      });
+    }
+
+    const normalized = identifier.toLowerCase().trim();
+
+    if (isDbConnected()) {
+      let user = await User.findOne({
+        $or: [
+          { email: normalized },
+          { name: { $regex: new RegExp(`^${identifier.trim()}$`, 'i') } },
+        ],
+      });
+
+      if (user) {
+        user.password = newPassword;
+        await user.save();
+        const token = generateToken(user);
+        return res.status(200).json({
+          success: true,
+          message: 'Password reset successfully',
+          token,
+          user,
+        });
+      }
+    }
+
+    // Check in-memory demo users or create demo entry
+    let demoMatch = inMemoryUsers.get(normalized);
+    if (!demoMatch) {
+      for (const u of inMemoryUsers.values()) {
+        const uEmail = (u.email || '').toLowerCase();
+        const uName = (u.name || '').toLowerCase();
+        if (uEmail === normalized || uName === normalized) {
+          demoMatch = u;
+          break;
+        }
+      }
+    }
+
+    // Also match if user entered demo, demo@finsafe.com, or vikas
+    if (!demoMatch && (normalized.includes('demo') || normalized.includes('vikas'))) {
+      demoMatch = inMemoryUsers.get('demo@finsafe.com');
+    }
+
+    if (demoMatch) {
+      demoMatch.password = await bcrypt.hash(newPassword, 10);
+      const token = generateToken(demoMatch);
+      const safeUser = { ...demoMatch };
+      delete safeUser.password;
+
+      return res.status(200).json({
+        success: true,
+        message: 'Password reset successfully',
+        token,
+        user: safeUser,
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      message: 'No registered merchant found with that email or username',
+    });
+  } catch (err) {
+    console.error('[Forgot Password Error]:', err);
+    return res.status(500).json({ success: false, message: 'Password reset failed' });
   }
 };

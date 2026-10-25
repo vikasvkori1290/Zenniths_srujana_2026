@@ -28,14 +28,33 @@ function ProtectedRoute({ children }) {
 
 export default function App() {
   const { isAuthenticated } = useAuth();
+  const location = useLocation();
+  const isLoginPage = location.pathname === '/login';
+  const isProfilePage = location.pathname === '/profile';
+  const isFixedLayout = isLoginPage || isProfilePage;
+
+  // Ensure body and documentElement never scroll when on sticky pages like /profile or /login
+  React.useEffect(() => {
+    if (isFixedLayout) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [isFixedLayout]);
 
   return (
-    <div className="min-h-screen bg-white text-neutral-900 flex flex-col selection:bg-amber-300 selection:text-black">
+    <div className={`min-h-screen bg-white text-neutral-900 flex flex-col selection:bg-amber-300 selection:text-black ${isFixedLayout ? 'h-screen max-h-screen overflow-hidden' : ''}`}>
       {/* Sleek Navigation Bar */}
-      <FinanceHeader />
+      {!isLoginPage && <FinanceHeader />}
 
       {/* Routed Main Content */}
-      <main className="flex-1 w-full bg-white pb-20 lg:pb-0">
+      <main className={`flex-1 w-full bg-white ${isFixedLayout ? 'pb-0 overflow-hidden h-[calc(100vh-64px)] max-h-[calc(100vh-64px)]' : 'pb-20 lg:pb-0'}`}>
         <Routes>
           {/* Public Authentication Route */}
           <Route
