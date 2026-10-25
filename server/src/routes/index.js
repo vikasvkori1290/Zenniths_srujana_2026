@@ -11,7 +11,7 @@ const router = Router();
 // API Metadata and root discovery
 router.get('/', (req, res) => {
   res.status(200).json({
-    message: 'Welcome to the AurumFlow API root',
+    message: 'Welcome to the FinSafe API root',
     version: '1.0.0',
     documentation: {
       health: '/api/v1/health',

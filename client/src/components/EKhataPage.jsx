@@ -831,7 +831,7 @@ export default function EKhataPage() {
 
     // Read merchant UPI ID & store name from profile
     let merchantUpi = 'vikas.kori@okhdfcbank';
-    let storeName = 'AURUMFLOW / Zenniths Enterprise';
+    let storeName = 'FinSafe / Zenniths Enterprise';
     try {
       const savedProfile = localStorage.getItem('aurum_profile_info');
       if (savedProfile) {

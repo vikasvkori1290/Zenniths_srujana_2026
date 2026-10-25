@@ -73,7 +73,7 @@ export default function LoginPage({ onLoginSuccess }) {
               <TrendingUp className="w-3.5 h-3.5 text-black stroke-[2.5]" />
             </div>
             <span className="text-xs font-black tracking-tight text-black font-['Outfit']">
-              AURUM<span className="text-amber-600">FLOW</span>
+              FIN<span className="text-amber-600">SAFE</span>
             </span>
             <span className="text-[10px] font-bold text-amber-800 bg-amber-200/70 px-1.5 py-0.2 rounded">
               Predictive Cash
@@ -166,7 +166,7 @@ export default function LoginPage({ onLoginSuccess }) {
                 <input
                   type="email"
                   required
-                  placeholder="demo@aurumflow.com or your email"
+                  placeholder="demo@finsafe.com or your email"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 min-h-[44px] rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"

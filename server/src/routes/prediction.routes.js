@@ -82,7 +82,7 @@ function buildFinancialPrompt({
   minBalance,
   minBalanceDate,
 }) {
-  const systemPrompt = `You are "AurumFlow Nemotron", an elite CFO and financial intelligence advisor powered by NVIDIA Nemotron AI.
+  const systemPrompt = `You are "FinSafe Nemotron", an elite CFO and financial intelligence advisor powered by NVIDIA Nemotron AI.
 Your expertise is specialized for Indian Kiranas, Retailers, and Small & Medium Businesses (SMBs).
 You are analyzing live telemetry from the merchant's daily operations: their business model, daily sales velocity (cash vs UPI), discrete due events from their Fixed Expenses & Payables collections, customer Udhar credit, and predictive cash runway.
 
@@ -834,7 +834,7 @@ router.post('/context-adjuster', async (req, res) => {
     // If neither LLM returned valid adjustments, use domain-specific rule generator
     if (!parsedAdjustments || parsedAdjustments.length === 0) {
       parsedAdjustments = generateDomainAdjustments(businessType, events);
-      usedProvider = usedProvider || 'AurumFlow Bounded Domain Engine';
+      usedProvider = usedProvider || 'FinSafe Bounded Domain Engine';
     }
 
     // Clamping step: enforce 0.6 - 1.6 and low <= base <= high

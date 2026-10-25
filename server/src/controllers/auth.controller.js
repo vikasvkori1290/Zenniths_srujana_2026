@@ -11,19 +11,21 @@ const inMemoryUsers = new Map();
 // Pre-seed Demo Merchant
 const seedDemoMerchant = async () => {
   const hashedPassword = await bcrypt.hash('password123', 10);
-  inMemoryUsers.set('demo@aurumflow.com', {
+  const finsafeUser = {
     id: 'user-demo-1',
     _id: 'user-demo-1',
     name: 'Vikas Kori',
-    email: 'demo@aurumflow.com',
+    email: 'demo@finsafe.com',
     password: hashedPassword,
-    businessName: 'Aurum Enterprise Hub',
+    businessName: 'FinSafe Enterprise Hub',
     businessType: 'Retail & Wholesale',
     dailyGoal: 25000,
     phone: '+91 98765 43210',
     role: 'merchant',
     createdAt: new Date().toISOString(),
-  });
+  };
+  inMemoryUsers.set('demo@finsafe.com', finsafeUser);
+  inMemoryUsers.set('demo@aurumflow.com', finsafeUser);
 };
 seedDemoMerchant();
 
@@ -222,7 +224,7 @@ export const login = async (req, res) => {
  */
 export const demoLogin = async (req, res) => {
   try {
-    const demoUser = inMemoryUsers.get('demo@aurumflow.com');
+    const demoUser = inMemoryUsers.get('demo@finsafe.com') || inMemoryUsers.get('demo@aurumflow.com');
     const token = generateToken(demoUser);
     const safeUser = { ...demoUser };
     delete safeUser.password;

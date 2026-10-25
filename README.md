@@ -1,4 +1,4 @@
-# ⚡ AURUMFLOW — Predictive Cash Flow Management & Smart Voice Ledger for SMBs
+# ⚡ FinSafe — Predictive Cash Flow Management & Smart Voice Ledger for SMBs
 
 A production-grade, full-stack financial platform designed specifically for Indian Retailers, Kiranas, and SMBs to eliminate cash-flow blind spots. It bridges real-time revenue collection, multilingual voice-powered credit bookkeeping (**eKhata**), automated 15-day liability tracking, and an **AI-driven Predictive Cash Runway Engine**.
 
@@ -12,7 +12,7 @@ A production-grade, full-stack financial platform designed specifically for Indi
 Indian SMBs operate under extreme cash asymmetry:
 * **Inflows are irregular & delayed**: Counter cash sales, UPI QR transactions, wholesale invoices, and customer credit (**Udhar**) repaid on unpredictable schedules.
 * **Outflows are fixed & non-negotiable**: Store rent on the 5th, machinery loan EMIs on the 10th, staff salaries, GST compliance, and supplier purchase bills due within 15 days.
-* **Why traditional accounting fails**: Legacy tools (Tally, Vyapar, Khatabook) only record *past* transactions. AurumFlow forecasts the *future survival horizon* (**Cash Runway**), alerting merchants before cash runs out to prevent bounced cheques and penalty fees.
+* **Why traditional accounting fails**: Legacy tools (Tally, Vyapar, Khatabook) only record *past* transactions. FinSafe forecasts the *future survival horizon* (**Cash Runway**), alerting merchants before cash runs out to prevent bounced cheques and penalty fees.
 
 ---
 
@@ -22,7 +22,7 @@ All business logic across the platform has been audited for mathematical correct
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────────┐
-│                    AURUMFLOW RETAINED CASH & TIMELINE ENGINE                      │
+│                     FINSAFE RETAINED CASH & TIMELINE ENGINE                       │
 ├───────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                   │
 │  [ Today's Sales: ₹8,000 ] ──► (× Margin 25%) ──► Gross Profit: ₹2,000            │
@@ -45,7 +45,7 @@ All business logic across the platform has been audited for mathematical correct
 ---
 
 ### 1. Daily Retained Cash vs Gross Sales
-Shopkeepers do not keep gross sales. Gross sales must replenish inventory and service day-to-day running costs. Every metric in AurumFlow uses **Retained Cash**:
+Shopkeepers do not keep gross sales. Gross sales must replenish inventory and service day-to-day running costs. Every metric in FinSafe uses **Retained Cash**:
 
 $$\text{Retained Cash Per Day} = (\text{Received Cash Sales} \times \text{Gross Margin \%}) - \text{Daily Running Cost}$$
 
@@ -204,7 +204,7 @@ When a merchant clicks **"Settle Udhar"** on the Home screen or eKhata page:
 
 ## 🎙️ Multilingual AI Voice-to-Ledger Architecture (`voiceParser.js`)
 
-AurumFlow enables non-tech-savvy shopkeepers to record credit transactions hands-free in seconds:
+FinSafe enables non-tech-savvy shopkeepers to record credit transactions hands-free in seconds:
 
 1. **Audio Capture**: Browser `MediaRecorder` API captures high-fidelity microphone input (WebM / Opus).
 2. **Multilingual Speech Recognition (Groq Whisper Large v3)**:
@@ -294,7 +294,7 @@ Create or configure `server/.env`:
 ```env
 PORT=5000
 NODE_ENV=development
-MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/aurumflow?retryWrites=true&w=majority
+MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/finsafe?retryWrites=true&w=majority
 JWT_SECRET=your_super_secret_jwt_key
 GROQ_API_KEY=gsk_your_groq_api_key_here
 NVIDIA_API_KEY=nvapi_your_nvidia_nim_key_here

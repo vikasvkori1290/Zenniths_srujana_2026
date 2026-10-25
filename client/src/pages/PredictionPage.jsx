@@ -209,7 +209,7 @@ export default function PredictionPage() {
     });
 
     const payload = {
-      businessName: profile.storeName || 'Aurum Store',
+      businessName: profile.storeName || 'FinSafe Store',
       businessType: selectedBusinessType,
       dailySales: {
         totalToday: totalSalesToday,

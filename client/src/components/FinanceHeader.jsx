@@ -58,7 +58,7 @@ export default function FinanceHeader() {
             </div>
             <div>
               <span className="text-base font-black tracking-tight text-black font-['Outfit']">
-                AURUM<span className="text-amber-500">FLOW</span>
+                FIN<span className="text-amber-500">SAFE</span>
               </span>
               <span className="hidden sm:inline-block text-[9px] font-bold text-neutral-600 bg-neutral-100 ml-2 px-1.5 py-0.5 rounded border border-neutral-200">
                 Predictive Cash
@@ -147,7 +147,7 @@ export default function FinanceHeader() {
                       {user?.name || 'Merchant'}
                     </span>
                     <span className="text-[10px] text-neutral-400 block truncate">
-                      {user?.businessName || 'Aurum Store'}
+                      {user?.businessName || 'FinSafe Store'}
                     </span>
                     <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">
                       {user?.businessType || 'Retail'}

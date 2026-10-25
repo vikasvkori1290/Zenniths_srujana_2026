@@ -1,5 +1,5 @@
 /**
- * AurumFlow eKhata Voice-To-Speech & Speech Synthesis Service
+ * FinSafe eKhata Voice-To-Speech & Speech Synthesis Service
  * Provides audible spoken confirmations, hands-free voice feedback,
  * and ledger account read-aloud capabilities for Indian merchants.
  */

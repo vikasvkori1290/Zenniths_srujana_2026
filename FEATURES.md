@@ -1,6 +1,6 @@
-# 🌟 AURUMFLOW — Comprehensive Features & Implementation Manual
+# 🌟 FINSAFE — Comprehensive Features & Implementation Manual
 
-**AurumFlow** is an enterprise-grade financial intelligence, cash-flow forecasting, and smart voice ledger platform built specifically for Indian Kiranas, Retailers, and Small & Medium Businesses (SMBs). 
+**FinSafe** is an enterprise-grade financial intelligence, cash-flow forecasting, and smart voice ledger platform built specifically for Indian Kiranas, Retailers, and Small & Medium Businesses (SMBs). 
 
 This document details every feature, mathematical model, AI engine, and architectural workflow implemented across the platform.
 
@@ -29,7 +29,7 @@ This document details every feature, mathematical model, AI engine, and architec
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          AURUMFLOW PLATFORM STACK                           │
+│                           FINSAFE PLATFORM STACK                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  Frontend:      React 19, Vite, Tailwind CSS v4, Lucide Icons, React Router │
 │  Audio Engine:  Web Speech Synthesis API + MediaRecorder API (WebM/Opus)    │
@@ -271,7 +271,7 @@ Implemented in [`AuthPage.jsx`](client/src/pages/AuthPage.jsx), [`auth.controlle
 
 ## 13. Dual-Channel Reactive Event Bus (Real-Time Sync)
 
-AurumFlow synchronizes financial metrics across all open components and browser windows without requiring page reloads:
+FinSafe synchronizes financial metrics across all open components and browser windows without requiring page reloads:
 
 ```
 [ Component Action ] ──► localStorage.setItem()

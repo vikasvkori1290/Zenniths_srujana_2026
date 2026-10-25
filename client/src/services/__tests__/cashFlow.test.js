@@ -9,7 +9,7 @@ import {
 } from '../predictiveAnalytics.js';
 import { getDueEvents } from '../expenseSync.js';
 
-describe('AurumFlow Cash-Flow Engine & Retained Cash Specifications', () => {
+describe('FinSafe Cash-Flow Engine & Retained Cash Specifications', () => {
   // Test 1: The worked example ₹8,000 → ₹1,500
   it('Requirement 1 & Worked Example: Sales ₹8,000 at 25% margin minus ₹500 running costs yields ₹1,500 retained cash', () => {
     const result = calculateRetainedCashPerDay({

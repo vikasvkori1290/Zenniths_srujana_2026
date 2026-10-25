@@ -5,8 +5,8 @@ const AuthContext = createContext(null);
 const DEFAULT_DEMO_USER = {
   id: 'user-demo-1',
   name: 'Vikas Kori',
-  email: 'demo@aurumflow.com',
-  businessName: 'Aurum Enterprise Hub',
+  email: 'demo@finsafe.com',
+  businessName: 'FinSafe Enterprise Hub',
   businessType: 'Retail & Wholesale',
   dailyGoal: 10000,
   phone: '+91 98765 43210',
