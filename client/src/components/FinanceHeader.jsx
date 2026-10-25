@@ -96,6 +96,7 @@ export default function FinanceHeader() {
     { name: 'Home', path: '/' },
     { name: 'Income', path: '/income' },
     { name: 'Fixed Expenses', path: '/fixed-expenses' },
+    { name: 'Simulator', path: '/simulator', isSimulator: true },
     { name: 'Prediction', path: '/prediction', isAi: true },
   ];
 
@@ -134,6 +135,12 @@ export default function FinanceHeader() {
                         ? 'bg-emerald-600 text-white border border-emerald-700 shadow-md ring-2 ring-emerald-400/40'
                         : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300'
                     }`
+                  : link.isSimulator
+                  ? `px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1.5 transition-all shadow-2xs ${
+                      isActive
+                        ? 'bg-indigo-600 text-white border border-indigo-700 shadow-md ring-2 ring-indigo-400/40'
+                        : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200'
+                    }`
                   : `px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
                       isActive
                         ? 'bg-neutral-100 text-black border border-neutral-300 shadow-2xs'
@@ -142,10 +149,16 @@ export default function FinanceHeader() {
               }
             >
               {link.isAi && <Sparkles className="w-3.5 h-3.5 text-emerald-600" />}
+              {link.isSimulator && <Sliders className="w-3.5 h-3.5 text-indigo-600" />}
               <span>{link.name}</span>
               {link.isAi && (
                 <span className="text-[9px] font-black bg-emerald-200/80 text-emerald-900 px-1.5 py-0.2 rounded-md">
                   NVIDIA
+                </span>
+              )}
+              {link.isSimulator && (
+                <span className="text-[9px] font-black bg-indigo-200/80 text-indigo-900 px-1.5 py-0.2 rounded-md">
+                  SIM
                 </span>
               )}
             </NavLink>

@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import FinanceHeader from './components/FinanceHeader';
 import HomePage from './pages/HomePage';
@@ -7,6 +7,7 @@ import FixedExpensesPage from './pages/FixedExpensesPage';
 import EKhataLedgerPage from './pages/EKhataLedgerPage';
 import ProfilePage from './pages/ProfilePage';
 import PredictionPage from './pages/PredictionPage';
+import ScenarioSimulatorPage from './pages/ScenarioSimulatorPage';
 import AuthPage from './pages/AuthPage';
 
 import { useAuth } from './context/AuthContext';
@@ -118,6 +119,16 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <PredictionPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 7. Scenario Simulator Page */}
+          <Route
+            path="/simulator"
+            element={
+              <ProtectedRoute>
+                <ScenarioSimulatorPage />
               </ProtectedRoute>
             }
           />
