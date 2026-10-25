@@ -534,6 +534,15 @@ export default function PredictiveCashRunwayCard() {
             >
               <span>● Status: {analytics.runwayStatus}</span>
             </span>
+            <button
+              type="button"
+              onClick={() => setIsSettingsOpen(true)}
+              className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-300 transition-all cursor-pointer flex items-center space-x-1 shadow-2xs"
+              title="Cash Flow Assumptions & Operating Parameters"
+            >
+              <Sliders className="w-3 h-3 text-amber-600" />
+              <span>Assumptions</span>
+            </button>
           </div>
           <p className="text-xs text-neutral-500 mt-1">
             Tracks real retained cash (margin after restocking & running costs) with AI Festival & Context Multipliers against dated obligations.
@@ -1869,30 +1878,7 @@ export default function PredictiveCashRunwayCard() {
         )}
       </div>
 
-      {/* Advisory & Onboarding Parameters Bar */}
-      <div className="p-4 rounded-2xl bg-linear-to-r from-amber-50/70 via-yellow-50/40 to-neutral-50 border border-amber-200 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-        <div className="flex items-start space-x-2.5">
-          <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-bold text-amber-950 block">{analytics.advisoryTitle}</span>
-            <p className="text-[11px] text-amber-900/80 leading-relaxed mt-0.5">
-              {analytics.advisoryText}
-            </p>
-          </div>
-        </div>
 
-        {/* Onboarding / Parameters Trigger Button */}
-        <div className="shrink-0 flex items-center space-x-2 pt-2 md:pt-0 border-t md:border-t-0 border-amber-200/60">
-          <button
-            type="button"
-            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-            className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-white text-neutral-700 hover:text-black border border-neutral-300 hover:bg-neutral-50 transition-all cursor-pointer flex items-center space-x-1.5 shadow-2xs"
-          >
-            <Sliders className="w-3.5 h-3.5 text-amber-600" />
-            <span>Cash Flow Assumptions</span>
-          </button>
-        </div>
-      </div>
 
       {/* Onboarding Parameters Drawer / Modal (Responsive Bottom Sheet on Mobile, Centered Modal on Tablet/Desktop) */}
       {isSettingsOpen && (
