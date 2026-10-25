@@ -201,6 +201,67 @@ export function AuthProvider({ children }) {
     setUser((prev) => ({ ...prev, ...updates }));
   };
 
+  // Forgot Password: request verification code
+  const forgotPassword = async (identifier) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: identifier?.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to send verification code');
+      }
+      return { success: true, data };
+    } catch (err) {
+      setAuthError(err.message);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reset Password: submit OTP and new password
+  const resetPassword = async ({ identifier, otp, newPassword }) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: identifier?.trim(),
+          otp: String(otp).trim(),
+          newPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to reset password');
+      }
+
+      if (data.token && data.user) {
+        setToken(data.token);
+        setUser(data.user);
+        localStorage.setItem('aurum_auth_token', data.token);
+        localStorage.setItem('aurum_auth_user', JSON.stringify(data.user));
+        try {
+          await loadUserDataFromDb();
+        } catch (e) {}
+      }
+
+      return { success: true, data };
+    } catch (err) {
+      setAuthError(err.message);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -215,11 +276,14 @@ export function AuthProvider({ children }) {
         logout,
         updateUser,
         setAuthError,
+        forgotPassword,
+        resetPassword,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
+
 }
 
 export const useAuth = () => {

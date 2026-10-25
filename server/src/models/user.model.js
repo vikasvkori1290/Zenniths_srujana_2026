@@ -49,7 +49,16 @@ const userSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    resetPasswordOtp: {
+      type: String,
+      default: null,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
+    },
     cashflowSettings: {
+
       openingCash: { type: Number, default: 40000 },
       grossMarginPct: { type: Number, default: 25 },
       dailyRunningCost: { type: Number, default: 500 },

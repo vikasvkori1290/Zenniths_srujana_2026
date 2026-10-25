@@ -169,52 +169,10 @@ export default function FinanceHeader() {
                     </span>
                   </div>
 
-                  <div className="py-1">
-                    <Link
-                      to="/profile"
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="w-full text-left px-3.5 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 hover:text-black flex items-center space-x-2"
-                    >
-                      <UserIcon className="w-3.5 h-3.5 text-neutral-400" />
-                      <span>Profile & Overview</span>
-                    </Link>
-                    <Link
-                      to="/income"
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="w-full text-left px-3.5 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 hover:text-black flex items-center space-x-2"
-                    >
-                      <ArrowUpRight className="w-3.5 h-3.5 text-neutral-400" />
-                      <span>Today's Income</span>
-                    </Link>
-                    <Link
-                      to="/fixed-expenses"
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="w-full text-left px-3.5 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 hover:text-black flex items-center space-x-2"
-                    >
-                      <CreditCard className="w-3.5 h-3.5 text-neutral-400" />
-                      <span>Monthly Fixed Expenses</span>
-                    </Link>
-                    <Link
-                      to="/prediction"
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="w-full text-left px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50/70 hover:bg-emerald-100/80 flex items-center space-x-2 rounded-lg my-0.5"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Nemotron AI Prediction</span>
-                    </Link>
-                    <button
-                      onClick={() => {
-                        setIsDropdownOpen(false);
-                        window.dispatchEvent(new Event('finsafe_open_setup_wizard'));
-                      }}
-                      className="w-full text-left px-3.5 py-2 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100/80 flex items-center space-x-2 rounded-lg my-0.5 cursor-pointer"
-                    >
-                      <Sliders className="w-3.5 h-3.5 text-amber-700" />
-                      <span>Setup Store Financials</span>
-                    </button>
+                  <div className="py-1 px-1">
                     <button
                       onClick={handleLogout}
-                      className="w-full text-left px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center space-x-2 cursor-pointer"
+                      className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center space-x-2 cursor-pointer transition-colors"
                     >
                       <LogOut className="w-3.5 h-3.5" />
                       <span>Log Out</span>
@@ -222,6 +180,7 @@ export default function FinanceHeader() {
                   </div>
                 </div>
               )}
+
             </div>
           ) : (
             /* Sign In Button */
