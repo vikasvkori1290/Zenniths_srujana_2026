@@ -1,4 +1,5 @@
 import calendarData from '../data/calendar.js';
+import { API_BASE, PROD_BACKEND_URL } from './api.js';
 
 /**
  * Clamp individual multiplier within [0.6, 1.6]
@@ -569,7 +570,8 @@ export async function fetchContextAdjustments({
 
   // Call Server endpoint
   try {
-    const res = await fetch('/api/v1/prediction/context-adjuster', {
+    const endpoint = `${API_BASE || PROD_BACKEND_URL}/prediction/context-adjuster`;
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

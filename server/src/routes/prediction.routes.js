@@ -955,7 +955,7 @@ CRITICAL RULES:
 4. DO NOT use LaTeX or backslash symbols ($...$, \\text, etc.). Use plain ₹ symbol.
 5. Return ONLY a valid JSON object matching the exact schema:
 {
-  "notificationTitle": "⚠️ Bill Due Tomorrow: ₹...",
+  "notificationTitle": "⚠️ Bill Due Tomorrow: ₹... (Shortfall: ₹...)",
   "notificationBody": "1-2 sentence alert with the immediate money arrangement action.",
   "quickSummary": "Concise summary of the shortage and plan.",
   "actionSteps": [

@@ -3,14 +3,18 @@ import {
   deduplicateUpcomingExpenses,
   deduplicateEKhataCustomers,
   deduplicateDailyIncomeRecords,
-} from './expenseSync';
+} from './expenseSync.js';
 
 export const PROD_BACKEND_URL = 'https://zenniths-srujana-2026.vercel.app/api/v1';
 
 export const API_BASE = (() => {
-  let url = import.meta.env.VITE_API_URL;
+  let url = import.meta.env?.VITE_API_URL;
   if (!url && typeof window !== 'undefined') {
-    url = localStorage.getItem('aurum_backend_url');
+    const stored = localStorage.getItem('aurum_backend_url');
+    // Ignore legacy localhost strings that break mobile builds
+    if (stored && !stored.includes('localhost') && !stored.includes('127.0.0.1')) {
+      url = stored;
+    }
   }
 
   if (url) {
@@ -20,29 +24,9 @@ export const API_BASE = (() => {
     return cleanUrl + '/api/v1';
   }
 
-  if (typeof window !== 'undefined') {
-    // If running in Capacitor/native mobile container
-    const isCapacitor =
-      window.location.protocol === 'capacitor:' ||
-      window.location.protocol === 'file:' ||
-      (window.location.hostname === 'localhost' && window.location.port === '') ||
-      (window.Capacitor?.isNativePlatform && window.Capacitor.isNativePlatform());
-
-    if (isCapacitor) {
-      return PROD_BACKEND_URL;
-    }
-
-    // If running in web browser on a production domain (e.g. Netlify)
-    const isLocalhost =
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1';
-
-    if (!isLocalhost) {
-      return PROD_BACKEND_URL;
-    }
-  }
-
-  return '/api/v1';
+  // Always use the Vercel production backend so both the mobile APK and web application
+  // share the identical live database and business state
+  return PROD_BACKEND_URL;
 })();
 
 /**

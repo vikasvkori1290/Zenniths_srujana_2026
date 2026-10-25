@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
 import { getStoredFixedExpenses, getFixedExpensesDueWithin15Days, getDueEvents } from '../services/expenseSync';
+import { API_BASE, PROD_BACKEND_URL } from '../services/api';
 
 function cleanAiText(val) {
   if (typeof val === 'string') {
@@ -162,7 +163,7 @@ export default function PredictionPage() {
 
   // Check backend AI status on mount
   useEffect(() => {
-    fetch('http://localhost:5000/api/v1/prediction/status')
+    fetch(`${API_BASE || PROD_BACKEND_URL}/prediction/status`)
       .then((r) => r.json())
       .then((data) => {
         setBackendConfig(data);
@@ -251,7 +252,7 @@ export default function PredictionPage() {
     };
 
     try {
-      const res = await fetch('http://localhost:5000/api/v1/prediction/analyze', {
+      const res = await fetch(`${API_BASE || PROD_BACKEND_URL}/prediction/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

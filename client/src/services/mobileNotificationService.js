@@ -1,6 +1,7 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { toLocalDateString } from './predictiveAnalytics.js';
 import { getStoredFixedExpenses } from './expenseSync.js';
+import { API_BASE, PROD_BACKEND_URL } from './api.js';
 
 /**
  * Retrieve saved upcoming expenses from localStorage
@@ -270,8 +271,8 @@ export async function evaluateAndNotifyTomorrowBills({
 
   // Query Backend LLM endpoint
   try {
-    const backendUrl = import.meta.env?.VITE_API_URL || 'http://localhost:5000';
-    const resp = await fetch(`${backendUrl}/api/v1/prediction/tomorrow-bill-advisory`, {
+    const endpoint = `${API_BASE || PROD_BACKEND_URL}/prediction/tomorrow-bill-advisory`;
+    const resp = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
