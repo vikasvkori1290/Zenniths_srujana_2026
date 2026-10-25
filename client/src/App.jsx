@@ -9,6 +9,7 @@ import ProfilePage from './pages/ProfilePage';
 import PredictionPage from './pages/PredictionPage';
 import ScenarioSimulatorPage from './pages/ScenarioSimulatorPage';
 import AuthPage from './pages/AuthPage';
+import HowItWorksPage from './pages/HowItWorksPage';
 
 import { useAuth } from './context/AuthContext';
 
@@ -32,6 +33,7 @@ export default function App() {
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
   const isProfilePage = location.pathname === '/profile';
+  const isHowItWorksPage = location.pathname === '/how-it-works';
   const isFixedLayout = isLoginPage || isProfilePage;
 
   // Ensure body and documentElement never scroll when on sticky pages like /profile or /login
@@ -52,7 +54,7 @@ export default function App() {
   return (
     <div className={`min-h-screen bg-white text-neutral-900 flex flex-col selection:bg-amber-300 selection:text-black ${isFixedLayout ? 'h-screen max-h-screen overflow-hidden' : ''}`}>
       {/* Sleek Navigation Bar */}
-      {!isLoginPage && <FinanceHeader />}
+      {!isLoginPage && !isHowItWorksPage && <FinanceHeader />}
 
       {/* Routed Main Content */}
       <main className={`flex-1 w-full bg-white ${isLoginPage ? 'h-screen max-h-screen overflow-hidden pb-0' : isProfilePage ? 'h-[calc(100vh-64px)] max-h-[calc(100vh-64px)] overflow-hidden pb-0' : 'pb-20 lg:pb-0'}`}>
@@ -62,6 +64,9 @@ export default function App() {
             path="/login"
             element={isAuthenticated ? <Navigate to="/" replace /> : <AuthPage />}
           />
+
+          {/* Standalone Story Page: How FinSafe Works */}
+          <Route path="/how-it-works" element={<HowItWorksPage />} />
 
           {/* 1. Home Page: Runway, Payables & Receivables all together */}
           <Route

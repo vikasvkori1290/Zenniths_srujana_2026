@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   TrendingUp,
   Mail,
@@ -21,7 +22,6 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import HowItWorksStoryModal from './HowItWorksStoryModal';
 
 export default function LoginPage({ onLoginSuccess }) {
   const {
@@ -77,7 +77,6 @@ export default function LoginPage({ onLoginSuccess }) {
   });
 
   const [demoLoading, setDemoLoading] = useState(false);
-  const [isStoryModalOpen, setIsStoryModalOpen] = useState(false);
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
@@ -296,15 +295,14 @@ export default function LoginPage({ onLoginSuccess }) {
             <span className="text-[10px] font-bold text-amber-800 bg-amber-200/70 px-1.5 py-0.2 rounded">
               Predictive Cash
             </span>
-            <button
-              type="button"
-              onClick={() => setIsStoryModalOpen(true)}
+            <Link
+              to="/how-it-works"
               className="text-[10px] font-bold text-amber-950 bg-amber-200/90 hover:bg-amber-300 px-2 py-0.5 rounded-full flex items-center space-x-1 cursor-pointer transition-colors ml-1 shadow-2xs"
               title="Click to read Nitish's story: base cash, profit, low buffer, and how the app works"
             >
               <BookOpen className="w-2.5 h-2.5 text-amber-950" />
               <span>How It Works</span>
-            </button>
+            </Link>
           </div>
 
           <h1 className="text-xl sm:text-2xl font-black text-black font-['Outfit'] tracking-tight">
@@ -447,15 +445,14 @@ export default function LoginPage({ onLoginSuccess }) {
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setIsStoryModalOpen(true)}
+              <Link
+                to="/how-it-works"
                 className="w-full py-2.5 sm:py-2 min-h-11 rounded-xl bg-neutral-900 hover:bg-black text-yellow-300 border border-neutral-800 font-bold text-xs shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
                 title="See how FinSafe works: Nitish's daily profit, base cash, low buffer rules & features"
               >
                 <BookOpen className="w-3.5 h-3.5 text-yellow-300 shrink-0" />
                 <span>How It Works (Story)</span>
-              </button>
+              </Link>
             </div>
           </form>
         ) : (
@@ -977,14 +974,6 @@ export default function LoginPage({ onLoginSuccess }) {
           </div>
         </div>
       )}
-
-      {/* ===================== HOW IT WORKS STORY MODAL ===================== */}
-      <HowItWorksStoryModal
-        isOpen={isStoryModalOpen}
-        onClose={() => setIsStoryModalOpen(false)}
-        onDemoLogin={handleDemoLogin}
-        demoLoading={demoLoading}
-      />
     </div>
   );
 }
