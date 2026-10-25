@@ -15,49 +15,7 @@ import {
 } from 'lucide-react';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 
-const DEFAULT_KHATA_SEED = [
-  {
-    id: 'cust-1',
-    idNumber: 1,
-    name: 'Nitish',
-    totalAmount: 240,
-    dueDate: '29 October',
-    phone: '+91 98765 43210',
-    status: 'Pending',
-    lastUpdated: 'Today at 04:36 PM',
-    history: [
-      { amount: 150, date: 'Today at 04:15 PM', note: 'Initial Khata balance' },
-      { amount: 20, date: 'Today at 04:26 PM', note: 'Added ₹20 via voice' },
-      { amount: 70, date: 'Today at 04:36 PM', note: 'Added ₹70 via voice' },
-    ],
-  },
-  {
-    id: 'cust-2',
-    idNumber: 2,
-    name: 'Rahul Sharma',
-    totalAmount: 420,
-    dueDate: 'Undated / On-Demand',
-    phone: '+91 91234 56789',
-    status: 'Pending',
-    lastUpdated: 'Yesterday at 06:30 PM',
-    history: [
-      { amount: 420, date: 'Yesterday at 06:30 PM', note: 'Supplies credit' },
-    ],
-  },
-  {
-    id: 'cust-3',
-    idNumber: 3,
-    name: 'Priya Stores',
-    totalAmount: 850,
-    dueDate: '5 November',
-    phone: '+91 98111 22334',
-    status: 'Pending',
-    lastUpdated: '2 days ago',
-    history: [
-      { amount: 850, date: '2 days ago', note: 'Provisions ledger credit' },
-    ],
-  },
-];
+const DEFAULT_KHATA_SEED = [];
 
 /**
  * Parses eKhata customer dueDate string to determine if it is:
@@ -176,7 +134,7 @@ export default function EKhataReceivablesSection({ setActivePage }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed.map((item, idx) => ({
             ...item,
             idNumber: item.idNumber !== undefined && item.idNumber !== null ? item.idNumber : idx + 1,
@@ -184,7 +142,7 @@ export default function EKhataReceivablesSection({ setActivePage }) {
         }
       } catch (e) {}
     }
-    return DEFAULT_KHATA_SEED;
+    return [];
   });
 
   const [searchQuery, setSearchQuery] = useState('');

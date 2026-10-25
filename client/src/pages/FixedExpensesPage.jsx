@@ -14,57 +14,18 @@ import {
   Edit3,
 } from 'lucide-react';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
+import { syncFixedExpensesToDb } from '../services/api';
 
 export default function FixedExpensesPage() {
   const [fixedExpenses, setFixedExpenses] = useState(() => {
     const saved = localStorage.getItem('aurum_fixed_expenses');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch (e) {}
     }
-    return [
-      {
-        id: 'fix-1',
-        title: 'Commercial Store & Warehouse Rent',
-        amount: 10000,
-        category: 'Rent',
-        dueDay: 5,
-        status: 'Paid',
-        receiptName: 'Rent_Receipt_Oct2026.pdf',
-        notes: 'Paid to Landlord via NEFT transaction',
-      },
-      {
-        id: 'fix-2',
-        title: 'Business Equipment & Machinery EMI',
-        amount: 10000,
-        category: 'EMI',
-        dueDay: 10,
-        status: 'Paid',
-        receiptName: 'HDFC_EMI_Schedule.pdf',
-        notes: 'Auto-debited from primary current account',
-      },
-      {
-        id: 'fix-3',
-        title: 'Staff Salary & Operating Stipend',
-        amount: 7000,
-        category: 'Salaries',
-        dueDay: 7,
-        status: 'Paid',
-        receiptName: 'Salary_Voucher.pdf',
-        notes: 'Monthly operating staff payout',
-      },
-      {
-        id: 'fix-4',
-        title: 'Commercial Electricity & Utility Bill',
-        amount: 3000,
-        category: 'Utilities',
-        dueDay: 18,
-        status: 'Pending',
-        receiptName: null,
-        notes: 'BESCOM commercial meter connection',
-      },
-    ];
+    return [];
   });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -82,12 +43,16 @@ export default function FixedExpensesPage() {
     notes: '',
   });
 
-  // Sync to localStorage and dispatch update events
+  // Sync to localStorage, MongoDB, and dispatch update events
   useEffect(() => {
     localStorage.setItem('aurum_fixed_expenses', JSON.stringify(fixedExpenses));
     window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
     window.dispatchEvent(new Event('aurum_expenses_updated'));
     window.dispatchEvent(new Event('storage'));
+
+    syncFixedExpensesToDb(fixedExpenses).catch((err) => {
+      console.warn('Failed to sync fixed expenses to DB:', err);
+    });
   }, [fixedExpenses]);
 
   const showToast = (msg) => {

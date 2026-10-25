@@ -1,37 +1,105 @@
 import EKhataCustomer from '../models/ekhata.model.js';
 import { FixedExpense, UpcomingExpense } from '../models/expense.model.js';
 import DailyIncome from '../models/dailyIncome.model.js';
+import User from '../models/user.model.js';
 import { isDbConnected } from '../config/db.js';
 
+// Helper to get userId from req.user
+const getUserId = (req) => req.user?.id || req.user?._id || null;
+
 /**
- * Get comprehensive financial overview from MongoDB
+ * Get comprehensive financial overview from MongoDB for the authenticated user
  * GET /api/v1/finance/summary
  */
 export const getFinanceSummary = async (req, res) => {
   try {
+    const userId = getUserId(req);
+
     if (!isDbConnected()) {
       return res.status(200).json({
         success: true,
         isDbConnected: false,
-        message: 'Running in offline/local storage mode. MongoDB Atlas connection available via MONGO_URI in .env.',
+        message: 'Running in offline/local storage mode.',
+        data: {
+          ekhata: [],
+          fixedExpenses: [],
+          upcomingExpenses: [],
+          dailyIncome: [],
+          cashflowSettings: null,
+        },
       });
     }
 
-    const [ekhata, fixed, upcoming, income] = await Promise.all([
-      EKhataCustomer.find().sort({ idNumber: 1 }),
-      FixedExpense.find().sort({ dueDay: 1 }),
-      UpcomingExpense.find().sort({ dueDate: 1 }),
-      DailyIncome.find().sort({ createdAt: -1 }).limit(50),
+    if (!userId) {
+      return res.status(200).json({
+        success: true,
+        isDbConnected: true,
+        data: {
+          ekhata: [],
+          fixedExpenses: [],
+          upcomingExpenses: [],
+          dailyIncome: [],
+          cashflowSettings: null,
+        },
+      });
+    }
+
+    const [ekhata, fixed, upcoming, income, userRecord] = await Promise.all([
+      EKhataCustomer.find({ userId }).sort({ idNumber: 1 }),
+      FixedExpense.find({ userId }).sort({ dueDay: 1 }),
+      UpcomingExpense.find({ userId }).sort({ dueDate: 1 }),
+      DailyIncome.find({ userId }).sort({ date: -1, createdAt: -1 }).limit(100),
+      User.findById(userId).select('-password'),
     ]);
 
     return res.status(200).json({
       success: true,
       isDbConnected: true,
       data: {
-        ekhata,
-        fixedExpenses: fixed,
-        upcomingExpenses: upcoming,
-        dailyIncome: income,
+        ekhata: ekhata.map((c) => ({
+          id: c.clientId || `khata-${c.idNumber}`,
+          idNumber: c.idNumber,
+          name: c.name,
+          phone: c.phone || '',
+          totalAmount: c.totalAmount || 0,
+          dueDate: c.dueDate || 'Not Specified',
+          status: c.status || 'Pending',
+          lastUpdated: c.lastUpdated,
+          history: c.history || [],
+        })),
+        fixedExpenses: fixed.map((f) => ({
+          id: f.clientId || `fix-${f._id}`,
+          title: f.title,
+          amount: f.amount,
+          category: f.category,
+          dueDay: f.dueDay,
+          status: f.status,
+          receiptName: f.receiptName,
+          notes: f.notes,
+        })),
+        upcomingExpenses: upcoming.map((u) => ({
+          id: u.clientId || `up-${u._id}`,
+          title: u.title,
+          payee: u.payee,
+          amount: u.amount,
+          dueDate: u.dueDate,
+          urgency: u.urgency,
+          category: u.category,
+          status: u.status,
+        })),
+        dailyIncome: income.map((i) => ({
+          id: i.entryId || `inc-${i._id}`,
+          date: i.date,
+          source: i.source,
+          amount: i.amount,
+          mode: i.mode,
+          time: i.time,
+          category: i.category,
+          isConfirmed: i.isConfirmed,
+          unconfirmed: i.unconfirmed,
+        })),
+        cashflowSettings: userRecord?.cashflowSettings || null,
+        userProfile: userRecord || null,
       },
     });
   } catch (err) {
@@ -41,26 +109,31 @@ export const getFinanceSummary = async (req, res) => {
 };
 
 /**
- * Sync or Save eKhata Customer to MongoDB
+ * Save or Update single eKhata Customer to MongoDB
  * POST /api/v1/finance/ekhata
  */
 export const saveEKhataCustomer = async (req, res) => {
   try {
-    if (!isDbConnected()) {
-      return res.status(200).json({ success: true, offline: true, message: 'Saved to local buffer' });
+    const userId = getUserId(req);
+    if (!isDbConnected() || !userId) {
+      return res.status(200).json({ success: true, offline: true });
     }
 
-    const { idNumber, name, totalAmount, dueDate, phone, history, status } = req.body;
+    const { id, idNumber, name, totalAmount, dueDate, phone, history, status } = req.body;
+
+    const num = Number(idNumber) || 1;
 
     const customer = await EKhataCustomer.findOneAndUpdate(
-      { idNumber },
+      { userId, idNumber: num },
       {
-        name,
+        userId,
+        clientId: id || `khata-${num}`,
+        name: name?.trim() || 'Customer',
         totalAmount: Number(totalAmount) || 0,
         dueDate: dueDate || 'Not Specified',
         phone: phone || '',
         status: status || 'Pending',
-        history: history || [],
+        history: Array.isArray(history) ? history : [],
         lastUpdated: 'Today at ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -68,62 +141,223 @@ export const saveEKhataCustomer = async (req, res) => {
 
     return res.status(200).json({ success: true, customer });
   } catch (err) {
+    console.error('[Save eKhata Error]:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
 
 /**
- * Sync or Save Monthly Fixed Expense to MongoDB
- * POST /api/v1/finance/fixed-expense
+ * Bulk Sync entire eKhata Customer List to MongoDB
+ * POST /api/v1/finance/ekhata/sync
  */
-export const saveFixedExpense = async (req, res) => {
+export const syncEKhataList = async (req, res) => {
   try {
-    if (!isDbConnected()) {
+    const userId = getUserId(req);
+    if (!isDbConnected() || !userId) {
       return res.status(200).json({ success: true, offline: true });
     }
 
-    const { title, amount, category, dueDay, status, receiptName, notes } = req.body;
+    const { customers } = req.body;
+    if (!Array.isArray(customers)) {
+      return res.status(400).json({ success: false, message: 'customers array required' });
+    }
 
-    const expense = await FixedExpense.create({
-      title,
-      amount: Number(amount) || 0,
-      category: category || 'Rent',
-      dueDay: Number(dueDay) || 1,
-      status: status || 'Pending',
-      receiptName: receiptName || null,
-      notes: notes || 'Monthly recurring commitment',
-    });
+    // Replace all records for this user to keep exact state
+    await EKhataCustomer.deleteMany({ userId });
 
-    return res.status(201).json({ success: true, expense });
+    if (customers.length > 0) {
+      const docs = customers.map((c, idx) => ({
+        userId,
+        clientId: c.id || `khata-${c.idNumber || idx + 1}`,
+        idNumber: Number(c.idNumber) || idx + 1,
+        name: c.name?.trim() || 'Customer',
+        phone: c.phone || '',
+        totalAmount: Number(c.totalAmount) || 0,
+        dueDate: c.dueDate || 'Not Specified',
+        status: c.status || 'Pending',
+        lastUpdated: c.lastUpdated || 'Today',
+        history: Array.isArray(c.history) ? c.history : [],
+      }));
+      await EKhataCustomer.insertMany(docs);
+    }
+
+    return res.status(200).json({ success: true, count: customers.length });
+  } catch (err) {
+    console.error('[Sync eKhata Error]:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * Delete eKhata Customer from MongoDB
+ * DELETE /api/v1/finance/ekhata/:idNumber
+ */
+export const deleteEKhataCustomer = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!isDbConnected() || !userId) {
+      return res.status(200).json({ success: true, offline: true });
+    }
+
+    const { idNumber } = req.params;
+    await EKhataCustomer.deleteOne({ userId, idNumber: Number(idNumber) });
+    return res.status(200).json({ success: true });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
 
 /**
- * Sync or Save Upcoming Scheduled Payable to MongoDB
- * POST /api/v1/finance/upcoming-expense
+ * Bulk Sync Monthly Fixed Expenses to MongoDB
+ * POST /api/v1/finance/fixed-expense/sync
  */
-export const saveUpcomingExpense = async (req, res) => {
+export const syncFixedExpenses = async (req, res) => {
   try {
-    if (!isDbConnected()) {
+    const userId = getUserId(req);
+    if (!isDbConnected() || !userId) {
       return res.status(200).json({ success: true, offline: true });
     }
 
-    const { title, payee, amount, dueDate, urgency, category } = req.body;
+    const { expenses } = req.body;
+    if (!Array.isArray(expenses)) {
+      return res.status(400).json({ success: false, message: 'expenses array required' });
+    }
 
-    const expense = await UpcomingExpense.create({
-      title,
-      payee: payee || 'Vendor',
-      amount: Number(amount) || 0,
-      dueDate,
-      urgency: urgency || 'Medium',
-      category: category || 'Supplier Dues',
-      status: 'Upcoming',
-    });
+    await FixedExpense.deleteMany({ userId });
 
-    return res.status(201).json({ success: true, expense });
+    if (expenses.length > 0) {
+      const docs = expenses.map((e, idx) => ({
+        userId,
+        clientId: e.id || `fix-${idx + 1}`,
+        title: e.title?.trim() || 'Monthly Expense',
+        amount: Number(e.amount) || 0,
+        category: e.category || 'Utilities',
+        dueDay: Math.min(31, Math.max(1, Number(e.dueDay) || 1)),
+        status: e.status || 'Pending',
+        receiptName: e.receiptName || null,
+        notes: e.notes || 'Monthly recurring commitment',
+      }));
+      await FixedExpense.insertMany(docs);
+    }
+
+    return res.status(200).json({ success: true, count: expenses.length });
   } catch (err) {
+    console.error('[Sync Fixed Expenses Error]:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * Bulk Sync Upcoming Scheduled Payables to MongoDB
+ * POST /api/v1/finance/upcoming-expense/sync
+ */
+export const syncUpcomingExpenses = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!isDbConnected() || !userId) {
+      return res.status(200).json({ success: true, offline: true });
+    }
+
+    const { expenses } = req.body;
+    if (!Array.isArray(expenses)) {
+      return res.status(400).json({ success: false, message: 'expenses array required' });
+    }
+
+    await UpcomingExpense.deleteMany({ userId });
+
+    if (expenses.length > 0) {
+      const docs = expenses.map((e, idx) => ({
+        userId,
+        clientId: e.id || `up-${idx + 1}`,
+        title: e.title?.trim() || 'Payable',
+        payee: e.payee || 'Vendor',
+        amount: Number(e.amount) || 0,
+        dueDate: e.dueDate || new Date().toISOString().split('T')[0],
+        urgency: e.urgency || 'Medium',
+        category: e.category || 'Supplier Dues',
+        status: e.status || 'Upcoming',
+      }));
+      await UpcomingExpense.insertMany(docs);
+    }
+
+    return res.status(200).json({ success: true, count: expenses.length });
+  } catch (err) {
+    console.error('[Sync Upcoming Expenses Error]:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * Bulk Sync Daily Income Records to MongoDB
+ * POST /api/v1/finance/income/sync
+ */
+export const syncDailyIncome = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!isDbConnected() || !userId) {
+      return res.status(200).json({ success: true, offline: true });
+    }
+
+    const { records } = req.body;
+    if (!Array.isArray(records)) {
+      return res.status(400).json({ success: false, message: 'records array required' });
+    }
+
+    await DailyIncome.deleteMany({ userId });
+
+    if (records.length > 0) {
+      const docs = records.map((r, idx) => ({
+        userId,
+        entryId: r.id || `inc-${idx + 1}`,
+        date: r.date || new Date().toISOString().split('T')[0],
+        source: r.source?.trim() || 'Daily Sales',
+        amount: Number(r.amount) || 0,
+        mode: r.mode || 'Cash',
+        time: r.time || '12:00 PM',
+        category: r.category || 'In-Store Retail',
+        isConfirmed: r.isConfirmed !== false,
+        unconfirmed: r.unconfirmed === true,
+      }));
+      await DailyIncome.insertMany(docs);
+    }
+
+    return res.status(200).json({ success: true, count: records.length });
+  } catch (err) {
+    console.error('[Sync Income Error]:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * Save Store Cashflow Settings onto User document in MongoDB
+ * POST /api/v1/finance/settings
+ */
+export const saveCashflowSettings = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!isDbConnected() || !userId) {
+      return res.status(200).json({ success: true, offline: true });
+    }
+
+    const { openingCash, grossMarginPct, dailyRunningCost, ownerTargetDailySales, openingDate, dailyGoal, upiId } = req.body;
+
+    const updateFields = {
+      cashflowSettings: {
+        openingCash: Number(openingCash) || 0,
+        grossMarginPct: Number(grossMarginPct) || 25,
+        dailyRunningCost: Number(dailyRunningCost) || 0,
+        ownerTargetDailySales: Number(ownerTargetDailySales) || 10000,
+        openingDate: openingDate || new Date().toISOString().split('T')[0],
+      },
+    };
+
+    if (dailyGoal !== undefined) updateFields.dailyGoal = Number(dailyGoal);
+    if (upiId !== undefined) updateFields.upiId = upiId.trim();
+
+    const updatedUser = await User.findByIdAndUpdate(userId, updateFields, { new: true }).select('-password');
+    return res.status(200).json({ success: true, user: updatedUser });
+  } catch (err) {
+    console.error('[Save Settings Error]:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };

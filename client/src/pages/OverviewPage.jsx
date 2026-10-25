@@ -34,9 +34,9 @@ export default function OverviewPage() {
       } catch (e) {}
     }
     return {
-      name: user?.name || 'Vikas Kori',
-      businessName: user?.businessName || 'Zenniths Enterprise',
-      dailyGoal: 20000,
+      name: user?.name || '',
+      businessName: user?.businessName || '',
+      dailyGoal: user?.dailyGoal || 10000,
     };
   });
 
@@ -44,15 +44,11 @@ export default function OverviewPage() {
     const saved = localStorage.getItem('aurum_today_income');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch (e) {}
     }
-    return [
-      { id: '1', amount: 8400 },
-      { id: '2', amount: 6250 },
-      { id: '3', amount: 420 },
-      { id: '4', amount: 3380 },
-    ];
+    return [];
   });
 
   const [fixedExpenses] = useState(() => getStoredFixedExpenses());

@@ -39,22 +39,22 @@ export default function ProfilePage() {
         return {
           ...parsed,
           businessType: parsed.businessType || user?.businessType || 'Retail Store',
-          upiId: parsed.upiId || 'vikas.kori@okhdfcbank',
+          upiId: parsed.upiId || user?.upiId || '',
         };
       } catch (e) {}
     }
     return {
-      name: user?.name || 'Vikas Kori',
-      initials: 'VK',
-      businessName: user?.businessName || 'Zenniths Enterprise',
+      name: user?.name || '',
+      initials: user?.name ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ME',
+      businessName: user?.businessName || '',
       businessType: user?.businessType || 'Retail Store',
-      phone: user?.phone || '+91 98765 12900',
-      email: user?.email || 'vikas.kori@zenniths.com',
-      upiId: 'vikas.kori@okhdfcbank',
+      phone: user?.phone || '',
+      email: user?.email || '',
+      upiId: user?.upiId || '',
       role: 'Owner & Primary Operator',
       currency: '₹',
-      dailyGoal: 10000,
-      joinedDate: 'January 2026',
+      dailyGoal: user?.dailyGoal || 10000,
+      joinedDate: 'October 2026',
     };
   });
 

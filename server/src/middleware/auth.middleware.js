@@ -28,3 +28,22 @@ export const requireAuth = (req, res, next) => {
     });
   }
 };
+
+/**
+ * Optional authentication: decodes token if present, but allows request to continue if not
+ */
+export const optionalAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.user = decoded;
+    } catch (e) {
+      req.user = null;
+    }
+  } else {
+    req.user = null;
+  }
+  next();
+};

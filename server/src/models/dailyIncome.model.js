@@ -6,6 +6,16 @@ const dailyIncomeSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: false,
+      index: true,
+    },
+    entryId: {
+      type: String,
+      trim: true,
+    },
+    date: {
+      type: String,
+      default: () => new Date().toISOString().split('T')[0],
+      index: true,
     },
     source: {
       type: String,
@@ -17,18 +27,32 @@ const dailyIncomeSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    mode: {
+      type: String,
+      default: 'Cash',
+      trim: true,
+    },
     time: {
       type: String,
       default: () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
     },
-    mode: {
+    category: {
       type: String,
-      default: 'Cash / Transfer',
-      trim: true,
+      default: 'In-Store Retail',
+    },
+    isConfirmed: {
+      type: Boolean,
+      default: true,
+    },
+    unconfirmed: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }
 );
+
+dailyIncomeSchema.index({ userId: 1, date: -1 });
 
 const DailyIncome = mongoose.model('DailyIncome', dailyIncomeSchema);
 export default DailyIncome;

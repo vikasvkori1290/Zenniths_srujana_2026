@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { loadUserDataFromDb } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -22,21 +23,22 @@ export function AuthProvider({ children }) {
         return JSON.parse(saved);
       } catch (e) {}
     }
-    // Default to demo merchant for a seamless instant experience
-    return DEFAULT_DEMO_USER;
+    return null;
   });
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
 
-  // Sync token and user to localStorage
+  // Sync token to localStorage
   useEffect(() => {
     if (token) {
       localStorage.setItem('aurum_auth_token', token);
+      loadUserDataFromDb().catch(() => {});
     } else {
       localStorage.removeItem('aurum_auth_token');
     }
   }, [token]);
 
+  // Sync user and profile to localStorage
   useEffect(() => {
     if (user) {
       localStorage.setItem('aurum_auth_user', JSON.stringify(user));
@@ -74,6 +76,9 @@ export function AuthProvider({ children }) {
       }
       setToken(data.token);
       setUser(data.user);
+      localStorage.setItem('aurum_auth_token', data.token);
+      localStorage.setItem('aurum_auth_user', JSON.stringify(data.user));
+      await loadUserDataFromDb();
       return { success: true, user: data.user };
     } catch (err) {
       setAuthError(err.message);
@@ -97,8 +102,46 @@ export function AuthProvider({ children }) {
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Registration failed');
       }
+
+      // Clear out any previous demo hardcoded data for fresh user
+      localStorage.setItem('aurum_ekhata_data', '[]');
+      localStorage.setItem('aurum_ekhata_customers', '[]');
+      localStorage.setItem('aurum_all_income_records', '[]');
+      localStorage.setItem('aurum_today_income', '[]');
+      localStorage.setItem('aurum_fixed_expenses', '[]');
+      localStorage.setItem('aurum_upcoming_expenses', '[]');
+      localStorage.setItem('aurum_other_receivables', '[]');
+      localStorage.removeItem('aurum_today_gross_profit_entered');
+      localStorage.removeItem('aurum_cashflow_settings');
+
+      // Initialize fresh profile for this user
+      const userProfile = {
+        name: data.user.name,
+        initials: data.user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2),
+        businessName: data.user.businessName,
+        businessType: data.user.businessType,
+        phone: data.user.phone || '+91 98765 43210',
+        email: data.user.email,
+        upiId: data.user.upiId || '',
+        role: 'Owner & Primary Operator',
+        currency: '₹',
+        dailyGoal: data.user.dailyGoal || 10000,
+        joinedDate: 'October 2026',
+      };
+      localStorage.setItem('aurum_profile_info', JSON.stringify(userProfile));
+      localStorage.setItem('aurum_business_type', data.user.businessType || 'Retail');
+
       setToken(data.token);
       setUser(data.user);
+      localStorage.setItem('aurum_auth_token', data.token);
+      localStorage.setItem('aurum_auth_user', JSON.stringify(data.user));
+
+      window.dispatchEvent(new Event('aurum_ekhata_updated'));
+      window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
+      window.dispatchEvent(new Event('aurum_expenses_updated'));
+      window.dispatchEvent(new Event('aurum_income_updated'));
+      window.dispatchEvent(new Event('storage'));
+
       return { success: true, user: data.user };
     } catch (err) {
       setAuthError(err.message);
@@ -118,6 +161,9 @@ export function AuthProvider({ children }) {
       if (data.success && data.token) {
         setToken(data.token);
         setUser(data.user);
+        localStorage.setItem('aurum_auth_token', data.token);
+        localStorage.setItem('aurum_auth_user', JSON.stringify(data.user));
+        await loadUserDataFromDb();
         return { success: true, user: data.user };
       }
     } catch (err) {
@@ -125,6 +171,8 @@ export function AuthProvider({ children }) {
     }
     setUser(DEFAULT_DEMO_USER);
     setToken('demo-jwt-token-local');
+    localStorage.setItem('aurum_auth_user', JSON.stringify(DEFAULT_DEMO_USER));
+    localStorage.setItem('aurum_auth_token', 'demo-jwt-token-local');
     setLoading(false);
     return { success: true, user: DEFAULT_DEMO_USER };
   };
@@ -135,6 +183,13 @@ export function AuthProvider({ children }) {
     setUser(null);
     localStorage.removeItem('aurum_auth_token');
     localStorage.removeItem('aurum_auth_user');
+    localStorage.removeItem('aurum_ekhata_data');
+    localStorage.removeItem('aurum_all_income_records');
+    localStorage.removeItem('aurum_today_income');
+    localStorage.removeItem('aurum_fixed_expenses');
+    localStorage.removeItem('aurum_upcoming_expenses');
+    localStorage.removeItem('aurum_profile_info');
+    window.dispatchEvent(new Event('storage'));
   };
 
   // Update profile

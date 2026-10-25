@@ -39,6 +39,7 @@ import { parseLocalSmartIntent, parseWithGroqAI, checkGroqStatus } from '../serv
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 import { speechService } from '../services/speechSynthesis';
 import { audioVoiceRecorder } from '../services/audioVoiceRecorder';
+import { syncEKhataListToDb } from '../services/api';
 
 function WhatsAppIcon({ className = 'w-3.5 h-3.5' }) {
   return (
@@ -65,49 +66,7 @@ export default function EKhataPage() {
         // fallback
       }
     }
-    return [
-      {
-        id: 'cust-1',
-        idNumber: 1,
-        name: 'Nitish',
-        totalAmount: 240,
-        dueDate: '29 October',
-        phone: '+91 98765 43210',
-        status: 'Pending',
-        lastUpdated: 'Today at 04:36 PM',
-        history: [
-          { amount: 150, date: 'Today at 04:15 PM', note: 'Initial Khata balance' },
-          { amount: 20, date: 'Today at 04:26 PM', note: 'Added ₹20 via voice' },
-          { amount: 70, date: 'Today at 04:36 PM', note: 'Added ₹70 via voice' },
-        ],
-      },
-      {
-        id: 'cust-2',
-        idNumber: 2,
-        name: 'Rahul Sharma',
-        totalAmount: 420,
-        dueDate: 'Undated / On-Demand',
-        phone: '+91 91234 56789',
-        status: 'Pending',
-        lastUpdated: 'Yesterday at 06:30 PM',
-        history: [
-          { amount: 420, date: 'Yesterday at 06:30 PM', note: 'Supplies credit' },
-        ],
-      },
-      {
-        id: 'cust-3',
-        idNumber: 3,
-        name: 'Priya Stores',
-        totalAmount: 850,
-        dueDate: '5 November',
-        phone: '+91 98111 22334',
-        status: 'Pending',
-        lastUpdated: '2 days ago',
-        history: [
-          { amount: 850, date: '2 days ago', note: 'Provisions ledger credit' },
-        ],
-      },
-    ];
+    return [];
   });
 
   // Groq API Key & Backend Connectivity State
@@ -200,12 +159,13 @@ export default function EKhataPage() {
     });
   }, []);
 
-  // Sync state to localStorage
+  // Sync state to localStorage and MongoDB Atlas
   useEffect(() => {
     localStorage.setItem('aurum_ekhata_data', JSON.stringify(khataList));
     localStorage.setItem('aurum_ekhata_customers', JSON.stringify(khataList));
     window.dispatchEvent(new Event('aurum_ekhata_updated'));
     window.dispatchEvent(new Event('storage'));
+    syncEKhataListToDb(khataList).catch(() => {});
   }, [khataList]);
 
   useEffect(() => {

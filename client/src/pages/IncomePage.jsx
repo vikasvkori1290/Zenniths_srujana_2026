@@ -24,6 +24,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 import { getStoredCashflowSettings, calculateBaselineSales } from '../services/predictiveAnalytics';
+import { syncDailyIncomeToDb } from '../services/api';
 
 // Date utility helpers
 const getLocalDateString = (d = new Date()) => {
@@ -85,108 +86,7 @@ export default function IncomePage() {
       } catch (e) {}
     }
 
-    // Seed realistic multi-day records if first time
-    const day2Str = getLocalDateString(getOffsetDate(-2));
-    const day3Str = getLocalDateString(getOffsetDate(-3));
-    const day4Str = getLocalDateString(getOffsetDate(-4));
-
-    return [
-      // Today (defaults to 8,000)
-      {
-        id: 'inc-1',
-        date: todayStr,
-        source: 'Counter Cash Sales',
-        amount: 5000,
-        mode: 'Cash',
-        time: '11:00 AM',
-        category: 'In-Store Retail',
-      },
-      {
-        id: 'inc-2',
-        date: todayStr,
-        source: 'UPI QR Payment (PhonePe / GPay)',
-        amount: 3000,
-        mode: 'UPI',
-        time: '02:30 PM',
-        category: 'Digital Collections',
-      },
-      // Yesterday (7,500)
-      {
-        id: 'inc-y1',
-        date: yesterdayStr,
-        source: 'Counter Cash Sales',
-        amount: 4800,
-        mode: 'Cash',
-        time: '11:30 AM',
-        category: 'In-Store Retail',
-      },
-      {
-        id: 'inc-y2',
-        date: yesterdayStr,
-        source: 'UPI QR Payment (PhonePe)',
-        amount: 2700,
-        mode: 'UPI',
-        time: '03:15 PM',
-        category: 'Digital Collections',
-      },
-      // 2 Days Ago (8,500)
-      {
-        id: 'inc-d2-1',
-        date: day2Str,
-        source: 'Weekend Bulk Grocery Sale',
-        amount: 5200,
-        mode: 'Cash',
-        time: '10:45 AM',
-        category: 'In-Store Retail',
-      },
-      {
-        id: 'inc-d2-2',
-        date: day2Str,
-        source: 'UPI Payment (GPay)',
-        amount: 3300,
-        mode: 'UPI',
-        time: '04:20 PM',
-        category: 'Digital Collections',
-      },
-      // 3 Days Ago (8,000)
-      {
-        id: 'inc-d3-1',
-        date: day3Str,
-        source: 'Counter Cash Sales',
-        amount: 4900,
-        mode: 'Cash',
-        time: '12:10 PM',
-        category: 'In-Store Retail',
-      },
-      {
-        id: 'inc-d3-2',
-        date: day3Str,
-        source: 'Paytm Merchant QR',
-        amount: 3100,
-        mode: 'UPI',
-        time: '05:00 PM',
-        category: 'Digital Collections',
-      },
-      // 4 Days Ago (7,200)
-      {
-        id: 'inc-d4-1',
-        date: day4Str,
-        source: 'Retail Counter Sales',
-        amount: 4200,
-        mode: 'Cash',
-        time: '11:00 AM',
-        category: 'In-Store Retail',
-      },
-      {
-        id: 'inc-d4-2',
-        date: day4Str,
-        source: 'UPI Direct Transfer',
-        amount: 3000,
-        mode: 'UPI',
-        time: '02:45 PM',
-        category: 'Digital Collections',
-      },
-    ];
+    return [];
   });
 
   // Today's entries derived and kept in sync with aurum_today_income
@@ -225,13 +125,14 @@ export default function IncomePage() {
     });
   }, [allIncomeRecords, cashflowSettings.ownerTargetDailySales, profile.dailyGoal, todayStr]);
 
-  // Sync both aurum_all_income_records and aurum_today_income
+  // Sync both aurum_all_income_records and aurum_today_income & MongoDB Atlas
   useEffect(() => {
     localStorage.setItem('aurum_all_income_records', JSON.stringify(allIncomeRecords));
     const currentToday = allIncomeRecords.filter((item) => (item.date || todayStr) === todayStr);
     localStorage.setItem('aurum_today_income', JSON.stringify(currentToday));
     window.dispatchEvent(new Event('aurum_income_updated'));
     window.dispatchEvent(new Event('storage'));
+    syncDailyIncomeToDb(allIncomeRecords).catch(() => {});
   }, [allIncomeRecords, todayStr]);
 
   const showToast = (msg) => {

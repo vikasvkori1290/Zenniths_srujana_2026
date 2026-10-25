@@ -7,6 +7,11 @@ const fixedExpenseSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: false,
+      index: true,
+    },
+    clientId: {
+      type: String,
+      trim: true,
     },
     title: {
       type: String,
@@ -20,8 +25,8 @@ const fixedExpenseSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ['Rent', 'EMI', 'Utilities', 'Salaries', 'Subscriptions', 'Insurance', 'Other'],
       default: 'Rent',
+      trim: true,
     },
     dueDay: {
       type: Number,
@@ -32,8 +37,8 @@ const fixedExpenseSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Paid', 'Pending'],
       default: 'Pending',
+      trim: true,
     },
     receiptName: {
       type: String,
@@ -48,6 +53,8 @@ const fixedExpenseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+fixedExpenseSchema.index({ userId: 1, dueDay: 1 });
+
 // 2. Upcoming Scheduled Payable Schema (15-day supplier dues, taxes, invoices)
 const upcomingExpenseSchema = new mongoose.Schema(
   {
@@ -55,6 +62,11 @@ const upcomingExpenseSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: false,
+      index: true,
+    },
+    clientId: {
+      type: String,
+      trim: true,
     },
     title: {
       type: String,
@@ -74,11 +86,12 @@ const upcomingExpenseSchema = new mongoose.Schema(
     dueDate: {
       type: String, // YYYY-MM-DD
       required: true,
+      index: true,
     },
     urgency: {
       type: String,
-      enum: ['Urgent', 'High', 'Medium', 'Low'],
       default: 'Medium',
+      trim: true,
     },
     category: {
       type: String,
@@ -87,12 +100,14 @@ const upcomingExpenseSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Upcoming', 'Paid'],
       default: 'Upcoming',
+      trim: true,
     },
   },
   { timestamps: true }
 );
+
+upcomingExpenseSchema.index({ userId: 1, dueDate: 1 });
 
 export const FixedExpense = mongoose.model('FixedExpense', fixedExpenseSchema);
 export const UpcomingExpense = mongoose.model('UpcomingExpense', upcomingExpenseSchema);

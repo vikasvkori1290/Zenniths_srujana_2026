@@ -3,68 +3,23 @@
  * if their due date falls within 15 days.
  */
 
-export const DEFAULT_FIXED_EXPENSES = [
-  {
-    id: 'fix-1',
-    title: 'Commercial Store & Warehouse Rent',
-    amount: 10000,
-    category: 'Rent',
-    dueDay: 5,
-    status: 'Paid',
-    paidMonths: ['2026-10'],
-    receiptName: 'Rent_Receipt_Oct2026.pdf',
-    notes: 'Paid to Landlord via NEFT transaction',
-  },
-  {
-    id: 'fix-2',
-    title: 'Business Equipment & Machinery EMI',
-    amount: 10000,
-    category: 'EMI',
-    dueDay: 10,
-    status: 'Paid',
-    paidMonths: ['2026-10'],
-    receiptName: 'HDFC_EMI_Schedule.pdf',
-    notes: 'Auto-debited from primary current account',
-  },
-  {
-    id: 'fix-3',
-    title: 'Staff Salary & Operating Stipend',
-    amount: 7000,
-    category: 'Salaries',
-    dueDay: 7,
-    status: 'Paid',
-    paidMonths: ['2026-10'],
-    receiptName: 'Salary_Voucher.pdf',
-    notes: 'Monthly operating staff payout',
-  },
-  {
-    id: 'fix-4',
-    title: 'Commercial Electricity & Utility Bill',
-    amount: 3000,
-    category: 'Utilities',
-    dueDay: 18,
-    status: 'Pending',
-    paidMonths: [],
-    receiptName: null,
-    notes: 'BESCOM commercial meter connection',
-  },
-];
+export const DEFAULT_FIXED_EXPENSES = [];
 
 /**
  * Retrieve raw stored fixed expenses from localStorage or default
  */
 export function getStoredFixedExpenses() {
-  if (typeof window === 'undefined') return DEFAULT_FIXED_EXPENSES;
+  if (typeof window === 'undefined') return [];
   const saved = localStorage.getItem('aurum_fixed_expenses');
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     } catch (e) {
       console.warn('Failed to parse aurum_fixed_expenses', e);
     }
   }
-  return DEFAULT_FIXED_EXPENSES;
+  return [];
 }
 
 /**

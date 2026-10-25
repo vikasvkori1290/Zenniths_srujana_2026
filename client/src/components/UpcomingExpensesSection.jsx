@@ -21,49 +21,9 @@ import {
 import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
 import { getRetainedCashBeforeDueDate } from '../services/contextAdjuster';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
+import { syncUpcomingExpensesToDb } from '../services/api';
 
-const DEFAULT_UPCOMING_EXPENSES = [
-  {
-    id: 'up-1',
-    title: 'Raw Material Inventory Batch #42',
-    payee: 'Apex Distributors India',
-    amount: 12500,
-    dueDate: '2026-10-28',
-    urgency: 'High',
-    category: 'Supplier Dues',
-    status: 'Upcoming',
-  },
-  {
-    id: 'up-2',
-    title: 'Quarterly GST Filing & Accounting Fees',
-    payee: 'Chartered Accountant Services',
-    amount: 7800,
-    dueDate: '2026-10-31',
-    urgency: 'Urgent',
-    category: 'Taxes & Compliance',
-    status: 'Upcoming',
-  },
-  {
-    id: 'up-3',
-    title: 'Commercial Insurance Policy Installment',
-    payee: 'ICICI Lombard General Insurance',
-    amount: 3200,
-    dueDate: '2026-11-04',
-    urgency: 'Medium',
-    category: 'Insurance',
-    status: 'Upcoming',
-  },
-  {
-    id: 'up-4',
-    title: 'Packaging Box & Bulk Supplies',
-    payee: 'EcoPack India Supplies',
-    amount: 2450,
-    dueDate: '2026-11-09',
-    urgency: 'Low',
-    category: 'Packaging',
-    status: 'Upcoming',
-  },
-];
+const DEFAULT_UPCOMING_EXPENSES = [];
 
 export default function UpcomingExpensesSection() {
   // 1. One-off / scheduled upcoming expenses
@@ -77,7 +37,7 @@ export default function UpcomingExpensesSection() {
         // fallback
       }
     }
-    return DEFAULT_UPCOMING_EXPENSES;
+    return [];
   });
 
   // 2. Auto-synced monthly fixed expenses due within 15 days
@@ -102,11 +62,15 @@ export default function UpcomingExpensesSection() {
     category: 'Supplier Dues',
   });
 
-  // Sync manual upcoming expenses to localStorage
+  // Sync manual upcoming expenses to localStorage and MongoDB
   useEffect(() => {
     localStorage.setItem('aurum_upcoming_expenses', JSON.stringify(upcomingExpenses));
     window.dispatchEvent(new Event('aurum_expenses_updated'));
     window.dispatchEvent(new Event('storage'));
+
+    syncUpcomingExpensesToDb(upcomingExpenses).catch((err) => {
+      console.warn('Failed to sync upcoming expenses to DB:', err);
+    });
   }, [upcomingExpenses]);
 
   // Sync fixed expenses due within 15 days whenever profile or fixed expenses change

@@ -1,6 +1,18 @@
 export const API_BASE = (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '') + '/api/v1';
 
 /**
+ * Returns authorization headers with bearer token if logged in
+ */
+export function getAuthHeaders() {
+  const token = localStorage.getItem('aurum_auth_token');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+/**
  * Fetch backend and database health status
  */
 export async function getHealthStatus() {
@@ -21,11 +33,13 @@ export async function getHealthStatus() {
 }
 
 /**
- * Fetch complete financial summary from MongoDB Atlas
+ * Fetch complete financial summary from MongoDB Atlas for the authenticated user
  */
 export async function getFinanceSummary() {
   try {
-    const res = await fetch(`${API_BASE}/finance/summary`);
+    const res = await fetch(`${API_BASE}/finance/summary`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -35,31 +49,46 @@ export async function getFinanceSummary() {
 }
 
 /**
- * Sync eKhata customer to MongoDB Atlas
+ * Sync entire eKhata Customer list to MongoDB Atlas for the current user
+ */
+export async function syncEKhataListToDb(customers) {
+  try {
+    const res = await fetch(`${API_BASE}/finance/ekhata/sync`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ customers }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.warn('Failed to sync eKhata list to MongoDB:', err);
+    return { success: false };
+  }
+}
+
+/**
+ * Sync single eKhata customer to MongoDB Atlas
  */
 export async function syncEKhataCustomerToDb(customer) {
   try {
     const res = await fetch(`${API_BASE}/finance/ekhata`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(customer),
     });
     return await res.json();
   } catch (err) {
-    console.warn('Failed to sync eKhata customer to MongoDB Atlas:', err);
     return { success: false };
   }
 }
 
 /**
- * Sync Fixed Expense to MongoDB Atlas
+ * Delete eKhata customer from MongoDB Atlas
  */
-export async function syncFixedExpenseToDb(expense) {
+export async function deleteEKhataCustomerFromDb(idNumber) {
   try {
-    const res = await fetch(`${API_BASE}/finance/fixed-expense`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(expense),
+    const res = await fetch(`${API_BASE}/finance/ekhata/${idNumber}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
     });
     return await res.json();
   } catch (err) {
@@ -68,14 +97,14 @@ export async function syncFixedExpenseToDb(expense) {
 }
 
 /**
- * Sync Upcoming Scheduled Expense to MongoDB Atlas
+ * Sync all Fixed Expenses to MongoDB Atlas for the current user
  */
-export async function syncUpcomingExpenseToDb(expense) {
+export async function syncFixedExpensesToDb(expenses) {
   try {
-    const res = await fetch(`${API_BASE}/finance/upcoming-expense`, {
+    const res = await fetch(`${API_BASE}/finance/fixed-expense/sync`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(expense),
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ expenses }),
     });
     return await res.json();
   } catch (err) {
@@ -84,66 +113,88 @@ export async function syncUpcomingExpenseToDb(expense) {
 }
 
 /**
- * Fetch all items with optional filters
+ * Sync all Upcoming Scheduled Payables to MongoDB Atlas for the current user
  */
-export async function getItems(params = {}) {
-  const query = new URLSearchParams();
-  if (params.category && params.category !== 'All') query.append('category', params.category);
-  if (params.status && params.status !== 'All') query.append('status', params.status);
-  if (params.priority && params.priority !== 'All') query.append('priority', params.priority);
-  if (params.search) query.append('search', params.search);
-
-  const queryString = query.toString() ? `?${query.toString()}` : '';
-  const res = await fetch(`${API_BASE}/items${queryString}`);
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({}));
-    throw new Error(errorBody.error?.message || `Failed to fetch items (${res.status})`);
+export async function syncUpcomingExpensesToDb(expenses) {
+  try {
+    const res = await fetch(`${API_BASE}/finance/upcoming-expense/sync`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ expenses }),
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false };
   }
-  return await res.json();
 }
 
 /**
- * Create a new item
+ * Sync Daily Income Records to MongoDB Atlas for the current user
  */
-export async function createItem(itemData) {
-  const res = await fetch(`${API_BASE}/items`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(itemData),
-  });
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({}));
-    throw new Error(errorBody.error?.message || `Failed to create item (${res.status})`);
+export async function syncDailyIncomeToDb(records) {
+  try {
+    const res = await fetch(`${API_BASE}/finance/income/sync`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ records }),
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false };
   }
-  return await res.json();
 }
 
 /**
- * Update an existing item
+ * Sync Cashflow Settings to MongoDB Atlas for the current user
  */
-export async function updateItem(id, itemData) {
-  const res = await fetch(`${API_BASE}/items/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(itemData),
-  });
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({}));
-    throw new Error(errorBody.error?.message || `Failed to update item (${res.status})`);
+export async function syncSettingsToDb(settings) {
+  try {
+    const res = await fetch(`${API_BASE}/finance/settings`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(settings),
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false };
   }
-  return await res.json();
 }
 
 /**
- * Delete an item
+ * Load user's data from MongoDB Atlas into application state and clear hardcoded defaults
  */
-export async function deleteItem(id) {
-  const res = await fetch(`${API_BASE}/items/${id}`, {
-    method: 'DELETE',
-  });
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({}));
-    throw new Error(errorBody.error?.message || `Failed to delete item (${res.status})`);
+export async function loadUserDataFromDb() {
+  const summaryRes = await getFinanceSummary();
+  if (summaryRes && summaryRes.success && summaryRes.data) {
+    const { ekhata, fixedExpenses, upcomingExpenses, dailyIncome, cashflowSettings } = summaryRes.data;
+
+    // Set eKhata
+    localStorage.setItem('aurum_ekhata_data', JSON.stringify(ekhata || []));
+    window.dispatchEvent(new Event('aurum_ekhata_updated'));
+
+    // Set fixed expenses
+    localStorage.setItem('aurum_fixed_expenses', JSON.stringify(fixedExpenses || []));
+    window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
+
+    // Set upcoming expenses
+    localStorage.setItem('aurum_upcoming_expenses', JSON.stringify(upcomingExpenses || []));
+    window.dispatchEvent(new Event('aurum_expenses_updated'));
+
+    // Set daily income
+    localStorage.setItem('aurum_all_income_records', JSON.stringify(dailyIncome || []));
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayItems = (dailyIncome || []).filter((i) => i.date === todayStr);
+    localStorage.setItem('aurum_today_income', JSON.stringify(todayItems));
+    window.dispatchEvent(new Event('aurum_income_updated'));
+
+    // Set cashflow settings if present
+    if (cashflowSettings) {
+      localStorage.setItem('aurum_cashflow_settings', JSON.stringify(cashflowSettings));
+      window.dispatchEvent(new Event('aurum_cashflow_settings_updated'));
+    }
+
+    window.dispatchEvent(new Event('storage'));
+    return summaryRes.data;
   }
-  return await res.json();
+  return null;
 }

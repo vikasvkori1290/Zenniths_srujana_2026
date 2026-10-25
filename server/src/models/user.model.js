@@ -28,8 +28,8 @@ const userSchema = new mongoose.Schema(
     },
     businessType: {
       type: String,
-      enum: ['Retail', 'Wholesale', 'Kirana', 'Services', 'Manufacturing', 'Other'],
       default: 'Retail',
+      trim: true,
     },
     dailyGoal: {
       type: Number,
@@ -43,6 +43,18 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['merchant', 'admin'],
       default: 'merchant',
+    },
+    upiId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    cashflowSettings: {
+      openingCash: { type: Number, default: 40000 },
+      grossMarginPct: { type: Number, default: 25 },
+      dailyRunningCost: { type: Number, default: 500 },
+      openingDate: { type: String, default: () => new Date().toISOString().split('T')[0] },
+      ownerTargetDailySales: { type: Number, default: 10000 },
     },
   },
   {

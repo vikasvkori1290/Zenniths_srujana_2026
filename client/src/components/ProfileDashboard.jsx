@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getFixedExpensesDueWithin15Days } from '../services/expenseSync';
+import { syncFixedExpensesToDb, syncUpcomingExpensesToDb, syncSettingsToDb } from '../services/api';
 import {
   User,
   IndianRupee,
@@ -44,21 +45,21 @@ export default function ProfileDashboard({ setActivePage }) {
         const parsed = JSON.parse(saved);
         return {
           ...parsed,
-          upiId: parsed.upiId || 'vikas.kori@okhdfcbank',
+          upiId: parsed.upiId || '',
         };
       } catch (e) {}
     }
     return {
-      name: 'Vikas Kori',
-      initials: 'VK',
-      businessName: 'Zenniths Enterprise',
-      phone: '+91 98765 12900',
-      email: 'vikas.kori@zenniths.com',
-      upiId: 'vikas.kori@okhdfcbank',
-      role: 'Owner & Primary Operator',
+      name: '',
+      initials: 'ME',
+      businessName: '',
+      phone: '',
+      email: '',
+      upiId: '',
+      role: 'Owner & Operator',
       currency: '₹',
-      dailyGoal: 20000,
-      joinedDate: 'January 2026',
+      dailyGoal: 10000,
+      joinedDate: 'October 2026',
     };
   });
 
@@ -69,43 +70,11 @@ export default function ProfileDashboard({ setActivePage }) {
     const saved = localStorage.getItem('aurum_today_income');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch (e) {}
     }
-    return [
-      {
-        id: 'inc-1',
-        source: 'Counter Cash Sales',
-        amount: 8400,
-        mode: 'Cash',
-        time: '10:30 AM',
-        category: 'In-Store Retail',
-      },
-      {
-        id: 'inc-2',
-        source: 'UPI QR Payment (PhonePe / GPay)',
-        amount: 6250,
-        mode: 'UPI',
-        time: '01:15 PM',
-        category: 'Digital Collections',
-      },
-      {
-        id: 'inc-3',
-        source: 'Khata Repayment (Rahul Sharma)',
-        amount: 420,
-        mode: 'UPI',
-        time: '03:45 PM',
-        category: 'eKhata Received',
-      },
-      {
-        id: 'inc-4',
-        source: 'Wholesale Supply Order #108',
-        amount: 3380,
-        mode: 'Bank Transfer',
-        time: '05:10 PM',
-        category: 'B2B Client Invoice',
-      },
-    ];
+    return [];
   });
 
   // ----------------------------------------------------
@@ -115,61 +84,11 @@ export default function ProfileDashboard({ setActivePage }) {
     const saved = localStorage.getItem('aurum_fixed_expenses');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch (e) {}
     }
-    return [
-      {
-        id: 'fix-1',
-        title: 'Commercial Store & Warehouse Rent',
-        amount: 22000,
-        category: 'Rent',
-        dueDay: 5,
-        status: 'Paid',
-        receiptName: 'Rent_Receipt_Oct2026.pdf',
-        notes: 'Paid to Landlord via NEFT transaction',
-      },
-      {
-        id: 'fix-2',
-        title: 'Business Equipment & Machinery EMI',
-        amount: 14500,
-        category: 'EMI',
-        dueDay: 10,
-        status: 'Paid',
-        receiptName: 'HDFC_EMI_Schedule.pdf',
-        notes: 'Auto-debited from primary current account',
-      },
-      {
-        id: 'fix-3',
-        title: 'Commercial Electricity & Utility Bill',
-        amount: 4800,
-        category: 'Utilities',
-        dueDay: 18,
-        status: 'Pending',
-        receiptName: null,
-        notes: 'BESCOM commercial meter connection',
-      },
-      {
-        id: 'fix-4',
-        title: 'Assistant Operator Salary & Stipend',
-        amount: 6500,
-        category: 'Salaries',
-        dueDay: 7,
-        status: 'Paid',
-        receiptName: 'Salary_Voucher.pdf',
-        notes: 'Monthly operating staff payout',
-      },
-      {
-        id: 'fix-5',
-        title: 'High-speed Fiber & Cloud Subscriptions',
-        amount: 1800,
-        category: 'Subscriptions',
-        dueDay: 22,
-        status: 'Pending',
-        receiptName: null,
-        notes: 'Airtel Office Broadband + Invoicing SaaS',
-      },
-    ];
+    return [];
   });
 
   // ----------------------------------------------------
@@ -179,51 +98,11 @@ export default function ProfileDashboard({ setActivePage }) {
     const saved = localStorage.getItem('aurum_upcoming_expenses');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch (e) {}
     }
-    return [
-      {
-        id: 'up-1',
-        title: 'Raw Material Inventory Batch #42',
-        payee: 'Apex Distributors India',
-        amount: 12500,
-        dueDate: '2026-10-28',
-        urgency: 'High',
-        category: 'Supplier Dues',
-        status: 'Upcoming',
-      },
-      {
-        id: 'up-2',
-        title: 'Quarterly GST Filing & Accounting Fees',
-        payee: 'Chartered Accountant Services',
-        amount: 7800,
-        dueDate: '2026-10-31',
-        urgency: 'Urgent',
-        category: 'Taxes & Compliance',
-        status: 'Upcoming',
-      },
-      {
-        id: 'up-3',
-        title: 'Commercial Insurance Policy Installment',
-        payee: 'ICICI Lombard General Insurance',
-        amount: 3200,
-        dueDate: '2026-11-04',
-        urgency: 'Medium',
-        category: 'Insurance',
-        status: 'Upcoming',
-      },
-      {
-        id: 'up-4',
-        title: 'Packaging Box & Bubble Wrap Bulk Order',
-        payee: 'EcoPack India Supplies',
-        amount: 2450,
-        dueDate: '2026-11-09',
-        urgency: 'Low',
-        category: 'Packaging',
-        status: 'Upcoming',
-      },
-    ];
+    return [];
   });
 
   // ----------------------------------------------------
@@ -233,41 +112,11 @@ export default function ProfileDashboard({ setActivePage }) {
     const saved = localStorage.getItem('aurum_other_receivables');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch (e) {}
     }
-    return [
-      {
-        id: 'rec-1',
-        debtor: 'Krypton Creative Studio',
-        amount: 8500,
-        phone: '+91 98800 11223',
-        dueDate: '2026-10-27',
-        reason: 'Custom display fixtures & design shipment',
-        type: 'Client Invoice',
-        status: 'Due Soon',
-      },
-      {
-        id: 'rec-2',
-        debtor: 'Subhash Trading Co.',
-        amount: 5600,
-        phone: '+91 97411 44556',
-        dueDate: '2026-10-25',
-        reason: 'Consignment wholesale balance',
-        type: 'Wholesale Udhar',
-        status: 'Overdue',
-      },
-      {
-        id: 'rec-3',
-        debtor: 'Mahesh Hardware (Vendor Advance)',
-        amount: 2000,
-        phone: '+91 94488 99001',
-        dueDate: '2026-11-02',
-        reason: 'Refund of excess advance on canceled parts',
-        type: 'Advance Refund',
-        status: 'Pending',
-      },
-    ];
+    return [];
   });
 
   // Load eKhata customer credits to show total cash to receive
@@ -329,6 +178,12 @@ export default function ProfileDashboard({ setActivePage }) {
   // Save changes to localStorage
   useEffect(() => {
     localStorage.setItem('aurum_profile_info', JSON.stringify(profile));
+    if (profile.upiId || profile.dailyGoal) {
+      syncSettingsToDb({
+        upiId: profile.upiId,
+        ownerTargetDailySales: Number(profile.dailyGoal) || 10000,
+      }).catch((err) => console.warn('Failed to sync profile settings to DB:', err));
+    }
   }, [profile]);
 
   useEffect(() => {
@@ -339,7 +194,18 @@ export default function ProfileDashboard({ setActivePage }) {
     localStorage.setItem('aurum_fixed_expenses', JSON.stringify(fixedExpenses));
     window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
     window.dispatchEvent(new Event('aurum_expenses_updated'));
+    syncFixedExpensesToDb(fixedExpenses).catch((err) =>
+      console.warn('Failed to sync fixed expenses to DB:', err)
+    );
   }, [fixedExpenses]);
+
+  useEffect(() => {
+    localStorage.setItem('aurum_upcoming_expenses', JSON.stringify(upcomingExpenses));
+    window.dispatchEvent(new Event('aurum_expenses_updated'));
+    syncUpcomingExpensesToDb(upcomingExpenses).catch((err) =>
+      console.warn('Failed to sync upcoming expenses to DB:', err)
+    );
+  }, [upcomingExpenses]);
 
   useEffect(() => {
     localStorage.setItem('aurum_other_receivables', JSON.stringify(otherReceivables));
@@ -367,7 +233,7 @@ export default function ProfileDashboard({ setActivePage }) {
   // Modal States
   // ----------------------------------------------------
   const [modalType, setModalType] = useState(null); // 'income', 'fixed', 'upcoming', 'receivable', 'profile', 'upi'
-  const [tempUpi, setTempUpi] = useState(profile.upiId || 'vikas.kori@okhdfcbank');
+  const [tempUpi, setTempUpi] = useState(profile.upiId || '');
   const [toastMessage, setToastMessage] = useState(null);
 
   const showToast = (msg) => {

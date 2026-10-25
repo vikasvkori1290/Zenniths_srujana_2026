@@ -17,13 +17,9 @@ import {
 } from 'lucide-react';
 import { getStoredCashflowSettings, saveCashflowSettings } from '../services/predictiveAnalytics';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
+import { syncSettingsToDb, syncFixedExpensesToDb, syncDailyIncomeToDb } from '../services/api';
 
-const DEFAULT_FIXED_PRESETS = [
-  { id: 'fix-1', title: 'Commercial Store Rent', amount: 10000, category: 'Rent', dueDay: 5, notes: 'Paid to landlord monthly' },
-  { id: 'fix-2', title: 'Business Equipment / Machinery EMI', amount: 10000, category: 'EMI', dueDay: 10, notes: 'Bank loan auto-debit' },
-  { id: 'fix-3', title: 'Staff Salaries & Wages', amount: 7000, category: 'Salaries', dueDay: 7, notes: 'Monthly staff payroll' },
-  { id: 'fix-4', title: 'Commercial Electricity & Utilities', amount: 3000, category: 'Utilities', dueDay: 18, notes: 'BESCOM meter bill' },
-];
+const DEFAULT_FIXED_PRESETS = [];
 
 export default function FirstTimeOnboardingModal({ isOpen: controlledIsOpen, onClose }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -37,12 +33,12 @@ export default function FirstTimeOnboardingModal({ isOpen: controlledIsOpen, onC
   const [businessType, setBusinessType] = useState('Retail');
 
   // Step 1: Cash Engine Settings
-  const [openingCash, setOpeningCash] = useState(40000);
+  const [openingCash, setOpeningCash] = useState(0);
   const [grossMarginPct, setGrossMarginPct] = useState(25);
-  const [dailyRunningCost, setDailyRunningCost] = useState(500);
+  const [dailyRunningCost, setDailyRunningCost] = useState(0);
 
   // Step 2: Fixed Expenses
-  const [fixedList, setFixedList] = useState(DEFAULT_FIXED_PRESETS);
+  const [fixedList, setFixedList] = useState([]);
 
   // Step 3: Today's Initial Sales (Optional)
   const [cashSalesToday, setCashSalesToday] = useState(0);
@@ -136,12 +132,15 @@ export default function FirstTimeOnboardingModal({ isOpen: controlledIsOpen, onC
   const totalMonthlyFixed = fixedList.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
   const handleFinalSave = () => {
-    // 1. Save cash flow engine settings
-    saveCashflowSettings({
+    const settingsPayload = {
       openingCash: Number(openingCash) || 0,
       grossMarginPct: Number(grossMarginPct) || 20,
       dailyRunningCost: Number(dailyRunningCost) || 0,
       ownerTargetDailySales: Number(dailyTarget) || 10000,
+    };
+    saveCashflowSettings(settingsPayload);
+    syncSettingsToDb(settingsPayload).catch((err) => {
+      console.warn('Failed to sync settings to DB:', err);
     });
 
     // 2. Save fixed expenses
@@ -156,6 +155,9 @@ export default function FirstTimeOnboardingModal({ isOpen: controlledIsOpen, onC
       receiptName: item.receiptName || null,
     }));
     localStorage.setItem('aurum_fixed_expenses', JSON.stringify(cleanedFixed));
+    syncFixedExpensesToDb(cleanedFixed).catch((err) => {
+      console.warn('Failed to sync fixed expenses to DB:', err);
+    });
 
     // 3. Update profile daily goal
     try {
@@ -177,6 +179,9 @@ export default function FirstTimeOnboardingModal({ isOpen: controlledIsOpen, onC
         note: 'Opening sales recorded during store setup',
       };
       localStorage.setItem('aurum_today_income', JSON.stringify([todayEntry]));
+      syncDailyIncomeToDb([todayEntry]).catch((err) => {
+        console.warn('Failed to sync income to DB:', err);
+      });
       window.dispatchEvent(new Event('aurum_income_updated'));
     }
 
