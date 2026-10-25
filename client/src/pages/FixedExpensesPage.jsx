@@ -11,6 +11,7 @@ import {
   Calendar,
   AlertCircle,
   ArrowRight,
+  Edit3,
 } from 'lucide-react';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 
@@ -67,9 +68,10 @@ export default function FixedExpensesPage() {
   });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Lock background scroll when Add Fixed Expense modal is open
+  // Lock background scroll when modal is open
   useBodyScrollLock(isModalOpen);
 
   const [form, setForm] = useState({
@@ -115,25 +117,63 @@ export default function FixedExpensesPage() {
     showToast('Fixed expense removed.');
   };
 
+  const handleStartEdit = (expense) => {
+    setEditingId(expense.id);
+    setForm({
+      title: expense.title,
+      amount: expense.amount,
+      category: expense.category,
+      dueDay: expense.dueDay,
+      notes: expense.notes || '',
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingId(null);
+    setForm({ title: '', amount: '', category: 'Rent', dueDay: 5, notes: '' });
+    setIsModalOpen(true);
+  };
+
   const handleAddExpense = (e) => {
     e.preventDefault();
     if (!form.title.trim() || !form.amount) return;
 
-    const newItem = {
-      id: 'fix-' + Date.now(),
-      title: form.title.trim(),
-      amount: Number(form.amount),
-      category: form.category,
-      dueDay: Number(form.dueDay) || 1,
-      status: 'Pending',
-      notes: form.notes.trim() || 'Recurring monthly commitment',
-      receiptName: null,
-    };
+    if (editingId) {
+      setFixedExpenses(
+        fixedExpenses.map((exp) => {
+          if (exp.id === editingId) {
+            return {
+              ...exp,
+              title: form.title.trim(),
+              amount: Number(form.amount),
+              category: form.category,
+              dueDay: Number(form.dueDay) || 1,
+              notes: form.notes.trim() || 'Recurring monthly commitment',
+            };
+          }
+          return exp;
+        })
+      );
+      showToast(`Updated ${form.title.trim()} (₹${Number(form.amount).toLocaleString()})!`);
+    } else {
+      const newItem = {
+        id: 'fix-' + Date.now(),
+        title: form.title.trim(),
+        amount: Number(form.amount),
+        category: form.category,
+        dueDay: Number(form.dueDay) || 1,
+        status: 'Pending',
+        notes: form.notes.trim() || 'Recurring monthly commitment',
+        receiptName: null,
+      };
+      setFixedExpenses([...fixedExpenses, newItem]);
+      showToast(`Added ${newItem.title} (₹${newItem.amount.toLocaleString()})!`);
+    }
 
-    setFixedExpenses([...fixedExpenses, newItem]);
     setForm({ title: '', amount: '', category: 'Rent', dueDay: 5, notes: '' });
+    setEditingId(null);
     setIsModalOpen(false);
-    showToast(`Added ${newItem.title} (₹${newItem.amount.toLocaleString()})!`);
   };
 
   return (
@@ -174,7 +214,7 @@ export default function FixedExpensesPage() {
               </span>
             </div>
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleOpenAddModal}
               className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer min-h-11 w-full sm:w-auto"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -258,14 +298,28 @@ export default function FixedExpensesPage() {
               </div>
 
               <div className="mt-6 pt-4 border-t border-neutral-200/60 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-neutral-400 block">Monthly Amount</span>
-                  <span className="text-lg font-black text-black font-['Outfit']">
+                <div
+                  onClick={() => handleStartEdit(expense)}
+                  className="cursor-pointer group/amt"
+                  title="Click to edit amount"
+                >
+                  <span className="text-[10px] uppercase font-bold text-neutral-400 block group-hover/amt:text-amber-600 transition-colors">
+                    Monthly Amount ✏️
+                  </span>
+                  <span className="text-lg font-black text-black font-['Outfit'] group-hover/amt:text-amber-700 transition-colors">
                     ₹{Number(expense.amount).toLocaleString()}
                   </span>
                 </div>
 
                 <div className="flex items-center space-x-1.5">
+                  <button
+                    onClick={() => handleStartEdit(expense)}
+                    className="min-h-11 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 cursor-pointer flex items-center space-x-1"
+                    title="Edit amount & details"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Edit</span>
+                  </button>
                   <button
                     onClick={() => handleToggleStatus(expense.id)}
                     className="min-h-11 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-800 cursor-pointer flex items-center"
@@ -297,12 +351,17 @@ export default function FixedExpensesPage() {
             <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
-                  +
+                  {editingId ? <Edit3 className="w-4 h-4" /> : '+'}
                 </div>
-                <h3 className="text-base font-black text-black font-['Outfit']">Add Fixed Commitment</h3>
+                <h3 className="text-base font-black text-black font-['Outfit']">
+                  {editingId ? 'Edit Monthly Fixed Commitment' : 'Add Fixed Commitment'}
+                </h3>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingId(null);
+                }}
                 className="text-neutral-400 hover:text-black p-2 min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-neutral-100 cursor-pointer"
                 aria-label="Close modal"
               >
@@ -380,7 +439,10 @@ export default function FixedExpensesPage() {
               <div className="pt-3 flex flex-col-reverse sm:flex-row items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setEditingId(null);
+                  }}
                   className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-neutral-600 hover:text-black border border-neutral-200 min-h-11 flex items-center justify-center cursor-pointer"
                 >
                   Cancel
@@ -389,7 +451,7 @@ export default function FixedExpensesPage() {
                   type="submit"
                   className="w-full sm:w-auto gold-button-gradient px-5 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer min-h-11 flex items-center justify-center"
                 >
-                  Save Commitment
+                  {editingId ? 'Save Changes' : 'Confirm & Schedule Commitment'}
                 </button>
               </div>
             </form>

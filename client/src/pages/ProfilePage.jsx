@@ -19,7 +19,9 @@ import {
   Zap,
   BookOpen,
   ArrowUpRight,
+  Sliders,
 } from 'lucide-react';
+import FirstTimeOnboardingModal from '../components/FirstTimeOnboardingModal';
 import { useAuth } from '../context/AuthContext';
 import { getFixedExpensesDueWithin15Days, getDueEvents } from '../services/expenseSync';
 import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
@@ -287,6 +289,8 @@ export default function ProfilePage() {
 
   return (
     <div className="w-full bg-white text-neutral-900 pb-20 font-['Plus_Jakarta_Sans']">
+      <FirstTimeOnboardingModal />
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-5">
@@ -361,6 +365,14 @@ export default function ProfilePage() {
 
             <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
               <button
+                onClick={() => window.dispatchEvent(new Event('finsafe_open_setup_wizard'))}
+                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer min-h-11"
+                title="Configure store financial parameters & fixed commitments"
+              >
+                <Sliders className="w-3.5 h-3.5 text-amber-700" />
+                <span>Financial Setup Wizard</span>
+              </button>
+              <button
                 onClick={() => {
                   setProfileForm(profile);
                   setIsEditProfileOpen(true);
@@ -386,6 +398,33 @@ export default function ProfilePage() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* PERMANENT STORE FINANCIAL SETUP (Always in Profile)      */}
+        {/* ========================================================= */}
+        <div className="p-4 sm:p-5 rounded-3xl bg-linear-to-r from-amber-50 via-yellow-50 to-amber-100/70 border border-amber-300 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-black text-yellow-300 flex items-center justify-center shrink-0 shadow-xs">
+              <Sliders className="w-5 h-5 text-yellow-300" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-black text-black">Store Financial Parameters & Commitments</span>
+                <span className="text-[10px] font-bold bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full">Always Configurable</span>
+              </div>
+              <span className="text-xs text-neutral-600 block mt-0.5">
+                Customize opening cash reserves, gross margin %, daily running costs, and recurring commitments anytime.
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => window.dispatchEvent(new Event('finsafe_open_setup_wizard'))}
+            className="gold-button-gradient px-4 py-2.5 rounded-xl text-xs font-black text-black border border-yellow-400 shadow-xs hover:scale-102 transition-transform cursor-pointer flex items-center justify-center space-x-1.5 shrink-0 min-h-11 sm:min-h-0"
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Customize Store Financials</span>
+          </button>
         </div>
 
         {/* ========================================================= */}

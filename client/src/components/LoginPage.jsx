@@ -49,6 +49,8 @@ export default function LoginPage({ onLoginSuccess }) {
     e.preventDefault();
     const res = await register(registerData);
     if (res.success && onLoginSuccess) {
+      localStorage.setItem('finsafe_first_time_setup', 'true');
+      localStorage.removeItem('finsafe_onboarding_completed');
       onLoginSuccess();
     }
   };

@@ -196,7 +196,6 @@ export default function IncomePage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
-  const [filterMode, setFilterMode] = useState('ALL');
   const [historyRange, setHistoryRange] = useState('7D'); // '3D' | '7D' | 'ALL'
   const [expandedDay, setExpandedDay] = useState(null);
   const [pendingHighValueEntry, setPendingHighValueEntry] = useState(null);
@@ -332,10 +331,6 @@ export default function IncomePage() {
     showToast('Income entry removed.');
   };
 
-  const filteredTodayEntries = todayIncome.filter((item) => {
-    if (filterMode === 'ALL') return true;
-    return item.mode.toUpperCase() === filterMode;
-  });
 
   // Calculate payment mode breakdown for today
   const cashTotal = todayIncome.filter((i) => i.mode === 'Cash').reduce((s, i) => s + Number(i.amount), 0);
@@ -483,38 +478,6 @@ export default function IncomePage() {
           </div>
         </div>
 
-        {/* Progress towards Daily Target */}
-        <div className="bg-neutral-50 rounded-3xl p-5 sm:p-6 border border-neutral-200/90 flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-bold text-black">Daily Income Target:</span>
-              <span className="text-sm font-extrabold text-neutral-900">
-                ₹{dailyTarget.toLocaleString()}
-              </span>
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
-                {goalPercentage}% Achieved
-              </span>
-              <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
-                Gross Profit: ₹{todayGrossProfit.toLocaleString()} ({grossMarginPct}%)
-              </span>
-            </div>
-            <p className="text-xs text-neutral-500">
-              {remainingTarget === 0
-                ? '🎉 Congratulations! You have fully achieved today’s daily target!'
-                : `Remaining to hit daily target: ₹${remainingTarget.toLocaleString()} · Estimated Retained Cash: ₹${todayRetainedCash.toLocaleString()}`}
-            </p>
-          </div>
-
-          <div className="w-full md:w-80">
-            <div className="w-full h-3 bg-neutral-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-linear-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
-                style={{ width: `${goalPercentage}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
         {/* Breakdown by Payment Mode */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-2xl p-4 border border-neutral-200 shadow-xs">
@@ -534,92 +497,6 @@ export default function IncomePage() {
             <span className="text-xl font-black text-black font-['Outfit'] block mt-1">₹{bankTotal.toLocaleString()}</span>
             <span className="text-[11px] text-neutral-500 mt-0.5 block">{todayIncome.filter((i) => i.mode === 'Bank Transfer').length} transactions</span>
           </div>
-        </div>
-
-        {/* SECTION 1: TODAY'S LIVE TRANSACTIONS CARDS */}
-        <div className="space-y-4">
-          {/* Filter bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center space-x-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-              <span className="text-xs font-bold text-neutral-500 shrink-0">Filter Mode:</span>
-              {['ALL', 'UPI', 'CASH', 'BANK TRANSFER'].map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setFilterMode(mode)}
-                  className={`px-3 py-2 sm:py-1 rounded-xl text-xs font-bold transition-all cursor-pointer min-h-9 sm:min-h-0 shrink-0 ${
-                    filterMode === mode
-                      ? 'bg-black text-yellow-300 border border-black shadow-xs'
-                      : 'bg-white text-neutral-600 border border-neutral-200 hover:border-neutral-300'
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-            <span className="text-xs font-semibold text-neutral-400">
-              {filteredTodayEntries.length} entries recorded today
-            </span>
-          </div>
-
-          {/* Entries Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {filteredTodayEntries.map((item) => (
-              <div
-                key={item.id}
-                className="p-5 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 hover:border-yellow-400 transition-all group flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-neutral-200 text-neutral-700">
-                      {item.category}
-                    </span>
-                    <span className="text-[10px] font-semibold text-neutral-400 flex items-center space-x-1">
-                      <Clock className="w-3 h-3" />
-                      <span>{item.time}</span>
-                    </span>
-                  </div>
-
-                  <h4 className="text-sm font-bold text-black leading-snug line-clamp-1 mb-1">
-                    {item.source}
-                  </h4>
-                  <span className="text-xs font-semibold text-neutral-500">
-                    via <strong className="text-neutral-800">{item.mode}</strong>
-                  </span>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-neutral-200/60 flex items-center justify-between">
-                  <div>
-                    <span className="text-lg font-black text-emerald-600 font-['Outfit'] block leading-none">
-                      +₹{Number(item.amount).toLocaleString()}
-                    </span>
-                    <span className="text-[10px] font-bold text-amber-700 block mt-0.5">
-                      Profit: ₹{Math.round(Number(item.amount) * (grossMarginPct / 100)).toLocaleString()}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-neutral-400 sm:text-neutral-300 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 cursor-pointer"
-                    title="Delete entry"
-                    aria-label="Delete entry"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {filteredTodayEntries.length === 0 && (
-            <div className="text-center py-10 border border-dashed border-neutral-200 rounded-3xl bg-neutral-50/50">
-              <p className="text-sm text-neutral-500">No income entries found for this filter today.</p>
-              <button
-                onClick={() => openAddModalWithDate(todayStr)}
-                className="mt-2 text-xs font-bold text-amber-600 hover:underline cursor-pointer"
-              >
-                + Add Today's First Income Entry
-              </button>
-            </div>
-          )}
         </div>
 
         {/* ========================================================= */}

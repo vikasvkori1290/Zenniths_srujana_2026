@@ -224,7 +224,9 @@ router.post('/transcribe-audio', async (req, res) => {
       });
     }
 
-    const base64Data = audio.replace(/^data:audio\/\w+;base64,/, '');
+    const base64Data = audio.includes(';base64,')
+      ? audio.split(';base64,')[1]
+      : audio.replace(/^data:[^,]+,/, '');
     const audioBuffer = Buffer.from(base64Data, 'base64');
 
     if (audioBuffer.length < 50) {

@@ -131,6 +131,9 @@ export class AudioVoiceRecorder {
       };
 
       try {
+        if (this.mediaRecorder.state === 'recording') {
+          this.mediaRecorder.requestData();
+        }
         this.mediaRecorder.stop();
       } catch (e) {
         this.cleanup();

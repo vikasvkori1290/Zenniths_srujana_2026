@@ -13,6 +13,7 @@ import {
   X,
   ArrowUpRight,
   Sparkles,
+  Sliders,
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -48,7 +49,8 @@ export default function FinanceHeader() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-xl border-b border-neutral-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] font-['Plus_Jakarta_Sans']">
+    <>
+      <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-xl border-b border-neutral-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] font-['Plus_Jakarta_Sans']">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Left: Brand Logo & Title */}
         <div className="flex items-center space-x-6">
@@ -188,6 +190,16 @@ export default function FinanceHeader() {
                       <span>Nemotron AI Prediction</span>
                     </Link>
                     <button
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        window.dispatchEvent(new Event('finsafe_open_setup_wizard'));
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100/80 flex items-center space-x-2 rounded-lg my-0.5 cursor-pointer"
+                    >
+                      <Sliders className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Setup Store Financials</span>
+                    </button>
+                    <button
                       onClick={handleLogout}
                       className="w-full text-left px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center space-x-2 cursor-pointer"
                     >
@@ -269,12 +281,13 @@ export default function FinanceHeader() {
           </NavLink>
         </div>
       )}
+    </header>
 
-      {/* Sticky Bottom Navigation Bar for Mobile and Tablet (< 1024px) */}
-      <nav
-        aria-label="Mobile Navigation"
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-neutral-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom,0px)]"
-      >
+    {/* Sticky Bottom Navigation Bar for Mobile and Tablet (< 1024px) */}
+    <nav
+      aria-label="Mobile Navigation"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-neutral-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] pb-[env(safe-area-inset-bottom,0px)]"
+    >
         <div className="grid grid-cols-5 h-16 max-w-lg mx-auto px-1 items-center">
           {/* 1. Home */}
           <NavLink
@@ -395,6 +408,6 @@ export default function FinanceHeader() {
           </NavLink>
         </div>
       </nav>
-    </header>
+    </>
   );
 }

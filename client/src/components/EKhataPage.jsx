@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic,
   MicOff,
+  Loader2,
   Sparkles,
   Search,
   Plus,
@@ -158,6 +159,8 @@ export default function EKhataPage() {
   const recognitionRef = useRef(null);
   const khataListRef = useRef(khataList);
   const isStartingRef = useRef(false);
+  const holdStartTimeRef = useRef(0);
+  const isHoldingRef = useRef(false);
 
   // Keep khataListRef synchronized without causing recognition re-initialization
   useEffect(() => {
@@ -338,11 +341,19 @@ export default function EKhataPage() {
         setManualText(transcript);
         await handleExecuteVoiceCommand(transcript);
       } else {
-        showFeedback('No audible speech detected. Please speak clearly into the microphone!', 'warning');
+        setVoiceTranscript('');
+        showFeedback('No audible speech detected. Please hold or speak clearly for at least 1-2 seconds!', 'warning');
       }
     } catch (err) {
       console.error('Whisper transcription error:', err);
-      showFeedback(`Whisper error: ${err.message}. Switching to Web Speech or test chips.`, 'error');
+      setVoiceTranscript('');
+      const hasWebSpeech = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+      if (hasWebSpeech) {
+        setVoiceEngineMode('webspeech');
+        showFeedback(`Whisper: ${err.message}. Switched to Web Speech mode. Try speaking now!`, 'warning');
+      } else {
+        showFeedback(`Whisper: ${err.message}. Please use the 1-click test chips or type below.`, 'error');
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -390,6 +401,24 @@ export default function EKhataPage() {
         await startWhisperRecording();
       }
     }
+  };
+
+  // Push-to-Talk Hold Handlers (Continuously listen on hold, parse on release)
+  const handleHoldStart = async (e) => {
+    if (isHoldingRef.current || isProcessing) return;
+    isHoldingRef.current = true;
+    holdStartTimeRef.current = Date.now();
+    await startWhisperRecording();
+  };
+
+  const handleHoldEnd = async (e) => {
+    if (!isHoldingRef.current) return;
+    isHoldingRef.current = false;
+    const duration = Date.now() - holdStartTimeRef.current;
+    if (duration < 400) {
+      showFeedback('Hold the mic button continuously while speaking, then release your hand to parse!', 'warning');
+    }
+    await stopWhisperRecording();
   };
 
   const toggleSpeechOutput = () => {
@@ -1290,342 +1319,111 @@ Thank you for your business! 🙏
           </div>
         )}
 
-        {/* COMPACT VOICE CRUD COMMAND BAR (Enhanced with Groq Whisper & Voice-to-Speech) */}
-        <div className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/90 shadow-sm space-y-2.5">
-          {/* Voice Toolbar: Engine, Language, and Audio Feedback Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-neutral-200/70 text-xs">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 mr-1">Engine:</span>
-              <button
-                type="button"
-                onClick={() => setVoiceEngineMode('whisper')}
-                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${
-                  voiceEngineMode === 'whisper'
-                    ? 'bg-amber-500 text-black shadow-xs font-black'
-                    : 'bg-white text-neutral-600 hover:bg-neutral-100 border border-neutral-200'
-                }`}
-                title="Groq Whisper Large V3 Turbo (Direct mic recording with state-of-the-art accuracy)"
-              >
-                <Zap className="w-3 h-3 fill-current" />
-                <span>Whisper Turbo</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setVoiceEngineMode('webspeech')}
-                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${
-                  voiceEngineMode === 'webspeech'
-                    ? 'bg-amber-500 text-black shadow-xs font-black'
-                    : 'bg-white text-neutral-600 hover:bg-neutral-100 border border-neutral-200'
-                }`}
-                title="Browser Web Speech API (Streaming speech)"
-              >
-                <Radio className="w-3 h-3" />
-                <span>Web Speech</span>
-              </button>
-            </div>
+        {/* PUSH-TO-TALK VOICE CRUD MICROPHONE */}
+        <div className="bg-linear-to-b from-neutral-900 to-black rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-neutral-800 flex flex-col items-center justify-center text-center relative overflow-hidden select-none">
+          {/* Subtle background amber glow */}
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
-            <div className="flex flex-wrap items-center gap-1.5">
-              {/* Language Switcher */}
-              <div className="flex items-center space-x-1 bg-white border border-neutral-200 rounded-lg p-0.5 text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => setVoiceLanguage('en-IN')}
-                  className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
-                    voiceLanguage === 'en-IN' ? 'bg-black text-yellow-300' : 'text-neutral-600 hover:text-black'
-                  }`}
-                  title="Indian English"
-                >
-                  EN
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVoiceLanguage('hi-IN')}
-                  className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
-                    voiceLanguage === 'hi-IN' ? 'bg-black text-yellow-300' : 'text-neutral-600 hover:text-black'
-                  }`}
-                  title="Hindi / Hinglish"
-                >
-                  हिन्दी
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVoiceLanguage('kn-IN')}
-                  className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
-                    voiceLanguage === 'kn-IN' ? 'bg-black text-yellow-300' : 'text-neutral-600 hover:text-black'
-                  }`}
-                  title="Kannada"
-                >
-                  ಕನ್ನಡ
-                </button>
-              </div>
+          {/* Large Hold-To-Speak Microphone Button */}
+          <div className="relative my-2">
+            {/* Pulsing ring animations while holding/listening */}
+            {isListening && (
+              <>
+                <div className="absolute -inset-4 rounded-full bg-amber-400/30 animate-ping pointer-events-none" />
+                <div className="absolute -inset-2 rounded-full bg-amber-500/40 animate-pulse pointer-events-none" />
+              </>
+            )}
 
-              {/* Audible Voice-To-Speech Feedback Toggle */}
-              <button
-                type="button"
-                onClick={toggleSpeechOutput}
-                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center space-x-1.5 transition-all cursor-pointer border ${
-                  isSpeechOutputEnabled
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                    : 'bg-neutral-100 text-neutral-500 border-neutral-200 hover:bg-neutral-200'
-                }`}
-                title="Toggle audible spoken voice confirmation after commands"
-              >
-                {isSpeechOutputEnabled ? (
-                  <>
-                    <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Voice Output: ON</span>
-                  </>
-                ) : (
-                  <>
-                    <VolumeX className="w-3.5 h-3.5 text-neutral-400" />
-                    <span>Voice Output: Muted</span>
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              onMouseDown={handleHoldStart}
+              onMouseUp={handleHoldEnd}
+              onMouseLeave={handleHoldEnd}
+              onTouchStart={handleHoldStart}
+              onTouchEnd={handleHoldEnd}
+              onTouchCancel={handleHoldEnd}
+              onContextMenu={(e) => e.preventDefault()}
+              disabled={isProcessing}
+              className={`relative w-24 h-24 sm:w-28 sm:h-28 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-2xl focus:outline-none select-none ${
+                isListening
+                  ? 'bg-linear-to-tr from-amber-500 to-yellow-300 text-black scale-110 shadow-amber-500/60 ring-4 ring-yellow-400'
+                  : isProcessing
+                  ? 'bg-neutral-800 text-amber-400 cursor-not-allowed opacity-90'
+                  : 'bg-neutral-950 text-yellow-300 hover:text-yellow-200 hover:scale-105 active:scale-95 border-2 border-yellow-400/80 hover:border-yellow-300 shadow-amber-500/20'
+              }`}
+              title="Hold continuously to speak. Release hands to parse voice."
+              aria-label="Hold to speak microphone"
+            >
+              {isProcessing ? (
+                <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin text-amber-400" />
+              ) : (
+                <Mic className={`w-10 h-10 sm:w-12 sm:h-12 ${isListening ? 'animate-pulse text-black' : 'text-yellow-300'}`} />
+              )}
+            </button>
           </div>
 
-          {/* Active Speaking Status Banner */}
-          {isSpeechSpeaking && (
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-amber-100 border border-amber-300 text-amber-950 text-xs font-semibold animate-pulse">
-              <div className="flex items-center space-x-2">
-                <Volume2 className="w-4 h-4 text-amber-800 animate-bounce shrink-0" />
-                <span>Audible Voice Response speaking...</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => speechService.stop()}
-                className="px-2 py-0.5 rounded bg-black text-yellow-300 text-[10px] font-bold hover:bg-neutral-800 cursor-pointer"
-              >
-                Stop Audio
-              </button>
-            </div>
-          )}
-
-          {/* Active Audio Waveform / Live Volume Visualizer */}
-          {isListening && (
-            <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-bold animate-fadeIn">
-              <div className="flex items-center space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
-                <span>
-                  {voiceEngineMode === 'whisper'
-                    ? '🎙️ Groq Whisper Turbo Recording... (Speak naturally in English or Hindi)'
-                    : '🎙️ Web Speech Listening...'}
-                </span>
-                {/* Live Dynamic Waveform Bars */}
-                <div className="flex items-end space-x-0.5 h-4 ml-2">
-                  {[20, 45, 80, 100, 65, 35, 75, 50].map((h, idx) => {
-                    const barHeight = Math.max(4, Math.min(16, Math.round((h * Math.max(25, audioVolume)) / 100)));
+          {/* Status Label & Instructions */}
+          <div className="mt-3 space-y-1 z-10 max-w-md">
+            {isListening ? (
+              <div className="flex flex-col items-center space-y-2">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+                  <span className="text-base font-black text-yellow-300 font-['Outfit'] uppercase tracking-wider">
+                    Listening... Speak Now
+                  </span>
+                </div>
+                {/* Live audio volume wave bars */}
+                <div className="flex items-end justify-center space-x-1 h-5 py-0.5">
+                  {[20, 50, 85, 100, 70, 40, 80, 55, 90, 60, 30].map((h, idx) => {
+                    const barHeight = Math.max(4, Math.min(20, Math.round((h * Math.max(30, audioVolume)) / 100)));
                     return (
                       <span
                         key={idx}
-                        className="w-1 bg-amber-600 rounded-full transition-all duration-75"
+                        className="w-1.5 bg-yellow-400 rounded-full transition-all duration-75"
                         style={{ height: `${barHeight}px` }}
                       />
                     );
                   })}
                 </div>
-                {audioVolume > 0 && <span className="text-[10px] font-mono text-amber-800 ml-1">{audioVolume}%</span>}
+                <p className="text-xs font-semibold text-neutral-300 animate-pulse">
+                  Release your hand when done to parse voice with Groq AI
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={toggleListening}
-                className="px-2.5 py-1 rounded-lg bg-black text-yellow-300 font-bold text-xs hover:bg-neutral-800 cursor-pointer shadow-xs shrink-0"
-              >
-                Done / Transcribe
-              </button>
-            </div>
-          )}
-
-          <form onSubmit={handleManualSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            <div className="flex items-center gap-2 flex-1">
-              {/* Very Small Mic Button */}
-              <div className="relative shrink-0">
-                {isListening && (
-                  <div className="absolute -inset-1 rounded-full bg-yellow-400 opacity-70 animate-ping"></div>
-                )}
-                <button
-                  type="button"
-                  onClick={toggleListening}
-                  className={`relative w-9 h-9 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm min-w-9 min-h-9 ${
-                    isListening
-                      ? 'bg-yellow-400 text-black scale-105 border-2 border-black'
-                      : 'bg-black text-yellow-300 hover:bg-neutral-800 border border-yellow-400/80 hover:scale-105'
-                  }`}
-                  title={isListening ? 'Listening... click to stop' : `Tap to record voice command (${voiceEngineMode === 'whisper' ? 'Groq Whisper' : 'Web Speech'})`}
-                  aria-label="Voice command microphone"
-                >
-                  <Mic className={`w-4 h-4 sm:w-3.5 sm:h-3.5 ${isListening ? 'animate-pulse text-black' : 'text-yellow-300'}`} />
-                </button>
+            ) : isProcessing ? (
+              <div className="flex flex-col items-center space-y-1">
+                <span className="text-sm font-bold text-amber-300 flex items-center space-x-1.5">
+                  <Sparkles className="w-4 h-4 animate-spin text-amber-400" />
+                  <span>Parsing voice command with Groq AI...</span>
+                </span>
+                <p className="text-xs text-neutral-400">Updating ledger balance & history</p>
               </div>
-
-              {/* Input field */}
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  placeholder={
-                    isListening
-                      ? 'Listening... say e.g. "remove 20rs from nitish" or "change name from nitish to vikas"'
-                      : 'Say: "add 20rs to nitish" / "remove 20rs from nitish" / "delete nitish"'
-                  }
-                  value={manualText}
-                  onChange={(e) => setManualText(e.target.value)}
-                  className={`w-full pl-3.5 pr-20 py-2.5 sm:py-2 rounded-xl bg-white border text-base sm:text-xs focus:border-yellow-400 outline-none text-black placeholder:text-neutral-400 shadow-sm min-h-11 sm:min-h-0 ${
-                    isListening ? 'border-amber-400 bg-amber-50/30' : 'border-neutral-200'
-                  }`}
-                />
-                {isListening && (
-                  <span className="absolute right-3 top-3 sm:top-2.5 flex items-center space-x-1 text-[10px] font-bold text-amber-600 animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                    <span>Listening</span>
-                  </span>
-                )}
+            ) : (
+              <div className="flex flex-col items-center space-y-1">
+                <h3 className="text-sm sm:text-base font-bold text-neutral-100 flex items-center justify-center space-x-1.5">
+                  <span>Hold to Speak</span>
+                </h3>
+                <p className="text-xs text-neutral-400">
+                  Hold continuously while speaking, then release to parse.
+                </p>
+                <p className="text-[11px] text-amber-300/80 font-mono pt-1">
+                  e.g. "Add 500 to Ramesh" · "Remove 200 from id 1" · "Delete Nitish"
+                </p>
               </div>
-            </div>
-
-            {/* Execute Button */}
-            <button
-              type="submit"
-              disabled={isProcessing}
-              className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400/80 cursor-pointer shadow-sm shrink-0 flex items-center justify-center space-x-1 min-h-11 w-full sm:w-auto"
-            >
-              {isProcessing ? (
-                <span>Executing Groq...</span>
-              ) : (
-                <>
-                  <Zap className="w-3.5 h-3.5 text-black fill-black" />
-                  <span>Execute Voice CRUD</span>
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Transcript & Extracted CRUD Action Indicator */}
-          {voiceTranscript && (
-            <div className="px-3 py-2 rounded-xl bg-white border border-neutral-200 text-xs text-neutral-800 flex flex-wrap items-center justify-between gap-2 shadow-inner">
-              <div className="flex items-center space-x-2">
-                <span className="text-[10px] font-bold uppercase text-neutral-400">Heard:</span>
-                <span className="font-mono text-xs font-medium text-neutral-800">{voiceTranscript}</span>
-              </div>
-
-              {lastExtracted && (
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                  <span className="px-2 py-0.5 rounded bg-black text-yellow-300 font-bold uppercase text-[10px]">
-                    Action: {lastExtracted.action}
-                  </span>
-                  {lastExtracted.targetId && (
-                    <span className="px-2 py-0.5 rounded bg-yellow-400 text-black font-black font-mono text-[10px]">
-                      ID #{lastExtracted.targetId}
-                    </span>
-                  )}
-                  <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold">
-                    👤 {lastExtracted.name}
-                  </span>
-                  {lastExtracted.newName && (
-                    <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-900 font-bold">
-                      &rarr; New Name: {lastExtracted.newName}
-                    </span>
-                  )}
-                  {lastExtracted.amount !== null && (
-                    <span className={`px-2 py-0.5 rounded font-bold font-mono ${
-                      lastExtracted.action === 'SUBTRACT'
-                        ? 'bg-rose-100 text-rose-900'
-                        : 'bg-emerald-100 text-emerald-900'
-                    }`}>
-                      {lastExtracted.action === 'SUBTRACT' ? '-' : '+'}₹{lastExtracted.amount}
-                    </span>
-                  )}
-                  {lastExtracted.dueDate && lastExtracted.dueDate !== 'Not Specified' && (
-                    <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-900 font-bold">
-                      📅 {lastExtracted.dueDate}
-                    </span>
-                  )}
-                  <span className="px-2 py-0.5 rounded bg-yellow-300 text-black font-bold text-[10px] flex items-center space-x-1">
-                    <Zap className="w-2.5 h-2.5 fill-black" />
-                    <span>{lastExtracted.engine || 'Groq AI'} ({lastExtracted.latencyMs || 140}ms)</span>
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Direct 1-Click Test Prompts for Each Voice CRUD Operation */}
-          <div className="pt-1">
-            <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-wider block mb-1.5">
-              1-Click Voice CRUD Test Chips:
-            </span>
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-              {/* 1. Add by ID */}
-              <button
-                type="button"
-                onClick={() => handleQuickCommand('add 20rs to id number 1')}
-                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
-              >
-                <Plus className="w-3 h-3 text-emerald-600" />
-                <span>"add 20rs to id number 1"</span>
-              </button>
-
-              {/* 2. Add / Edit Due Date to ID without changing amount */}
-              <button
-                type="button"
-                onClick={() => handleQuickCommand('add 31 november to id number 2')}
-                className="px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
-              >
-                <Calendar className="w-3 h-3 text-sky-600" />
-                <span>"add 31 november to id number 2"</span>
-              </button>
-
-              {/* 3. Add to Name */}
-              <button
-                type="button"
-                onClick={() => handleQuickCommand('add 20rs to nitish')}
-                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
-              >
-                <Plus className="w-3 h-3 text-emerald-600" />
-                <span>"add 20rs to nitish"</span>
-              </button>
-
-              {/* 4. Subtract from ID */}
-              <button
-                type="button"
-                onClick={() => handleQuickCommand('remove 20rs from id number 1')}
-                className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
-              >
-                <MinusCircle className="w-3 h-3 text-amber-600" />
-                <span>"remove 20rs from id number 1"</span>
-              </button>
-
-              {/* 5. Rename Person */}
-              <button
-                type="button"
-                onClick={() => handleQuickCommand('change name from nitish to vikas')}
-                className="px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-300 text-purple-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
-              >
-                <Edit3 className="w-3 h-3 text-purple-600" />
-                <span>"change name from nitish to vikas"</span>
-              </button>
-
-              {/* 6. Complete Remove */}
-              <button
-                type="button"
-                onClick={() => handleQuickCommand('remove the complete number from nitish remove the person totally from the list')}
-                className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
-              >
-                <XCircle className="w-3 h-3 text-rose-600" />
-                <span>"remove nitish totally from list"</span>
-              </button>
-
-              {/* 7. Settle Account */}
-              <button
-                type="button"
-                onClick={() => handleQuickCommand('settle id 1')}
-                className="px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
-              >
-                <CheckCircle2 className="w-3 h-3 text-teal-600" />
-                <span>"settle id 1"</span>
-              </button>
-            </div>
+            )}
           </div>
+
+          {/* Transcript & Last Parsed Action Confirmation Badge */}
+          {voiceTranscript && (
+            <div className="mt-4 px-4 py-2 rounded-2xl bg-neutral-900/90 border border-neutral-700 text-xs text-neutral-200 flex flex-wrap items-center justify-center gap-2 max-w-lg shadow-inner z-10">
+              <span className="text-[11px] font-bold uppercase text-amber-400">Heard:</span>
+              <span className="font-mono text-xs font-medium text-white">{voiceTranscript}</span>
+              {lastExtracted && lastExtracted.action && (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-bold text-[10px]">
+                  ✓ {lastExtracted.action} {lastExtracted.name || `ID #${lastExtracted.targetId}`} {lastExtracted.amount ? `₹${lastExtracted.amount}` : ''}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* CUSTOMER LEDGER SECTION */}
@@ -2712,16 +2510,22 @@ Thank you for your business! 🙏
         )}
 
         {/* Floating Voice Ledger Thumb Button (Mobile & Tablet) */}
-        <div className="lg:hidden fixed bottom-20 right-4 z-40">
+        <div className="lg:hidden fixed bottom-20 right-4 z-40 select-none">
           <button
             type="button"
-            onClick={toggleListening}
-            className={`w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all cursor-pointer border-2 ${
+            onMouseDown={handleHoldStart}
+            onMouseUp={handleHoldEnd}
+            onMouseLeave={handleHoldEnd}
+            onTouchStart={handleHoldStart}
+            onTouchEnd={handleHoldEnd}
+            onTouchCancel={handleHoldEnd}
+            onContextMenu={(e) => e.preventDefault()}
+            className={`w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all cursor-pointer border-2 select-none ${
               isListening
                 ? 'bg-yellow-400 text-black border-black scale-110 animate-pulse'
                 : 'bg-black text-yellow-300 border-yellow-400 hover:scale-105'
             }`}
-            title={isListening ? 'Listening... tap to stop' : 'Tap to speak voice ledger command'}
+            title="Hold continuously to speak voice ledger command"
             aria-label="Voice ledger recorder"
           >
             <Mic className={`w-6 h-6 ${isListening ? 'animate-pulse text-black' : 'text-yellow-300'}`} />

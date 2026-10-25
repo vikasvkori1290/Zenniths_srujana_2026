@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  Edit3,
 } from 'lucide-react';
 import {
   getFixedExpensesDueWithin15Days,
@@ -135,22 +136,21 @@ export default function UpcomingExpensesSection() {
     setTimeout(() => setFeedbackToast(null), 4000);
   };
 
-  const handleAddExpense = (e) => {
-    e.preventDefault();
-    if (!form.title || !form.amount) return;
+  const handleStartEditExpense = (item) => {
+    setEditingExpense(item);
+    setForm({
+      title: item.title,
+      payee: item.payee || '',
+      amount: item.amount,
+      dueDate: item.dueDate || new Date().toISOString().split('T')[0],
+      urgency: item.urgency || 'Medium',
+      category: item.category || 'Supplier Dues',
+    });
+    setIsModalOpen(true);
+  };
 
-    const newItem = {
-      id: 'up-' + Date.now(),
-      title: form.title.trim(),
-      payee: form.payee.trim() || 'Vendor',
-      amount: Number(form.amount),
-      dueDate: form.dueDate,
-      urgency: form.urgency,
-      category: form.category,
-      status: 'Upcoming',
-    };
-
-    setUpcomingExpenses([newItem, ...upcomingExpenses]);
+  const handleOpenAddModal = () => {
+    setEditingExpense(null);
     setForm({
       title: '',
       payee: '',
@@ -159,8 +159,75 @@ export default function UpcomingExpensesSection() {
       urgency: 'Medium',
       category: 'Supplier Dues',
     });
+    setIsModalOpen(true);
+  };
+
+  const handleAddExpense = (e) => {
+    e.preventDefault();
+    if (!form.title || !form.amount) return;
+
+    if (editingExpense) {
+      if (editingExpense.isFixedMonthly) {
+        const allFixed = getStoredFixedExpenses();
+        const updatedFixed = allFixed.map((fx) => {
+          if (fx.id === editingExpense.fixedId) {
+            return {
+              ...fx,
+              title: form.title.trim(),
+              amount: Number(form.amount),
+            };
+          }
+          return fx;
+        });
+        localStorage.setItem('aurum_fixed_expenses', JSON.stringify(updatedFixed));
+        window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
+        window.dispatchEvent(new Event('aurum_expenses_updated'));
+        window.dispatchEvent(new Event('storage'));
+        showToast(`Updated monthly commitment: ${form.title} (₹${Number(form.amount).toLocaleString()})`);
+      } else {
+        setUpcomingExpenses(
+          upcomingExpenses.map((item) => {
+            if (item.id === editingExpense.id) {
+              return {
+                ...item,
+                title: form.title.trim(),
+                payee: form.payee.trim() || 'Vendor',
+                amount: Number(form.amount),
+                dueDate: form.dueDate,
+                urgency: form.urgency,
+                category: form.category,
+              };
+            }
+            return item;
+          })
+        );
+        showToast(`Updated expense: ${form.title} (₹${Number(form.amount).toLocaleString()})`);
+      }
+    } else {
+      const newItem = {
+        id: 'up-' + Date.now(),
+        title: form.title.trim(),
+        payee: form.payee.trim() || 'Vendor',
+        amount: Number(form.amount),
+        dueDate: form.dueDate,
+        urgency: form.urgency,
+        category: form.category,
+        status: 'Upcoming',
+      };
+      setUpcomingExpenses([newItem, ...upcomingExpenses]);
+      showToast(`Scheduled expense: ${newItem.title} (₹${newItem.amount.toLocaleString()})`);
+    }
+
+    setForm({
+      title: '',
+      payee: '',
+      amount: '',
+      dueDate: new Date().toISOString().split('T')[0],
+      urgency: 'Medium',
+      category: 'Supplier Dues',
+    });
+    setEditingExpense(null);
     setIsModalOpen(false);
-    showToast(`Scheduled expense: ${newItem.title} (₹${newItem.amount.toLocaleString()})`);
   };
 
   const handleDeleteExpense = (id, title) => {
@@ -285,7 +352,7 @@ export default function UpcomingExpensesSection() {
               </span>
             </div>
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleOpenAddModal}
               className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer hover:scale-[1.02] min-h-11 w-full sm:w-auto"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -413,39 +480,55 @@ export default function UpcomingExpensesSection() {
 
                   {/* Amount and Action */}
                   <div className="flex items-center justify-between pt-2 border-t border-neutral-200/60">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-neutral-400 block">Amount Due</span>
-                      <span className="font-black text-rose-600 font-['Outfit'] text-base">
+                    <div
+                      onClick={() => handleStartEditExpense(item)}
+                      className="cursor-pointer group/amt"
+                      title="Click to edit amount"
+                    >
+                      <span className="text-[10px] uppercase font-bold text-neutral-400 block group-hover/amt:text-rose-600 transition-colors">
+                        Amount Due ✏️
+                      </span>
+                      <span className="font-black text-rose-600 font-['Outfit'] text-base group-hover/amt:text-rose-800 transition-colors">
                         ₹{Number(item.amount).toLocaleString()}
                       </span>
                     </div>
-                    {item.isFixedMonthly ? (
+                    <div className="flex items-center space-x-1.5">
                       <button
-                        onClick={() => handleToggleFixed(item.fixedId, item.title, item.dueDate)}
-                        className="min-h-11 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1.5 shadow-2xs"
+                        onClick={() => handleStartEditExpense(item)}
+                        className="min-h-11 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 cursor-pointer flex items-center space-x-1"
+                        title="Edit amount & details"
                       >
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Mark Paid</span>
+                        <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Edit</span>
                       </button>
-                    ) : (
-                      <div className="flex items-center space-x-2">
+                      {item.isFixedMonthly ? (
                         <button
-                          onClick={() => handleMarkPayablePaid(item.id, item.title)}
-                          className="min-h-11 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs"
-                          title="Mark payable as paid"
+                          onClick={() => handleToggleFixed(item.fixedId, item.title, item.dueDate)}
+                          className="min-h-11 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1.5 shadow-2xs"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                           <span>Mark Paid</span>
                         </button>
-                        <button
-                          onClick={() => handleDeleteExpense(item.id, item.title)}
-                          className="min-w-11 min-h-11 flex items-center justify-center rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer border border-rose-200"
-                          title="Remove expense"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleMarkPayablePaid(item.id, item.title)}
+                            className="min-h-11 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs"
+                            title="Mark payable as paid"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Mark Paid</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteExpense(item.id, item.title)}
+                            className="min-w-11 min-h-11 flex items-center justify-center rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer border border-rose-200"
+                            title="Remove expense"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -572,34 +655,44 @@ export default function UpcomingExpensesSection() {
                       ₹{Number(item.amount).toLocaleString()}
                     </td>
                     <td className="py-3.5 px-4 text-center">
-                      {item.isFixedMonthly ? (
+                      <div className="inline-flex items-center space-x-1">
                         <button
-                          onClick={() => handleToggleFixed(item.fixedId, item.title, item.dueDate)}
-                          className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs hover:scale-105"
-                          title="Mark as paid in Monthly Fixed Expenses"
+                          onClick={() => handleStartEditExpense(item)}
+                          className="px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs hover:scale-105"
+                          title="Edit amount & details"
                         >
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          <span>Mark Paid</span>
+                          <Edit3 className="w-3 h-3 text-amber-700" />
+                          <span>Edit</span>
                         </button>
-                      ) : (
-                        <div className="inline-flex items-center space-x-1.5">
+                        {item.isFixedMonthly ? (
                           <button
-                            onClick={() => handleMarkPayablePaid(item.id, item.title)}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs hover:scale-105"
-                            title="Mark payable as paid"
+                            onClick={() => handleToggleFixed(item.fixedId, item.title, item.dueDate)}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs hover:scale-105"
+                            title="Mark as paid in Monthly Fixed Expenses"
                           >
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span>Mark Paid</span>
                           </button>
-                          <button
-                            onClick={() => handleDeleteExpense(item.id, item.title)}
-                            className="p-1 rounded hover:bg-rose-50 text-neutral-300 hover:text-rose-500 transition-colors cursor-pointer"
-                            title="Remove expense"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleMarkPayablePaid(item.id, item.title)}
+                              className="px-2 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs hover:scale-105"
+                              title="Mark payable as paid"
+                            >
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Mark Paid</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteExpense(item.id, item.title)}
+                              className="p-1 rounded hover:bg-rose-50 text-neutral-300 hover:text-rose-500 transition-colors cursor-pointer"
+                              title="Remove expense"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -617,7 +710,10 @@ export default function UpcomingExpensesSection() {
             <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-4" />
 
             <button
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => {
+                setIsModalOpen(false);
+                setEditingExpense(null);
+              }}
               className="absolute top-4 sm:top-5 right-4 sm:right-5 text-neutral-400 hover:text-black transition-colors cursor-pointer min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-neutral-100"
               aria-label="Close modal"
             >
@@ -626,14 +722,14 @@ export default function UpcomingExpensesSection() {
 
             <div className="flex items-center space-x-2.5 mb-5 pb-3 border-b border-neutral-100 pr-10">
               <div className="w-9 h-9 rounded-xl bg-yellow-400/20 text-yellow-800 flex items-center justify-center border border-yellow-400/40 shrink-0">
-                <Plus className="w-4 h-4 stroke-[2.5]" />
+                {editingExpense ? <Edit3 className="w-4 h-4 stroke-[2.5]" /> : <Plus className="w-4 h-4 stroke-[2.5]" />}
               </div>
               <div>
                 <h3 className="text-base font-bold text-black font-['Outfit']">
-                  Schedule Upcoming Expense
+                  {editingExpense ? 'Edit Scheduled Expense / Payable' : 'Schedule Upcoming Expense'}
                 </h3>
                 <p className="text-[11px] text-neutral-400">
-                  Track vendor liabilities and near-term payables
+                  {editingExpense ? 'Update amount, due date, or payee details' : 'Track vendor liabilities and near-term payables'}
                 </p>
               </div>
             </div>
@@ -736,7 +832,10 @@ export default function UpcomingExpensesSection() {
               <div className="pt-3 border-t border-neutral-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setEditingExpense(null);
+                  }}
                   className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-neutral-600 hover:text-black hover:bg-neutral-100 border border-neutral-200 transition-colors cursor-pointer min-h-11 flex items-center justify-center"
                 >
                   Cancel
@@ -745,7 +844,7 @@ export default function UpcomingExpensesSection() {
                   type="submit"
                   className="w-full sm:w-auto gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer hover:scale-[1.02] transition-all min-h-11 flex items-center justify-center"
                 >
-                  Confirm Schedule
+                  {editingExpense ? 'Save Changes' : 'Confirm Schedule'}
                 </button>
               </div>
             </form>
