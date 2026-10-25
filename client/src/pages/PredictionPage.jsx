@@ -28,7 +28,33 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
-import { getStoredFixedExpenses, getFixedExpensesDueWithin15Days } from '../services/expenseSync';
+import { getStoredFixedExpenses, getFixedExpensesDueWithin15Days, getDueEvents } from '../services/expenseSync';
+
+function cleanAiText(val) {
+  if (typeof val === 'string') {
+    return val
+      .replace(/\\text\{([^}]+)\}/g, '$1')
+      .replace(/\\times/g, '×')
+      .replace(/\\approx/g, '≈')
+      .replace(/\\le/g, '≤')
+      .replace(/\\ge/g, '≥')
+      .replace(/\$([^$]+)\$/g, '$1')
+      .replace(/\\\[([^\\]+)\\\]/g, '$1')
+      .replace(/\\\(([^)]+)\\\)/g, '$1')
+      .replace(/\\[a-zA-Z]+/g, '')
+      .replace(/[{}]/g, '')
+      .trim();
+  }
+  if (Array.isArray(val)) return val.map(cleanAiText);
+  if (val && typeof val === 'object') {
+    const cleaned = {};
+    for (const [k, v] of Object.entries(val)) {
+      cleaned[k] = cleanAiText(v);
+    }
+    return cleaned;
+  }
+  return val;
+}
 
 const BUSINESS_TYPE_PRESETS = [
   {
@@ -176,6 +202,12 @@ export default function PredictionPage() {
     setErrorMsg(null);
     stopSpeech();
 
+    const dueEventsResult = getDueEvents({
+      fixedExpenses,
+      upcomingExpenses,
+      horizonDays: 60,
+    });
+
     const payload = {
       businessName: profile.storeName || 'Aurum Store',
       businessType: selectedBusinessType,
@@ -195,6 +227,9 @@ export default function PredictionPage() {
         upcoming15dTotal: upcomingPayables15d,
         duesWithin15Days: calculatedRunway.duesWithin15Days,
       },
+      dueEvents: dueEventsResult.events,
+      minBalance: calculatedRunway.minProjectedBalance,
+      minBalanceDate: calculatedRunway.firstRisk ? calculatedRunway.firstRisk.date : (calculatedRunway.nextRiskDateFormatted ? `${calculatedRunway.nextRiskDateFormatted} (in ${calculatedRunway.nextRiskDays}d)` : 'Day 60'),
       receivables: {
         totalUdhar,
         customerCount: eKhataCustomers.length,
@@ -207,13 +242,13 @@ export default function PredictionPage() {
         status: calculatedRunway.runwayStatus,
         headlineMetric: calculatedRunway.headlineMetric,
         netCashFlow: calculatedRunway.retainedCashPerDay,
+        minProjectedBalance: calculatedRunway.minProjectedBalance,
       },
       fixedBreakdown: fixedExpenses,
       upcomingBreakdown: upcomingExpenses,
       apiKey: nvidiaApiKey.trim() || undefined,
       model: selectedModel,
     };
-
 
     try {
       const res = await fetch('http://localhost:5000/api/v1/prediction/analyze', {
@@ -227,7 +262,7 @@ export default function PredictionPage() {
         throw new Error(json.error || 'Failed to generate prediction');
       }
 
-      setPredictionData(json.data);
+      setPredictionData(cleanAiText(json.data));
       setPredictionMeta(json.meta);
     } catch (err) {
       console.error('[Nemotron Error]:', err);

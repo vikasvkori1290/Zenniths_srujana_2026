@@ -18,7 +18,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getFixedExpensesDueWithin15Days } from '../services/expenseSync';
+import { getDueEvents, getStoredFixedExpenses } from '../services/expenseSync';
+import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
 
 export default function OverviewPage() {
   const { user } = useAuth();
@@ -54,21 +55,7 @@ export default function OverviewPage() {
     ];
   });
 
-  const [fixedExpenses] = useState(() => {
-    const saved = localStorage.getItem('aurum_fixed_expenses');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [
-      { id: '1', amount: 22000, dueDay: 5 },
-      { id: '2', amount: 14500, dueDay: 10 },
-      { id: '3', amount: 4800, dueDay: 18 },
-      { id: '4', amount: 6500, dueDay: 7 },
-      { id: '5', amount: 1800, dueDay: 22 },
-    ];
-  });
+  const [fixedExpenses] = useState(() => getStoredFixedExpenses());
 
   const [upcomingExpenses] = useState(() => {
     const saved = localStorage.getItem('aurum_upcoming_expenses');
@@ -77,40 +64,40 @@ export default function OverviewPage() {
         return JSON.parse(saved);
       } catch (e) {}
     }
-    return [
-      { id: '1', amount: 12500 },
-      { id: '2', amount: 7800 },
-      { id: '3', amount: 3200 },
-      { id: '4', amount: 2450 },
-    ];
+    return [];
   });
 
   const [eKhataCustomers] = useState(() => {
-    const saved = localStorage.getItem('aurum_ekhata_customers');
+    const saved = localStorage.getItem('aurum_ekhata_customers') || localStorage.getItem('aurum_ekhata_data');
     if (saved) {
       try {
         return JSON.parse(saved);
       } catch (e) {}
     }
-    return [
-      { id: 'c1', totalAmount: 4200 },
-      { id: 'c2', totalAmount: 1850 },
-      { id: 'c3', totalAmount: 6400 },
-      { id: 'c4', totalAmount: 950 },
-      { id: 'c5', totalAmount: 7700 },
-    ];
+    return [];
   });
 
   const totalIncome = todayIncome.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const totalFixed = fixedExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
-  const fixedDue15 = getFixedExpensesDueWithin15Days(fixedExpenses);
-  const totalUpcoming15 =
-    upcomingExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0) +
-    fixedDue15.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  // Derive all due events directly from unified getDueEvents
+  const dueEvents = getDueEvents({
+    fixedExpenses,
+    upcomingExpenses,
+    horizonDays: 15,
+  });
+  const totalUpcoming15 = dueEvents.duesWithin15Days;
 
   const totalUdhar = eKhataCustomers.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
   const goalPercent = Math.min(Math.round((totalIncome / (profile.dailyGoal || 20000)) * 100), 100);
+
+  // Compute live runway status matching home chart
+  const analytics = calculatePredictiveCashRunway({
+    todayIncomeList: todayIncome,
+    fixedExpensesList: fixedExpenses,
+    upcomingExpensesList: upcomingExpenses,
+    eKhataCustomersList: eKhataCustomers,
+  });
 
   // Core navigation modules
   const navigationHubs = [
@@ -118,12 +105,12 @@ export default function OverviewPage() {
       title: 'Predictive Cash Runway',
       path: '/#runway',
       tag: 'AI Forecast',
-      tagColor: 'bg-amber-100 text-amber-800 border-amber-300',
-      description: 'Dynamic burn rate engine, 23-day runway prediction, and What-If Udhar recovery simulator.',
+      tagColor: analytics.runwayStatus === 'SAFE' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : (analytics.runwayStatus === 'WATCH' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-rose-100 text-rose-800 border-rose-300'),
+      description: 'Dynamic burn rate engine, 60-day runway prediction, and What-If Udhar recovery simulator.',
       icon: TrendingUp,
       accent: 'amber',
-      metric: '23 Days Safe',
-      submetric: 'Burn: ₹1,653/day',
+      metric: analytics.headlineMetric,
+      submetric: `Status: ${analytics.runwayStatus}`,
     },
     {
       title: 'Upcoming Payables (15d)',
@@ -134,7 +121,7 @@ export default function OverviewPage() {
       icon: Calendar,
       accent: 'rose',
       metric: `₹${totalUpcoming15.toLocaleString()}`,
-      submetric: `${upcomingExpenses.length + fixedDue15.length} dues scheduled`,
+      submetric: `${dueEvents.length} dues scheduled`,
     },
     {
       title: 'Customer Receivables (Udhar)',
@@ -267,11 +254,13 @@ export default function OverviewPage() {
             </div>
           </div>
           <div className="mt-2">
-            <span className="text-2xl font-black text-black font-['Outfit']">
-              23 Days
+            <span className={`text-2xl font-black font-['Outfit'] ${
+              analytics.runwayStatus === 'SAFE' ? 'text-black' : (analytics.runwayStatus === 'WATCH' ? 'text-amber-600' : 'text-rose-600')
+            }`}>
+              {analytics.headlineMetric}
             </span>
             <div className="flex items-center justify-between text-[11px] mt-1 text-neutral-500 font-medium">
-              <span>Burn: ₹1,653/day</span>
+              <span>● Status: {analytics.runwayStatus}</span>
               <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
             </div>
           </div>

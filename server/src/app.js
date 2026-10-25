@@ -37,9 +37,9 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 
-// Body parsing middlewares
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Body parsing middlewares (support audio payloads for Whisper speech-to-text)
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // Root health & welcome check
 app.get('/', (req, res) => {

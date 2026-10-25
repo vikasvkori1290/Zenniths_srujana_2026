@@ -200,4 +200,92 @@ Respond STRICTLY with valid JSON only, without markdown fences or additional tex
   }
 });
 
+/**
+ * POST /api/v1/groq/transcribe-audio
+ * Direct high-fidelity speech-to-text using Groq Whisper Large V3 Turbo
+ * Accepts base64 audio and outputs normalized transcript
+ */
+router.post('/transcribe-audio', async (req, res) => {
+  try {
+    const { audio, mimeType = 'audio/webm', language, prompt } = req.body;
+    const keyToUse = req.body.apiKey || process.env.GROQ_API_KEY;
+
+    if (!keyToUse) {
+      return res.status(400).json({
+        success: false,
+        error: 'Groq API Key is required.',
+      });
+    }
+
+    if (!audio) {
+      return res.status(400).json({
+        success: false,
+        error: 'Base64 audio payload is required.',
+      });
+    }
+
+    const base64Data = audio.replace(/^data:audio\/\w+;base64,/, '');
+    const audioBuffer = Buffer.from(base64Data, 'base64');
+
+    if (audioBuffer.length < 50) {
+      return res.status(400).json({
+        success: false,
+        error: 'Audio recording too short.',
+      });
+    }
+
+    const ext = mimeType.includes('wav')
+      ? 'wav'
+      : mimeType.includes('mp4')
+      ? 'mp4'
+      : mimeType.includes('ogg')
+      ? 'ogg'
+      : 'webm';
+
+    const audioBlob = new Blob([audioBuffer], { type: mimeType });
+    const formData = new FormData();
+    formData.append('file', audioBlob, `speech.${ext}`);
+    formData.append('model', 'whisper-large-v3-turbo');
+
+    if (language && language !== 'auto') {
+      formData.append('language', language);
+    }
+
+    const defaultPrompt =
+      prompt ||
+      'Indian small business Kirana e-Khata credit commands. Customer names: Ramesh, Suresh, Pooja, Vikas, Nitish, Priya, Rahul, Kiran. Words: udhaar, jama, rupay, rupees, add, deduct, settle, due date.';
+    formData.append('prompt', defaultPrompt);
+
+    const groqRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${keyToUse}`,
+      },
+      body: formData,
+    });
+
+    if (!groqRes.ok) {
+      const errText = await groqRes.text();
+      console.warn('[Groq Whisper Error]:', groqRes.status, errText);
+      return res.status(groqRes.status).json({
+        success: false,
+        error: `Whisper transcription failed: ${errText}`,
+      });
+    }
+
+    const groqData = await groqRes.json();
+    return res.json({
+      success: true,
+      text: groqData.text?.trim() || '',
+      model: 'whisper-large-v3-turbo',
+    });
+  } catch (err) {
+    console.error('[Transcribe Audio Exception]:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Audio transcription failed',
+    });
+  }
+});
+
 export default router;

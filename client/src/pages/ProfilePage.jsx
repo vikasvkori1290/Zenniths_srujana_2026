@@ -21,7 +21,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getFixedExpensesDueWithin15Days } from '../services/expenseSync';
+import { getFixedExpensesDueWithin15Days, getDueEvents } from '../services/expenseSync';
 import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 
@@ -148,10 +148,17 @@ export default function ProfilePage() {
 
   const totalTodayIncome = todayIncome.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const totalMonthlyFixed = fixedExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const fixedDueWithin15 = getFixedExpensesDueWithin15Days(fixedExpenses);
-  const totalUpcoming15 =
-    upcomingExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0) +
-    fixedDueWithin15.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  
+  // Use unified getDueEvents for real due dates and skipping paid dues
+  const dueEvents = useMemo(() => {
+    return getDueEvents({
+      fixedExpenses,
+      upcomingExpenses,
+      horizonDays: 15,
+    });
+  }, [fixedExpenses, upcomingExpenses]);
+
+  const totalUpcoming15 = dueEvents.duesWithin15Days;
   const totalUdhar = eKhataCustomers.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
   const goalPercentage = Math.min(Math.round((totalTodayIncome / (profile.dailyGoal || 10000)) * 100), 100);
 
@@ -197,12 +204,12 @@ export default function ProfilePage() {
       title: 'Predictive Cash Runway',
       path: '/#runway',
       tag: 'AI Forecast',
-      tagColor: 'bg-amber-100 text-amber-800 border-amber-300',
+      tagColor: analytics.runwayStatus === 'SAFE' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : (analytics.runwayStatus === 'WATCH' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-rose-100 text-rose-800 border-rose-300'),
       description: 'Dynamic burn rate engine, projected runway horizon, and What-If Udhar recovery simulator.',
       icon: TrendingUp,
       accent: 'amber',
-      metric: `~${analytics.runwayDays} Days Safe`,
-      submetric: `Burn: ₹${analytics.dailyBurnRate.toLocaleString()}/day`,
+      metric: analytics.headlineMetric,
+      submetric: `Status: ${analytics.runwayStatus}`,
     },
     {
       title: 'Upcoming Payables (15d)',
@@ -213,7 +220,7 @@ export default function ProfilePage() {
       icon: Calendar,
       accent: 'rose',
       metric: `₹${totalUpcoming15.toLocaleString()}`,
-      submetric: `${upcomingExpenses.length + fixedDueWithin15.length} dues scheduled`,
+      submetric: `${dueEvents.length} dues scheduled`,
     },
     {
       title: 'Customer Receivables (Udhar)',

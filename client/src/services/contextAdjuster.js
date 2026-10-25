@@ -170,11 +170,18 @@ export function getMultipliersForDate(
   if (low > base) low = base;
   if (high < base) high = base;
 
+  const nonNeutralMatching = matching.filter(
+    (m) =>
+      Number(m.multiplier?.base ?? 1.0) !== 1.0 ||
+      Number(m.multiplier?.low ?? 1.0) !== 1.0 ||
+      Number(m.multiplier?.high ?? 1.0) !== 1.0
+  );
+
   return {
     low: Math.round(low * 100) / 100,
     base: Math.round(base * 100) / 100,
     high: Math.round(high * 100) / 100,
-    activeEvents: matching.map((m) => m.event),
+    activeEvents: nonNeutralMatching.map((m) => m.event),
     isAdjusted: base !== 1.0 || low !== 1.0 || high !== 1.0,
   };
 }

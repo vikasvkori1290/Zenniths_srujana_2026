@@ -16,6 +16,8 @@ import {
   Clock,
   AlertCircle,
   Volume2,
+  VolumeX,
+  Radio,
   Settings2,
   Zap,
   Key,
@@ -34,6 +36,8 @@ import {
 } from 'lucide-react';
 import { parseLocalSmartIntent, parseWithGroqAI, checkGroqStatus } from '../services/voiceParser';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
+import { speechService } from '../services/speechSynthesis';
+import { audioVoiceRecorder } from '../services/audioVoiceRecorder';
 
 function WhatsAppIcon({ className = 'w-3.5 h-3.5' }) {
   return (
@@ -111,7 +115,7 @@ export default function EKhataPage() {
   const [isGroqModalOpen, setIsGroqModalOpen] = useState(false);
   const [tempKeyInput, setTempKeyInput] = useState('');
 
-  // Voice recognition states
+  // Voice recognition & Voice-To-Speech synthesis states
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
@@ -122,6 +126,14 @@ export default function EKhataPage() {
   const [manualText, setManualText] = useState('');
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [editTab, setEditTab] = useState('TXN'); // 'TXN' or 'DETAILS'
+
+  // Voice Engine & Audible Voice-To-Speech Settings
+  const [voiceEngineMode, setVoiceEngineMode] = useState(() => localStorage.getItem('aurum_voice_engine') || 'whisper'); // 'whisper' | 'webspeech'
+  const [voiceLanguage, setVoiceLanguage] = useState(() => localStorage.getItem('aurum_voice_lang') || 'en-IN'); // 'en-IN', 'hi-IN', 'kn-IN'
+  const [isSpeechOutputEnabled, setIsSpeechOutputEnabled] = useState(() => speechService.getIsEnabled());
+  const [isSpeechSpeaking, setIsSpeechSpeaking] = useState(false);
+  const [audioVolume, setAudioVolume] = useState(0); // 0-100 live microphone volume level
+  const [isWhisperRecording, setIsWhisperRecording] = useState(false);
 
   // Transaction states for simple New Transaction modal
   const [newTxType, setNewTxType] = useState('ADD'); // 'ADD' or 'PAY'
@@ -144,6 +156,39 @@ export default function EKhataPage() {
   const [isDictatingCustomer, setIsDictatingCustomer] = useState(false);
 
   const recognitionRef = useRef(null);
+  const khataListRef = useRef(khataList);
+  const isStartingRef = useRef(false);
+
+  // Keep khataListRef synchronized without causing recognition re-initialization
+  useEffect(() => {
+    khataListRef.current = khataList;
+  }, [khataList]);
+
+  // Persist Voice Settings
+  useEffect(() => {
+    localStorage.setItem('aurum_voice_engine', voiceEngineMode);
+  }, [voiceEngineMode]);
+
+  useEffect(() => {
+    localStorage.setItem('aurum_voice_lang', voiceLanguage);
+  }, [voiceLanguage]);
+
+  // Listen to Audible Speech Synthesis events
+  useEffect(() => {
+    const handleSpeaking = () => setIsSpeechSpeaking(true);
+    const handleEnded = () => setIsSpeechSpeaking(false);
+    const handleToggle = () => setIsSpeechOutputEnabled(speechService.getIsEnabled());
+
+    window.addEventListener('aurum_tts_speaking', handleSpeaking);
+    window.addEventListener('aurum_tts_ended', handleEnded);
+    window.addEventListener('aurum_tts_toggle_updated', handleToggle);
+
+    return () => {
+      window.removeEventListener('aurum_tts_speaking', handleSpeaking);
+      window.removeEventListener('aurum_tts_ended', handleEnded);
+      window.removeEventListener('aurum_tts_toggle_updated', handleToggle);
+    };
+  }, []);
 
   // Check backend Groq status on mount
   useEffect(() => {
@@ -203,73 +248,158 @@ export default function EKhataPage() {
     return 1 - dist / Math.max(lenA, lenB);
   };
 
-  // Setup Web Speech API for voice listening with live interim text
+  // Setup Web Speech API for voice listening with live interim text (stable setup without khataList churn)
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = 'en-IN'; // Indian English / Hinglish speech
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = voiceLanguage;
 
-      recognition.onstart = () => {
-        setIsListening(true);
-        setVoiceTranscript('Listening... Speak any command in English or Hindi (Add, Deduct, Rename, Settle, Date)');
-      };
+        recognition.onstart = () => {
+          setIsListening(true);
+          setVoiceTranscript('Listening... Speak any command in English or Hindi (Add, Deduct, Rename, Settle, Date)');
+        };
 
-      recognition.onresult = async (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
+        recognition.onresult = async (event) => {
+          let interimTranscript = '';
+          let finalTranscript = '';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
           }
-        }
 
-        const liveText = finalTranscript || interimTranscript;
-        if (liveText && liveText.trim()) {
-          setManualText(liveText.trim());
-        }
+          const liveText = finalTranscript || interimTranscript;
+          if (liveText && liveText.trim()) {
+            setManualText(liveText.trim());
+          }
 
-        if (finalTranscript && finalTranscript.trim()) {
-          setVoiceTranscript(`"${finalTranscript.trim()}"`);
-          await handleExecuteVoiceCommand(finalTranscript.trim());
-        }
-      };
+          if (finalTranscript && finalTranscript.trim()) {
+            setVoiceTranscript(`"${finalTranscript.trim()}"`);
+            await handleExecuteVoiceCommand(finalTranscript.trim());
+          }
+        };
 
-      recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-        showFeedback(`Mic status: ${event.error}. You can also type or use test prompts below!`, 'warning');
-      };
+        recognition.onerror = (event) => {
+          console.warn('Speech recognition warning:', event.error);
+          setIsListening(false);
+          if (event.error === 'network' || event.error === 'no-speech') {
+            showFeedback(`Web Speech issue (${event.error}). Groq Whisper Turbo is also available for high accuracy!`, 'warning');
+          }
+        };
 
-      recognition.onend = () => {
-        setIsListening(false);
-      };
+        recognition.onend = () => {
+          setIsListening(false);
+        };
 
-      recognitionRef.current = recognition;
+        recognitionRef.current = recognition;
+      } catch (err) {
+        console.warn('SpeechRecognition init error:', err);
+      }
     }
-  }, [groqKey, khataList]);
+  }, [groqKey, voiceLanguage]);
 
-  const toggleListening = () => {
+  // Direct Audio Recording via Groq Whisper Large V3 Turbo
+  const startWhisperRecording = async () => {
+    try {
+      setIsListening(true);
+      setIsWhisperRecording(true);
+      setVoiceTranscript('🎙️ Recording high-fidelity audio... Speak your command in English or Hindi');
+      setManualText('');
+      await audioVoiceRecorder.start({
+        language: voiceLanguage ? voiceLanguage.split('-')[0] : 'en',
+        onVolumeChange: (vol) => setAudioVolume(vol),
+      });
+    } catch (err) {
+      setIsListening(false);
+      setIsWhisperRecording(false);
+      setAudioVolume(0);
+      showFeedback(`Microphone error: ${err.message || 'Microphone access denied'}. Please check browser mic permissions.`, 'error');
+    }
+  };
+
+  const stopWhisperRecording = async () => {
+    setIsListening(false);
+    setIsWhisperRecording(false);
+    setAudioVolume(0);
+    setIsProcessing(true);
+    setVoiceTranscript('⚡ Transcribing via Groq Whisper Large V3 Turbo (LPU Cloud)...');
+    try {
+      const res = await audioVoiceRecorder.stop();
+      if (res && res.text && res.text.trim()) {
+        const transcript = res.text.trim();
+        setVoiceTranscript(`"${transcript}"`);
+        setManualText(transcript);
+        await handleExecuteVoiceCommand(transcript);
+      } else {
+        showFeedback('No audible speech detected. Please speak clearly into the microphone!', 'warning');
+      }
+    } catch (err) {
+      console.error('Whisper transcription error:', err);
+      showFeedback(`Whisper error: ${err.message}. Switching to Web Speech or test chips.`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Toggle Voice Input between Whisper Turbo & Web Speech API
+  const toggleListening = async () => {
+    if (isStartingRef.current) return;
+
+    const hasWebSpeech = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+    const shouldUseWhisper = voiceEngineMode === 'whisper' || !hasWebSpeech;
+
+    if (shouldUseWhisper) {
+      if (isListening || isWhisperRecording) {
+        await stopWhisperRecording();
+      } else {
+        await startWhisperRecording();
+      }
+      return;
+    }
+
+    // Web Speech API mode
     if (!recognitionRef.current) {
-      showFeedback('Web Speech is not supported in this browser. Please use the quick prompt buttons or text bar!', 'warning');
+      setVoiceEngineMode('whisper');
+      await startWhisperRecording();
       return;
     }
 
     if (isListening) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
       setIsListening(false);
     } else {
       try {
+        isStartingRef.current = true;
         setManualText('');
+        recognitionRef.current.lang = voiceLanguage;
         recognitionRef.current.start();
+        setTimeout(() => { isStartingRef.current = false; }, 300);
       } catch (err) {
-        console.error(err);
+        isStartingRef.current = false;
+        console.warn('Web Speech start failed, falling back to Whisper Turbo:', err);
+        setVoiceEngineMode('whisper');
+        await startWhisperRecording();
       }
+    }
+  };
+
+  const toggleSpeechOutput = () => {
+    const next = !isSpeechOutputEnabled;
+    speechService.setIsEnabled(next);
+    setIsSpeechOutputEnabled(next);
+    if (!next) {
+      speechService.stop();
+    } else {
+      speechService.speak('Voice speech feedback enabled.', { lang: voiceLanguage });
     }
   };
 
@@ -370,6 +500,11 @@ export default function EKhataPage() {
           return prevList;
         }
         showFeedback(`🗑️ [${engineLabel}] Completely removed ${displayTarget} from the list.`, 'warning');
+        speechService.speakCrudConfirmation({
+          action: 'DELETE',
+          name: existing.name,
+          lang: voiceLanguage,
+        });
         return prevList.filter((c) => c.id !== existing.id);
       }
 
@@ -398,6 +533,12 @@ export default function EKhataPage() {
           ],
         };
         showFeedback(`✏️ [${engineLabel}] Renamed #${existing.idNumber} to "${newName}".`, 'success');
+        speechService.speakCrudConfirmation({
+          action: 'RENAME',
+          oldName: existing.name,
+          newName,
+          lang: voiceLanguage,
+        });
         return updatedList;
       }
 
@@ -430,6 +571,13 @@ export default function EKhataPage() {
           `📉 [${engineLabel}] Deducted ₹${deductVal} from ${displayTarget}. New Total Due: ₹${newTotal}${isSettled ? ' (Marked Settled)' : ''}`,
           'success'
         );
+        speechService.speakCrudConfirmation({
+          action: 'SUBTRACT',
+          name: existing.name,
+          amount: deductVal,
+          totalAmount: newTotal,
+          lang: voiceLanguage,
+        });
         return updatedList;
       }
 
@@ -455,6 +603,11 @@ export default function EKhataPage() {
           ],
         };
         showFeedback(`✅ [${engineLabel}] Settled account in full for ${displayTarget}.`, 'success');
+        speechService.speakCrudConfirmation({
+          action: 'SETTLE',
+          name: existing.name,
+          lang: voiceLanguage,
+        });
         return updatedList;
       }
 
@@ -487,6 +640,13 @@ export default function EKhataPage() {
           `📅 [${engineLabel}] ${prevDate === 'Not Specified' ? 'Added due date' : 'Updated due date for'} ${displayTarget} to ${dueDate}. Total Due remains ₹${existing.totalAmount.toLocaleString()}.`,
           'success'
         );
+        speechService.speakCrudConfirmation({
+          action: 'UPDATE_DUE_DATE',
+          name: existing.name,
+          dueDate,
+          totalAmount: existing.totalAmount,
+          lang: voiceLanguage,
+        });
         return updatedList;
       }
 
@@ -515,6 +675,14 @@ export default function EKhataPage() {
           `⚡ [${engineLabel}] Added ₹${addVal} to ${displayTarget}. New Total: ₹${updatedTotal.toLocaleString()}${newDueDate && newDueDate !== 'Not Specified' ? ` (Due: ${newDueDate})` : ''}`,
           'success'
         );
+        speechService.speakCrudConfirmation({
+          action: 'ADD',
+          name: existing.name,
+          amount: addVal,
+          totalAmount: updatedTotal,
+          dueDate: newDueDate,
+          lang: voiceLanguage,
+        });
         return updatedList;
       } else {
         // Calculate next ID number
@@ -543,6 +711,14 @@ export default function EKhataPage() {
           `⚡ [${engineLabel}] Created ID #${assignedIdNumber} (${customerName}) with ₹${addVal} (Due: ${dueDate || 'Not Specified'})`,
           'success'
         );
+        speechService.speakCrudConfirmation({
+          action: 'ADD',
+          name: customerName,
+          amount: addVal,
+          totalAmount: addVal,
+          dueDate: dueDate || 'Not Specified',
+          lang: voiceLanguage,
+        });
         return [newCustomer, ...prevList];
       }
     });
@@ -563,6 +739,7 @@ export default function EKhataPage() {
   };
 
   const handleSettle = (id) => {
+    const cust = khataList.find((c) => c.id === id);
     setKhataList((prev) =>
       prev.map((c) =>
         c.id === id
@@ -584,12 +761,24 @@ export default function EKhataPage() {
       )
     );
     showFeedback('Khata settled in full!', 'success');
+    if (cust) {
+      speechService.speakCrudConfirmation({
+        action: 'SETTLE',
+        name: cust.name,
+        lang: voiceLanguage,
+      });
+    }
   };
 
   const handleDelete = (id, name) => {
     if (window.confirm(`Delete ${name}'s Khata record?`)) {
       setKhataList((prev) => prev.filter((c) => c.id !== id));
       showFeedback(`Removed ${name} from Khata`, 'warning');
+      speechService.speakCrudConfirmation({
+        action: 'DELETE',
+        name,
+        lang: voiceLanguage,
+      });
     }
   };
 
@@ -796,31 +985,13 @@ Thank you for your business! 🙏
     );
   };
 
-  // Voice dictation for Add Customer modal
-  const handleDictateNewCustomer = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      showFeedback('Voice dictation requires Web Speech API support in your browser (Chrome/Edge recommended).', 'error');
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-IN';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onstart = () => {
-      setIsDictatingCustomer(true);
-      showFeedback('🎙️ Listening... Say e.g. "Customer Ramesh, phone 9876543210, amount 500, due 30 November"', 'info');
-    };
-
-    recognition.onresult = (event) => {
-      setIsDictatingCustomer(false);
-      const rawTranscript = event.results[0][0].transcript;
+  // Voice dictation for Add Customer modal (Whisper Turbo & Web Speech supported)
+  const handleDictateNewCustomer = async () => {
+    const processTranscriptText = (rawTranscript) => {
       const normalized = normalizeSpokenNumbers(rawTranscript);
       showFeedback(`🎙️ Heard: "${rawTranscript}"`, 'info');
 
-      // 1. Extract phone number (e.g. 9876543210 or +91 98765 43210 or 10 digits in sequence)
+      // 1. Extract phone number
       let phoneFound = '';
       const phoneMatch = normalized.match(/(?:\+?91[\s-]?)?([6-9]\d{9})/);
       if (phoneMatch) {
@@ -863,9 +1034,11 @@ Thank you for your business! 🙏
         }
       }
 
+      const formattedName = nameFound ? nameFound.charAt(0).toUpperCase() + nameFound.slice(1) : '';
+
       setNewCustomerForm((prev) => ({
         ...prev,
-        name: nameFound ? nameFound.charAt(0).toUpperCase() + nameFound.slice(1) : prev.name,
+        name: formattedName || prev.name,
         phone: phoneFound || prev.phone,
         amount: amountFound || prev.amount,
         dueDate: dueFound || prev.dueDate,
@@ -873,18 +1046,68 @@ Thank you for your business! 🙏
       }));
 
       showFeedback(`✅ Auto-filled from voice: "${rawTranscript}"! You can edit details manually and click Create.`, 'success');
+      speechService.speak(
+        `Recorded customer ${formattedName || 'details'} with ${amountFound || 0} rupees.`,
+        { lang: voiceLanguage }
+      );
     };
 
-    recognition.onerror = () => {
+    if (isDictatingCustomer) {
+      if (audioVoiceRecorder.isRecording) {
+        setIsDictatingCustomer(false);
+        const res = await audioVoiceRecorder.stop();
+        if (res && res.text) processTranscriptText(res.text);
+      }
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const canUseWebSpeech = voiceEngineMode === 'webspeech' && Boolean(SpeechRecognition);
+
+    if (canUseWebSpeech) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = voiceLanguage;
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+          setIsDictatingCustomer(true);
+          showFeedback('🎙️ Listening... Say e.g. "Customer Ramesh, phone 9876543210, amount 500, due 30 November"', 'info');
+        };
+
+        recognition.onresult = (event) => {
+          setIsDictatingCustomer(false);
+          processTranscriptText(event.results[0][0].transcript);
+        };
+
+        recognition.onerror = () => {
+          setIsDictatingCustomer(false);
+          showFeedback('Voice listening stopped. You can also enter details manually.', 'warning');
+        };
+
+        recognition.onend = () => {
+          setIsDictatingCustomer(false);
+        };
+
+        recognition.start();
+        return;
+      } catch (err) {
+        console.warn('Web speech failed in modal, using Whisper:', err);
+      }
+    }
+
+    // Whisper Turbo Direct Audio Capture
+    try {
+      setIsDictatingCustomer(true);
+      showFeedback('🎙️ Recording with Groq Whisper... Speak customer name, amount, and due date, then tap mic again when done.', 'info');
+      await audioVoiceRecorder.start({
+        language: voiceLanguage ? voiceLanguage.split('-')[0] : 'en',
+      });
+    } catch (err) {
       setIsDictatingCustomer(false);
-      showFeedback('Voice listening stopped. You can also enter details manually.', 'warning');
-    };
-
-    recognition.onend = () => {
-      setIsDictatingCustomer(false);
-    };
-
-    recognition.start();
+      showFeedback(`Could not access microphone: ${err.message}`, 'error');
+    }
   };
 
   // Create new customer manually / via voice
@@ -994,8 +1217,18 @@ Thank you for your business! 🙏
             </p>
           </div>
 
-          {/* Quick Metrics */}
+          {/* Quick Metrics & Voice Speech Synthesis */}
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:space-x-3 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => speechService.speakLedgerOverview(khataList, voiceLanguage)}
+              className="flex items-center space-x-2 px-3 py-2.5 rounded-2xl bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 font-bold text-xs transition-all shadow-xs cursor-pointer min-h-[44px]"
+              title="Listen to full ledger audio summary aloud"
+            >
+              <Volume2 className="w-4 h-4 text-amber-800 shrink-0" />
+              <span>📢 Read Ledger Aloud</span>
+            </button>
+
             <div className="flex-1 sm:flex-initial p-3 rounded-2xl bg-amber-50/80 border border-amber-200 text-left sm:text-right">
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
                 Total Outstanding
@@ -1057,8 +1290,153 @@ Thank you for your business! 🙏
           </div>
         )}
 
-        {/* COMPACT VOICE CRUD COMMAND BAR (Very Small Mic) */}
+        {/* COMPACT VOICE CRUD COMMAND BAR (Enhanced with Groq Whisper & Voice-to-Speech) */}
         <div className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/90 shadow-sm space-y-2.5">
+          {/* Voice Toolbar: Engine, Language, and Audio Feedback Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-neutral-200/70 text-xs">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 mr-1">Engine:</span>
+              <button
+                type="button"
+                onClick={() => setVoiceEngineMode('whisper')}
+                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${
+                  voiceEngineMode === 'whisper'
+                    ? 'bg-amber-500 text-black shadow-xs font-black'
+                    : 'bg-white text-neutral-600 hover:bg-neutral-100 border border-neutral-200'
+                }`}
+                title="Groq Whisper Large V3 Turbo (Direct mic recording with state-of-the-art accuracy)"
+              >
+                <Zap className="w-3 h-3 fill-current" />
+                <span>Whisper Turbo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setVoiceEngineMode('webspeech')}
+                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${
+                  voiceEngineMode === 'webspeech'
+                    ? 'bg-amber-500 text-black shadow-xs font-black'
+                    : 'bg-white text-neutral-600 hover:bg-neutral-100 border border-neutral-200'
+                }`}
+                title="Browser Web Speech API (Streaming speech)"
+              >
+                <Radio className="w-3 h-3" />
+                <span>Web Speech</span>
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {/* Language Switcher */}
+              <div className="flex items-center space-x-1 bg-white border border-neutral-200 rounded-lg p-0.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setVoiceLanguage('en-IN')}
+                  className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                    voiceLanguage === 'en-IN' ? 'bg-black text-yellow-300' : 'text-neutral-600 hover:text-black'
+                  }`}
+                  title="Indian English"
+                >
+                  EN
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVoiceLanguage('hi-IN')}
+                  className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                    voiceLanguage === 'hi-IN' ? 'bg-black text-yellow-300' : 'text-neutral-600 hover:text-black'
+                  }`}
+                  title="Hindi / Hinglish"
+                >
+                  हिन्दी
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVoiceLanguage('kn-IN')}
+                  className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                    voiceLanguage === 'kn-IN' ? 'bg-black text-yellow-300' : 'text-neutral-600 hover:text-black'
+                  }`}
+                  title="Kannada"
+                >
+                  ಕನ್ನಡ
+                </button>
+              </div>
+
+              {/* Audible Voice-To-Speech Feedback Toggle */}
+              <button
+                type="button"
+                onClick={toggleSpeechOutput}
+                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center space-x-1.5 transition-all cursor-pointer border ${
+                  isSpeechOutputEnabled
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                    : 'bg-neutral-100 text-neutral-500 border-neutral-200 hover:bg-neutral-200'
+                }`}
+                title="Toggle audible spoken voice confirmation after commands"
+              >
+                {isSpeechOutputEnabled ? (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Voice Output: ON</span>
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5 text-neutral-400" />
+                    <span>Voice Output: Muted</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Active Speaking Status Banner */}
+          {isSpeechSpeaking && (
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-amber-100 border border-amber-300 text-amber-950 text-xs font-semibold animate-pulse">
+              <div className="flex items-center space-x-2">
+                <Volume2 className="w-4 h-4 text-amber-800 animate-bounce shrink-0" />
+                <span>Audible Voice Response speaking...</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => speechService.stop()}
+                className="px-2 py-0.5 rounded bg-black text-yellow-300 text-[10px] font-bold hover:bg-neutral-800 cursor-pointer"
+              >
+                Stop Audio
+              </button>
+            </div>
+          )}
+
+          {/* Active Audio Waveform / Live Volume Visualizer */}
+          {isListening && (
+            <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-bold animate-fadeIn">
+              <div className="flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                <span>
+                  {voiceEngineMode === 'whisper'
+                    ? '🎙️ Groq Whisper Turbo Recording... (Speak naturally in English or Hindi)'
+                    : '🎙️ Web Speech Listening...'}
+                </span>
+                {/* Live Dynamic Waveform Bars */}
+                <div className="flex items-end space-x-0.5 h-4 ml-2">
+                  {[20, 45, 80, 100, 65, 35, 75, 50].map((h, idx) => {
+                    const barHeight = Math.max(4, Math.min(16, Math.round((h * Math.max(25, audioVolume)) / 100)));
+                    return (
+                      <span
+                        key={idx}
+                        className="w-1 bg-amber-600 rounded-full transition-all duration-75"
+                        style={{ height: `${barHeight}px` }}
+                      />
+                    );
+                  })}
+                </div>
+                {audioVolume > 0 && <span className="text-[10px] font-mono text-amber-800 ml-1">{audioVolume}%</span>}
+              </div>
+              <button
+                type="button"
+                onClick={toggleListening}
+                className="px-2.5 py-1 rounded-lg bg-black text-yellow-300 font-bold text-xs hover:bg-neutral-800 cursor-pointer shadow-xs shrink-0"
+              >
+                Done / Transcribe
+              </button>
+            </div>
+          )}
+
           <form onSubmit={handleManualSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <div className="flex items-center gap-2 flex-1">
               {/* Very Small Mic Button */}
@@ -1074,7 +1452,7 @@ Thank you for your business! 🙏
                       ? 'bg-yellow-400 text-black scale-105 border-2 border-black'
                       : 'bg-black text-yellow-300 hover:bg-neutral-800 border border-yellow-400/80 hover:scale-105'
                   }`}
-                  title={isListening ? 'Listening... click to stop' : 'Tap to speak voice CRUD command'}
+                  title={isListening ? 'Listening... click to stop' : `Tap to record voice command (${voiceEngineMode === 'whisper' ? 'Groq Whisper' : 'Web Speech'})`}
                   aria-label="Voice command microphone"
                 >
                   <Mic className={`w-4 h-4 sm:w-3.5 sm:h-3.5 ${isListening ? 'animate-pulse text-black' : 'text-yellow-300'}`} />
@@ -1236,6 +1614,16 @@ Thank you for your business! 🙏
                 <XCircle className="w-3 h-3 text-rose-600" />
                 <span>"remove nitish totally from list"</span>
               </button>
+
+              {/* 7. Settle Account */}
+              <button
+                type="button"
+                onClick={() => handleQuickCommand('settle id 1')}
+                className="px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+              >
+                <CheckCircle2 className="w-3 h-3 text-teal-600" />
+                <span>"settle id 1"</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1353,6 +1741,17 @@ Thank you for your business! 🙏
                   {/* Actions Row */}
                   <div className="flex flex-wrap items-center justify-between gap-1.5 pt-2 border-t border-neutral-200/60">
                     <div className="flex items-center space-x-1.5">
+                      {/* Listen to Customer Summary */}
+                      <button
+                        type="button"
+                        onClick={() => speechService.speakCustomerSummary(customer, voiceLanguage)}
+                        className="min-h-[44px] px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold flex items-center space-x-1 transition-all shadow-2xs cursor-pointer"
+                        title={`Listen to credit summary for ${customer.name}`}
+                      >
+                        <Volume2 className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Listen</span>
+                      </button>
+
                       <button
                         onClick={() => handleWhatsAppNotify(customer)}
                         className="min-h-[44px] px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center space-x-1.5 transition-all shadow-2xs cursor-pointer"
@@ -1519,6 +1918,17 @@ Thank you for your business! 🙏
 
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end space-x-1.5">
+                          {/* Listen to Customer Summary */}
+                          <button
+                            type="button"
+                            onClick={() => speechService.speakCustomerSummary(customer, voiceLanguage)}
+                            className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold flex items-center space-x-1 transition-all shadow-2xs cursor-pointer"
+                            title={`Listen to credit summary for ${customer.name}`}
+                          >
+                            <Volume2 className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Listen</span>
+                          </button>
+
                           {/* WhatsApp Due Notification Button */}
                           <button
                             onClick={() => handleWhatsAppNotify(customer)}

@@ -35,6 +35,39 @@ router.get('/status', (req, res) => {
 
 /**
  * Helper to build the prompt for NVIDIA Nemotron
+/**
+ * Helper to strip LaTeX artifacts and math formulas from text or JSON objects
+ */
+function stripLatex(val) {
+  if (typeof val === 'string') {
+    return val
+      .replace(/\\text\{([^}]+)\}/g, '$1')
+      .replace(/\\times/g, '×')
+      .replace(/\\approx/g, '≈')
+      .replace(/\\le/g, '≤')
+      .replace(/\\ge/g, '≥')
+      .replace(/\$([^$]+)\$/g, '$1')
+      .replace(/\\\[([^\\]+)\\\]/g, '$1')
+      .replace(/\\\(([^)]+)\\\)/g, '$1')
+      .replace(/\\[a-zA-Z]+/g, '')
+      .replace(/[{}]/g, '')
+      .trim();
+  }
+  if (Array.isArray(val)) {
+    return val.map(stripLatex);
+  }
+  if (val && typeof val === 'object') {
+    const cleaned = {};
+    for (const [k, v] of Object.entries(val)) {
+      cleaned[k] = stripLatex(v);
+    }
+    return cleaned;
+  }
+  return val;
+}
+
+/**
+ * Helper to build the prompt for NVIDIA Nemotron
  */
 function buildFinancialPrompt({
   businessName,
@@ -45,40 +78,60 @@ function buildFinancialPrompt({
   liquidity,
   fixedBreakdown,
   upcomingBreakdown,
+  dueEvents,
+  minBalance,
+  minBalanceDate,
 }) {
   const systemPrompt = `You are "AurumFlow Nemotron", an elite CFO and financial intelligence advisor powered by NVIDIA Nemotron AI.
 Your expertise is specialized for Indian Kiranas, Retailers, and Small & Medium Businesses (SMBs).
-You are analyzing live telemetry from the merchant's daily operations: their business model, daily sales velocity (cash vs UPI), daily payables (fixed overhead + 15-day supplier dues), customer Udhar credit, and predictive cash runway.
+You are analyzing live telemetry from the merchant's daily operations: their business model, daily sales velocity (cash vs UPI), discrete due events from their Fixed Expenses & Payables collections, customer Udhar credit, and predictive cash runway.
 
-You must deliver an analytical, practical, and candid assessment.
-Always speak directly to the merchant in an encouraging, highly professional CFO tone.
+CRITICAL INSTRUCTIONS FOR CFO EXPLANATION:
+1. Ground your explanation ENTIRELY on the COMPUTED NUMBERS provided:
+   - The exact list of upcoming dues, their real dates, and amounts (e.g. Rent ₹10,000, EMI ₹10,000, Salaries ₹7,000, etc.).
+   - The minimum projected cash balance (₹${Number(minBalance || liquidity?.minProjectedBalance || 0).toLocaleString()}) and the exact date it occurs (${minBalanceDate || 'within 60d'}).
+2. DO NOT invent causes, hallucinate unlisted expenses, or speculate on macroeconomic factors.
+3. DO NOT use LaTeX, math symbols, or backslash syntax ($...$, \\text{...}, \\times). Write only clean, plain English with the ₹ symbol.
+4. Speak directly to the merchant in an encouraging, highly professional CFO tone.
 
 CRITICAL: Return ONLY a valid JSON object matching this exact schema:
 {
-  "executiveSummary": "1-2 punchy sentences summarizing their overall cash health and runway.",
-  "businessTypeInsight": "2-3 sentences evaluating how their specific business model (e.g. Kirana vs Pharmacy vs Textile) impacts working capital cycles, margin expectations, and inventory velocity.",
-  "salesVsPayablesAnalysis": "A direct analytical comparison of their daily sales vs daily payables. Are they generating enough operating cash to comfortably service their burn?",
+  "executiveSummary": "1-2 punchy sentences summarizing their overall cash health, minimum projected balance date, and runway.",
+  "businessTypeInsight": "2-3 sentences evaluating how their specific business model impacts working capital cycles and margin expectations.",
+  "salesVsPayablesAnalysis": "A direct analytical comparison of their daily sales vs daily payables based strictly on computed numbers.",
   "debtAndReceivablesAdvisory": "Actionable advice on their customer Udhar credit relative to their liquidity.",
   "stressPoints": [
-    "Specific risk or bottleneck in their 15-day payables horizon"
+    "Specific risk or bottleneck from their exact scheduled dues list"
   ],
   "actionPlan": [
     {
       "priority": "HIGH" | "MEDIUM" | "LOW",
       "action": "Specific tactical action",
-      "impact": "Estimated financial or cash impact (e.g. +₹5,000 liquidity / +4 days runway)",
+      "impact": "Estimated financial or cash impact",
       "timeframe": "Today" | "Within 48h" | "Next 7 Days"
     }
   ],
-  "talkScript": "A natural, conversational 3-4 paragraph script as if you are a senior CFO sitting across the desk giving your direct talk on their numbers. You should mention their store name, business type, their exact daily sales, upcoming bills, and runway days."
+  "talkScript": "A natural, conversational 3-4 paragraph script as if you are a senior CFO sitting across the desk giving your direct talk on their numbers. Mention their store name, business type, their exact daily sales, minimum projected balance with date, and scheduled dues."
 }`;
 
-  const fixedListStr = (fixedBreakdown || [])
-    .map((f) => `- ${f.title || f.category}: ₹${Number(f.amount || 0).toLocaleString()} (Due day ${f.dueDay || 'monthly'})`)
-    .join('\n');
+  const dueList = (dueEvents && dueEvents.length > 0)
+    ? dueEvents
+    : [
+        ...(fixedBreakdown || []).map((f) => ({
+          title: f.title || f.category,
+          amount: f.amount,
+          date: `Monthly Day ${f.dueDay || 5}`,
+        })),
+        ...(upcomingBreakdown || []).map((u) => ({
+          title: u.title,
+          amount: u.amount,
+          date: u.dueDate,
+        })),
+      ];
 
-  const upcomingListStr = (upcomingBreakdown || [])
-    .map((u) => `- ${u.title}: ₹${Number(u.amount || 0).toLocaleString()} due on ${u.dueDate || 'next 15d'} (Urgency: ${u.urgency || 'Normal'})`)
+  const dueEventsStr = dueList
+    .slice(0, 10)
+    .map((d) => `- ${d.title}: ₹${Number(d.amount || 0).toLocaleString()} (Due: ${d.date || d.dueDate || 'scheduled'})`)
     .join('\n');
 
   const customerListStr = (receivables?.customers || [])
@@ -97,31 +150,27 @@ CRITICAL: Return ONLY a valid JSON object matching this exact schema:
 - Daily Retained Cash: ₹${Number(dailySales?.retainedCashPerDay || 1500).toLocaleString()}/day ((Sales × Margin) - Daily Running Costs)
 - NOTE: The owner keeps ONLY retained cash (₹${dailySales?.retainedCashPerDay || 1500}/d), NOT gross sales! Never treat gross sales as spendable cash.
 
-2. TIMELINE DUES & SCHEDULED OBLIGATIONS:
-- Rent, EMI, and vendor payments are discrete timeline events (NOT amortized daily to prevent double-counting).
+2. TIMELINE DUES & SCHEDULED OBLIGATIONS (REAL DATED COMMITMENTS):
+- Rent, EMI, salaries, and payables are discrete timeline events (never amortized daily).
 - 15-Day Scheduled Obligations Total: ₹${Number(dailyPayables?.duesWithin15Days || dailyPayables?.upcoming15dTotal || 0).toLocaleString()}
+- Detailed Dues Schedule:
+${dueEventsStr || 'No scheduled dues recorded.'}
 
-3. CUSTOMER CREDIT (UDHAR RECEIVABLES - EXPECTED ONLY):
-- Total Outstanding Udhar: ₹${Number(receivables?.totalUdhar || 0).toLocaleString()} across ${receivables?.customerCount || 0} customer accounts
-- IMPORTANT: This is EXPECTED future recovery, NEVER counted as immediate cash in hand!
-
-4. LIQUIDITY & TIMELINE STATUS:
+3. MINIMUM PROJECTED BALANCE & STATUS:
+- Minimum Projected Balance: ₹${Number(minBalance || liquidity?.minProjectedBalance || 0).toLocaleString()}
+- Date of Minimum Balance: ${minBalanceDate || 'within 60d'}
 - Received Cash in Hand (Certain): ₹${Number(liquidity?.receivedCashInHand || liquidity?.liquidBuffer || 0).toLocaleString()}
 - Safety Buffer: ₹${Number(liquidity?.safetyBuffer || 1500).toLocaleString()} (3 days of daily running costs)
 - Cash Horizon Status: ${liquidity?.status || 'SAFE'}
 - Timeline Forecast: ${liquidity?.headlineMetric || 'No Shortfall in 60 Days'}
 
-5. FIXED EXPENSES BREAKDOWN (Timeline Dates):
-${fixedListStr || 'No fixed expenses recorded.'}
-
-6. UPCOMING 15-DAY PAYABLES BREAKDOWN:
-${upcomingListStr || 'No upcoming scheduled payables recorded.'}
-
-7. TOP CUSTOMER UDHAR ACCOUNTS:
+4. CUSTOMER CREDIT (UDHAR RECEIVABLES - EXPECTED ONLY):
+- Total Outstanding Udhar: ₹${Number(receivables?.totalUdhar || 0).toLocaleString()} across ${receivables?.customerCount || 0} customer accounts
+- IMPORTANT: This is EXPECTED future recovery, NEVER counted as immediate cash in hand!
+- Top Customer Accounts:
 ${customerListStr || 'No active udhar credit accounts.'}
 
-Please perform a rigorous financial and business-type analysis using RETAINED CASH and return the JSON object as requested.`;
-
+Please perform a rigorous financial and business-type analysis using RETAINED CASH and computed numbers only. Return the JSON object as requested without LaTeX.`;
 
   return { systemPrompt, userPrompt };
 }
@@ -142,6 +191,9 @@ router.post('/analyze', async (req, res) => {
       liquidity,
       fixedBreakdown,
       upcomingBreakdown,
+      dueEvents,
+      minBalance,
+      minBalanceDate,
       apiKey,
       model = 'nvidia/llama-3.1-nemotron-70b-instruct',
     } = req.body;
@@ -165,6 +217,9 @@ router.post('/analyze', async (req, res) => {
       liquidity,
       fixedBreakdown,
       upcomingBreakdown,
+      dueEvents,
+      minBalance,
+      minBalanceDate,
     });
 
     let rawResponseText = '';
@@ -287,7 +342,7 @@ router.post('/analyze', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: parsedResult,
+      data: stripLatex(parsedResult),
       meta: {
         provider: usedProvider,
         model: usedModel,

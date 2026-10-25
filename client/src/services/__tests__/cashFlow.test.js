@@ -5,6 +5,7 @@ import {
   calculateTimelineCashflow,
   DEFAULT_MARGINS_BY_TYPE,
 } from '../predictiveAnalytics.js';
+import { getDueEvents } from '../expenseSync.js';
 
 describe('AurumFlow Cash-Flow Engine & Retained Cash Specifications', () => {
   // Test 1: The worked example ₹8,000 → ₹1,500
@@ -76,8 +77,8 @@ describe('AurumFlow Cash-Flow Engine & Retained Cash Specifications', () => {
   });
 
 
-  // Test 4: ₹43,000 due within 15 days against ₹48,000 buffer with ₹1,500/day retained
-  it('Requirement 4 & 6: ₹43,000 due within 15 days against ₹48,000 buffer with ₹1,500/day retained', () => {
+  // Test 4: Dynamic 15-day timeline obligations against safety buffer with ₹1,500/day retained
+  it('Requirement 4 & 6: Timeline obligations due within 15 days against buffer with ₹1,500/day retained', () => {
     const fixedExpenses = [
       { id: 'fix-1', title: 'Store Rent', amount: 10000, dueDay: 5, category: 'Rent' },
       { id: 'fix-2', title: 'Machinery EMI', amount: 10000, dueDay: 10, category: 'EMI' },
@@ -88,7 +89,6 @@ describe('AurumFlow Cash-Flow Engine & Retained Cash Specifications', () => {
     const upcomingExpenses = [
       { id: 'up-1', title: 'Vendor Stock Batch', amount: 13000, dueDate: '2026-10-30', category: 'Supplier' },
     ];
-    // Total dues within 15 days = 10,000 + 10,000 + 7,000 + 3,000 + 13,000 = ₹43,000
 
     const result = calculateTimelineCashflow({
       openingReceivedCash: 40000,
@@ -104,14 +104,64 @@ describe('AurumFlow Cash-Flow Engine & Retained Cash Specifications', () => {
     assert.equal(result.receivedCashInHand, 48000);
     assert.equal(result.retainedCashPerDay, 1500);
 
-    // Day 15 timeline check:
-    // Opening 48,000 + 15 * 1,500 retained cash = 70,500 available
-    // Dues paid = 43,000
-    // Ending balance = 27,500
     const day15Data = result.timeline[14]; // 0-indexed for day 15
     assert.ok(day15Data, 'Day 15 timeline data must exist');
     assert.equal(day15Data.balance >= 1500, true, 'Balance at day 15 must be greater than safety buffer ₹1,500');
     assert.equal(result.status, 'SAFE', 'Status should be SAFE since balance remains above buffer');
+  });
+
+  // Test: with rent 10k + EMI 10k + salary 7k, no single month's total deductions may exceed ₹30,000
+  it('Requirement: with rent 10k + EMI 10k + salary 7k, no single month\'s total deductions may exceed ₹30,000', () => {
+    const fixedExpenses = [
+      { id: 'fix-1', title: 'Store Rent', amount: 10000, dueDay: 5, category: 'Rent', status: 'Pending' },
+      { id: 'fix-2', title: 'Machinery EMI', amount: 10000, dueDay: 10, category: 'EMI', status: 'Pending' },
+      { id: 'fix-3', title: 'Staff Salary', amount: 7000, dueDay: 7, category: 'Salaries', status: 'Pending' },
+    ];
+
+    // Check November 2026 (full calendar month)
+    const dueEventsNov = getDueEvents({
+      fixedExpenses,
+      startDate: new Date('2026-11-01'),
+      endDate: new Date('2026-11-30'),
+    });
+
+    // Rent 10k + EMI 10k + Salary 7k = ₹27,000
+    assert.equal(dueEventsNov.totalDues, 27000, 'November total deductions should be ₹27,000');
+    assert.ok(dueEventsNov.totalDues <= 30000, 'Total monthly deductions must not exceed ₹30,000');
+
+    // Even adding utility bill of ₹3,000 (total = ₹30,000)
+    const fixedWithUtility = [
+      ...fixedExpenses,
+      { id: 'fix-4', title: 'Electricity Bill', amount: 3000, dueDay: 18, category: 'Utilities', status: 'Pending' },
+    ];
+    const dueEventsFull = getDueEvents({
+      fixedExpenses: fixedWithUtility,
+      startDate: new Date('2026-11-01'),
+      endDate: new Date('2026-11-30'),
+    });
+
+    assert.equal(dueEventsFull.totalDues, 30000, 'Total with utilities is exactly ₹30,000');
+    assert.ok(dueEventsFull.totalDues <= 30000, 'Monthly deductions with rent 10k + EMI 10k + salary 7k must never exceed ₹30,000');
+  });
+
+  // Test: Skip a due if it is already marked "Paid for <month>"
+  it('Requirement 2: Skip a due if it is already marked "Paid for <month>"', () => {
+    const fixedExpenses = [
+      { id: 'fix-1', title: 'Store Rent', amount: 10000, dueDay: 5, category: 'Rent', status: 'Paid', paidMonths: ['2026-11'] },
+      { id: 'fix-2', title: 'Machinery EMI', amount: 10000, dueDay: 10, category: 'EMI', status: 'Pending' },
+      { id: 'fix-3', title: 'Staff Salary', amount: 7000, dueDay: 7, category: 'Salaries', status: 'Pending' },
+    ];
+
+    const dues = getDueEvents({
+      fixedExpenses,
+      startDate: new Date('2026-11-01'),
+      endDate: new Date('2026-11-30'),
+    });
+
+    // Rent is marked Paid for 2026-11, so it must be skipped!
+    const titles = dues.events.map((e) => e.title);
+    assert.ok(!titles.includes('Store Rent'), 'Store Rent must be skipped because it is marked Paid for 2026-11');
+    assert.equal(dues.totalDues, 17000, 'Total dues should only be EMI ₹10,000 + Salary ₹7,000 = ₹17,000');
   });
 
   // Test 5: Acceptance Criteria - Lumpy due date triggers RISK even with positive daily average
@@ -340,3 +390,167 @@ describe('Festival & Context Sales Adjuster Specifications', () => {
     assert.ok(sweetsDiwali.reason.includes('sweet') || sweetsDiwali.reason.includes('confections'), 'Sweets reason mentions sweets/confections');
   });
 });
+
+describe('60-Day Timeline Due Markers & Vertical Step Specifications', () => {
+  it('Requirement 1 & 6: Deducts dues ON that date (not next day), order: deduct dues first, then add retained cash', () => {
+    // Starting balance = 10,000 opening + 0 today sales = 10,000
+    // Daily sales 8,000, margin 25% (profit 2,000) - cost 500 = +1,500/day retained cash
+    // Due on Nov 5 (Day index 4 from Nov 1): ₹6,000
+    const fixedExpenses = [
+      { id: 'fix-custom', title: 'Wholesale Inventory Bill', amount: 6000, dueDay: 5, category: 'Supplier', status: 'Pending' },
+    ];
+
+    const result = calculateTimelineCashflow({
+      openingReceivedCash: 10000,
+      todayReceivedSales: 0,
+      grossMarginPct: 25,
+      dailyRunningCost: 500,
+      safetyBuffer: 1500,
+      fixedExpensesList: fixedExpenses,
+      startDate: new Date('2026-11-01'), // Nov 1st -> Day 4 is Nov 5th (due date)
+    });
+
+    const dayBeforeDue = result.timeline[2]; // Nov 4 (d=3, index 2)
+    const dueDatePoint = result.timeline[3]; // Nov 5 (d=4, index 3)
+
+    assert.ok(dueDatePoint.hasDues, 'Nov 5 must have scheduled dues');
+    assert.equal(dueDatePoint.dayDuesTotal, 6000, 'Due amount on Nov 5 must be ₹6,000');
+
+    // Requirement 6: Order within a day: deduct dues first, then add that day's retained cash
+    assert.equal(
+      dueDatePoint.balanceBeforeDues,
+      dayBeforeDue.balance,
+      'balanceBeforeDues on due date must equal the end-of-day balance of the prior day'
+    );
+    assert.equal(
+      dueDatePoint.balanceAfterDues,
+      dueDatePoint.balanceBeforeDues - 6000,
+      'Deduction occurs ON that date as a vertical step: balanceAfterDues = balanceBeforeDues - dues'
+    );
+    assert.equal(
+      dueDatePoint.balance,
+      dueDatePoint.balanceAfterDues + dueDatePoint.retainedBase,
+      'End balance on due date = balanceAfterDues + retained cash'
+    );
+  });
+
+  it('Requirement 4: Merge multiple dues on the same date into one marker with each item and the total', () => {
+    // Nov 5 (dayIndex 4) has Rent (10,000) AND Supplier Invoice (5,000)
+    const fixedExpenses = [
+      { id: 'fix-1', title: 'Warehouse Rent', amount: 10000, dueDay: 5, category: 'Rent', status: 'Pending' },
+    ];
+    const upcomingExpenses = [
+      { id: 'up-1', title: 'Packaging Materials', amount: 5000, dueDate: '2026-11-05', category: 'Supplier Dues' },
+    ];
+
+    const result = calculateTimelineCashflow({
+      openingReceivedCash: 40000,
+      todayReceivedSales: 8000,
+      grossMarginPct: 25,
+      dailyRunningCost: 500,
+      fixedExpensesList: fixedExpenses,
+      upcomingExpensesList: upcomingExpenses,
+      startDate: new Date('2026-11-01'),
+    });
+
+    const day5 = result.timeline[3]; // Nov 5 (d=4, index 3)
+    assert.ok(day5.hasDues, 'Nov 5 must have dues');
+    assert.equal(day5.dayDues.length, 2, 'Multiple dues on Nov 5 must be merged into ONE point');
+    assert.equal(day5.dayDuesTotal, 15000, 'Total merged dues must be ₹15,000');
+
+    const titles = day5.dayDues.map((d) => d.title);
+    assert.ok(titles.includes('Warehouse Rent'), 'Merged list includes Warehouse Rent');
+    assert.ok(titles.includes('Packaging Materials'), 'Merged list includes Packaging Materials');
+  });
+
+  it('Requirement 3: Marker color is yellow when balance_after >= buffer, red when < buffer (shows Arrange ₹X), and green for Khata', () => {
+    const safetyBuffer = 3000;
+
+    // Case A: Safe due (balance_after >= buffer) -> markerColor should be yellow
+    const safeResult = calculateTimelineCashflow({
+      openingReceivedCash: 20000,
+      todayReceivedSales: 0,
+      grossMarginPct: 25,
+      dailyRunningCost: 500,
+      safetyBuffer,
+      fixedExpensesList: [
+        { id: 'fix-1', title: 'Minor Tooling', amount: 5000, dueDay: 2, category: 'Repairs', status: 'Pending' },
+      ],
+      startDate: new Date('2026-11-01'),
+    });
+    const day2Safe = safeResult.timeline[0]; // Nov 2 (d=1, index 0)
+    assert.ok(day2Safe.balanceAfterDues >= safetyBuffer, 'Balance after dues is above buffer');
+    assert.equal(day2Safe.markerColor, 'yellow', 'Marker color must be yellow when balance_after >= buffer');
+
+    // Case B: Breach due (balance_after < buffer) -> markerColor should be red
+    const breachResult = calculateTimelineCashflow({
+      openingReceivedCash: 5000,
+      todayReceivedSales: 0,
+      grossMarginPct: 25,
+      dailyRunningCost: 500,
+      safetyBuffer,
+      fixedExpensesList: [
+        { id: 'fix-2', title: 'Heavy Equipment Lease', amount: 4000, dueDay: 2, category: 'EMI', status: 'Pending' },
+      ],
+      startDate: new Date('2026-11-01'),
+    });
+    const day2Breach = breachResult.timeline[0]; // Nov 2 (d=1, index 0)
+    assert.ok(day2Breach.balanceAfterDues < safetyBuffer, 'Balance after dues is below buffer');
+    assert.equal(day2Breach.markerColor, 'red', 'Marker color must be red when balance_after < buffer');
+    const arrangeAmount = safetyBuffer - day2Breach.balanceAfterDues;
+    assert.ok(arrangeAmount > 0, 'Arrange amount must be buffer - balanceAfterDues');
+
+    // Case C: Expected Khata receipt on date with no dues -> markerColor should be green
+    const khataResult = calculateTimelineCashflow({
+      openingReceivedCash: 20000,
+      todayReceivedSales: 0,
+      grossMarginPct: 25,
+      dailyRunningCost: 500,
+      safetyBuffer,
+      eKhataCustomersList: [
+        { id: 'cust-1', name: 'Ramesh Store', totalAmount: 5000, dueDate: '2026-11-03' },
+      ],
+      startDate: new Date('2026-11-01'),
+    });
+    const day3Khata = khataResult.timeline[1]; // Nov 3 (d=2, index 1)
+    assert.equal(day3Khata.hasDues, false, 'No scheduled dues on day 3');
+    assert.ok(day3Khata.hasKhata, 'Khata receipt present on day 3');
+    assert.equal(day3Khata.markerColor, 'green', 'Marker color must be green for expected Khata receipt');
+  });
+
+  it('Requirement 5: Dues marked Paid are excluded from future dates', () => {
+    const fixedExpenses = [
+      { id: 'fix-1', title: 'Store Rent', amount: 10000, dueDay: 5, category: 'Rent', status: 'Paid', paidMonths: ['2026-11'] },
+      { id: 'fix-2', title: 'Machinery EMI', amount: 10000, dueDay: 10, category: 'EMI', status: 'Pending', paidMonths: [] },
+    ];
+    const upcomingExpenses = [
+      { id: 'up-1', title: 'Paid Supplier Invoice', amount: 4000, dueDate: '2026-11-06', status: 'Paid' },
+      { id: 'up-2', title: 'Pending Supplier Invoice', amount: 6000, dueDate: '2026-11-08', status: 'Pending' },
+    ];
+
+    const result = calculateTimelineCashflow({
+      openingReceivedCash: 30000,
+      todayReceivedSales: 8000,
+      grossMarginPct: 25,
+      dailyRunningCost: 500,
+      fixedExpensesList: fixedExpenses,
+      upcomingExpensesList: upcomingExpenses,
+      startDate: new Date('2026-11-01'),
+    });
+
+    // Rent is marked Paid for 2026-11 -> should NOT appear on Nov 5 (d=4, index 3)
+    const day5 = result.timeline[3];
+    assert.equal(day5.hasDues, false, 'Paid rent must be excluded from Nov 5');
+    assert.equal(day5.dayDuesTotal, 0, 'No dues on Nov 5 since rent is paid');
+
+    // One-off payable 'up-1' is marked Paid -> should NOT appear on Nov 6 (d=5, index 4)
+    const day6 = result.timeline[4];
+    assert.equal(day6.hasDues, false, 'Paid supplier invoice must be excluded from Nov 6');
+
+    // Pending EMI on Nov 10 (d=9, index 8) MUST appear
+    const day10 = result.timeline[8];
+    assert.ok(day10.hasDues, 'Pending EMI on Nov 10 must appear');
+    assert.equal(day10.dayDuesTotal, 10000, 'Pending EMI is ₹10,000');
+  });
+});
+

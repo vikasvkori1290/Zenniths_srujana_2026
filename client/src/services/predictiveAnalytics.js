@@ -15,6 +15,9 @@ import {
   getBaselineSalesForDate,
   clampOverlap,
 } from './contextAdjuster.js';
+import { getDueEvents } from './expenseSync.js';
+
+export { getDueEvents };
 
 export const DEFAULT_MARGINS_BY_TYPE = {
   kirana: 20,           // Kirana / Provisions: 15–20% (default 20%, 25% for worked example)
@@ -102,8 +105,9 @@ export function calculateRetainedCashPerDay({
 }
 
 /**
- * Build 60-day discrete timeline dues from fixed monthly commitments and upcoming payables.
- * Ensures rent/EMI and vendor dues are NOT amortized, but hit on their exact calendar dates.
+ * Build 60-day discrete timeline dues using the unified getDueEvents function.
+ * Reads ONLY from Fixed Expenses and Payables collections with real due dates.
+ * Skips dues marked "Paid for <month>".
  */
 export function buildTimelineDues({
   fixedExpensesList = [],
@@ -111,76 +115,14 @@ export function buildTimelineDues({
   horizonDays = 60,
   startDate = new Date(),
 }) {
-  const duesByDay = {}; // dayIndex -> array of { title, amount, category, isFixed }
-  const today = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const result = getDueEvents({
+    fixedExpenses: fixedExpensesList,
+    upcomingExpenses: upcomingExpensesList,
+    horizonDays,
+    startDate,
+  });
 
-  // 1. Process Monthly Fixed Expenses (e.g. Rent on 5th, EMI on 10th)
-  for (const exp of fixedExpensesList || []) {
-    const amount = Number(exp.amount || 0);
-    const dueDay = Number(exp.dueDay) || 1;
-    if (amount <= 0) continue;
-
-    // Project each month in the horizon
-    for (let mOffset = 0; mOffset <= 2; mOffset++) {
-      const targetYear = today.getFullYear();
-      const targetMonth = today.getMonth() + mOffset;
-      const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
-      const validDay = Math.min(dueDay, daysInTargetMonth);
-      const targetDate = new Date(targetYear, targetMonth, validDay);
-
-      // Check if this date has already been paid in current month
-      if (mOffset === 0 && targetDate <= today && exp.status === 'Paid') {
-        continue; // Already paid this month
-      }
-
-      const diffMs = targetDate.getTime() - today.getTime();
-      const dayIndex = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-      if (dayIndex >= 0 && dayIndex <= horizonDays) {
-        if (!duesByDay[dayIndex]) duesByDay[dayIndex] = [];
-        duesByDay[dayIndex].push({
-          id: `fixed-${exp.id}-${mOffset}`,
-          title: exp.title || `${exp.category} Fixed Commitment`,
-          amount,
-          category: exp.category || 'Fixed Commitment',
-          date: targetDate.toISOString().split('T')[0],
-          isFixed: true,
-          dueDay,
-        });
-      }
-    }
-  }
-
-  // 2. Process Upcoming One-off Payables (e.g. Supplier Invoices, GST)
-  for (const up of upcomingExpensesList || []) {
-    const amount = Number(up.amount || 0);
-    if (amount <= 0 || !up.dueDate) continue;
-
-    // Deduplicate if it was an auto-synced fixed expense already handled above
-    if (up.fixedId || up.isFixedMonthly) continue;
-
-    const parts = up.dueDate.split('-').map(Number);
-    if (parts.length === 3) {
-      const targetDate = new Date(parts[0], parts[1] - 1, parts[2]);
-      const diffMs = targetDate.getTime() - today.getTime();
-      const dayIndex = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
-
-      if (dayIndex <= horizonDays) {
-        if (!duesByDay[dayIndex]) duesByDay[dayIndex] = [];
-        duesByDay[dayIndex].push({
-          id: up.id || `up-${dayIndex}`,
-          title: up.title || 'Supplier Payable',
-          amount,
-          category: up.category || 'Supplier Dues',
-          date: up.dueDate,
-          isFixed: false,
-          urgency: up.urgency || 'Normal',
-        });
-      }
-    }
-  }
-
-  return duesByDay;
+  return result.eventsByDayIndex || {};
 }
 
 /**
@@ -291,6 +233,10 @@ export function calculateTimelineCashflow({
   let cumRecvHigh = 0;
   let cumDues = 0;
 
+  let currentBalanceBase = totalReceivedCashInHand;
+  let currentBalanceLow = totalReceivedCashInHand;
+  let currentBalanceHigh = totalReceivedCashInHand;
+
   const timeline = [];
   const lowScenarioTimeline = [];
   let firstRisk = null;
@@ -328,13 +274,36 @@ export function calculateTimelineCashflow({
 
     // eKhata expected collections weighted by scenario
     const dayRecv = recvByDay[d] || 0;
-    cumRecvBase += Math.round(dayRecv * 0.8);
-    cumRecvLow += Math.round(dayRecv * 0.4);
-    cumRecvHigh += Math.round(dayRecv * 1.0);
+    const dayRecvBase = Math.round(dayRecv * 0.8);
+    const dayRecvLow = Math.round(dayRecv * 0.4);
+    const dayRecvHigh = Math.round(dayRecv * 1.0);
+    cumRecvBase += dayRecvBase;
+    cumRecvLow += dayRecvLow;
+    cumRecvHigh += dayRecvHigh;
 
+    // Merge multiple dues on the same date into one list
     const dayDues = duesByDay[d] || [];
     const dayDuesTotal = dayDues.reduce((s, item) => s + item.amount, 0);
     cumDues += dayDuesTotal;
+
+    // Order within a day: deduct dues first, then add that day's retained cash
+    const balanceBeforeDues = currentBalanceBase;
+    const balanceLowBeforeDues = currentBalanceLow;
+    const balanceHighBeforeDues = currentBalanceHigh;
+
+    // Step 1: Deduct dues on that date
+    const balanceAfterDues = balanceBeforeDues - dayDuesTotal;
+    const balanceLowAfterDues = balanceLowBeforeDues - dayDuesTotal;
+    const balanceHighAfterDues = balanceHighBeforeDues - dayDuesTotal;
+
+    // Step 2: Add retained cash and expected Khata collections
+    const balanceBase = balanceAfterDues + retainedBase + dayRecvBase;
+    const balanceLow = balanceLowAfterDues + retainedLow + dayRecvLow;
+    const balanceHigh = balanceHighAfterDues + retainedHigh + dayRecvHigh;
+
+    currentBalanceBase = balanceBase;
+    currentBalanceLow = balanceLow;
+    currentBalanceHigh = balanceHigh;
 
     // Attach expected retained cash before this due date to each due item
     dayDues.forEach((due) => {
@@ -345,36 +314,47 @@ export function calculateTimelineCashflow({
       };
     });
 
-    const balanceBase = totalReceivedCashInHand + cumRetainedBase + cumRecvBase - cumDues;
-    const balanceLow = totalReceivedCashInHand + cumRetainedLow + cumRecvLow - cumDues;
-    const balanceHigh = totalReceivedCashInHand + cumRetainedHigh + cumRecvHigh - cumDues;
-
-    if (balanceBase < minBalance) {
-      minBalance = balanceBase;
+    const dayLowest = Math.min(balanceAfterDues, balanceBase);
+    if (dayLowest < minBalance) {
+      minBalance = dayLowest;
       minBalanceDay = d;
     }
 
-    const isBelowBuffer = balanceBase < safetyBuffer;
-    const isDeficit = balanceBase < 0;
+    const isBelowBuffer = balanceAfterDues < safetyBuffer || balanceBase < safetyBuffer;
+    const isDeficit = balanceAfterDues < 0 || balanceBase < 0;
+    const shortfall = Math.max(0, safetyBuffer - dayLowest);
 
     if (isBelowBuffer && !firstRisk) {
+      const primaryDue = dayDues.length > 1
+        ? `${dayDues[0].title} (+${dayDues.length - 1} more)`
+        : (dayDues[0]?.title || 'Scheduled Obligations');
+
       firstRisk = {
         day: d,
         date: dateStr,
-        balance: balanceBase,
-        shortfall: safetyBuffer - balanceBase,
+        balance: balanceAfterDues,
+        balanceAfterDues,
+        balanceBeforeDues,
+        shortfall,
         isDeficit,
         dayDuesTotal,
-        primaryDue: dayDues[0]?.title || 'Scheduled Obligations',
+        primaryDue,
+        duesCount: dayDues.length,
       };
     }
 
-    if (balanceLow < safetyBuffer && !firstLowRisk) {
+    if ((balanceLowAfterDues < safetyBuffer || balanceLow < safetyBuffer) && !firstLowRisk) {
       firstLowRisk = {
         day: d,
-        balance: balanceLow,
+        balance: Math.min(balanceLowAfterDues, balanceLow),
       };
     }
+
+    const hasDues = dayDuesTotal > 0;
+    const hasKhata = dayRecv > 0;
+    const markerColor = hasDues
+      ? (balanceAfterDues < safetyBuffer ? 'red' : 'yellow')
+      : (hasKhata ? 'green' : null);
 
     const point = {
       day: d,
@@ -395,25 +375,40 @@ export function calculateTimelineCashflow({
       cumRetainedLow,
       cumRetainedHigh,
       cumRecv: cumRecvBase,
-      dayDuesTotal,
+      dayRecv,
+      dayRecvBase,
+      dayDues,                 // Merged array of due items on this date
+      dayDuesTotal,            // Total sum of all dues on this date
       cumDues,
-      balance: balanceBase,
+      balanceBeforeDues,       // Balance ON this date BEFORE dues deduction
+      balanceAfterDues,        // Balance ON this date AFTER dues deduction
+      balanceLowBeforeDues,
+      balanceLowAfterDues,
+      balanceHighBeforeDues,
+      balanceHighAfterDues,
+      balance: balanceBase,    // Balance at end of date d after today's retained cash
       balanceLow,
       balanceHigh,
       isBelowBuffer,
       isDeficit,
+      hasDues,
+      hasKhata,
+      markerColor,             // 'yellow' if balanceAfterDues >= buffer, 'red' if < buffer, 'green' for khata
     };
 
     timeline.push(point);
     lowScenarioTimeline.push({
       ...point,
+      balanceBeforeDues: balanceLowBeforeDues,
+      balanceAfterDues: balanceLowAfterDues,
       balance: balanceLow,
-      isBelowBuffer: balanceLow < safetyBuffer,
-      isDeficit: balanceLow < 0,
+      isBelowBuffer: balanceLowAfterDues < safetyBuffer || balanceLow < safetyBuffer,
+      isDeficit: balanceLowAfterDues < 0 || balanceLow < 0,
     });
   }
 
   // 5. Determine Overall Status Badge
+  // RISK if base balance < buffer on any date, WATCH if only low line is, else SAFE.
   let status = 'SAFE';
   if (firstRisk) {
     status = 'RISK';
@@ -422,30 +417,36 @@ export function calculateTimelineCashflow({
   } else {
     status = 'SAFE';
   }
-  // 6. Next Risk Date & Headline Metrics
+
+  // 6. Next Risk Date & Headline Metrics (Home must never say "No Shortfall" when dots are below buffer)
   let nextRiskDateFormatted = null;
   let nextRiskDays = null;
   let headlineMetric = '';
   let headlineLabel = '';
 
-  if (retainedPerDay < 0) {
+  if (firstRisk) {
+    nextRiskDays = firstRisk.day;
+    const riskDateObj = new Date(today);
+    riskDateObj.setDate(today.getDate() + nextRiskDays);
+    nextRiskDateFormatted = riskDateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+    headlineLabel = 'Next Risk Date';
+    headlineMetric = `${nextRiskDateFormatted} (in ${nextRiskDays}d)`;
+  } else if (firstLowRisk) {
+    const lowRiskDateObj = new Date(today);
+    lowRiskDateObj.setDate(today.getDate() + firstLowRisk.day);
+    const lowDateFormatted = lowRiskDateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+    headlineLabel = 'Downside Risk Watch';
+    headlineMetric = `${lowDateFormatted} (in ${firstLowRisk.day}d)`;
+  } else if (retainedPerDay < 0) {
     const runwayDay = timeline.findIndex((t) => t.balance <= 0);
     const daysLeft = runwayDay !== -1 ? runwayDay + 1 : horizonDays;
     headlineLabel = 'Estimated Cash Runway';
     headlineMetric = `${daysLeft} Days`;
   } else {
-    if (firstRisk) {
-      nextRiskDays = firstRisk.day;
-      const riskDateObj = new Date(today);
-      riskDateObj.setDate(today.getDate() + nextRiskDays);
-      nextRiskDateFormatted = riskDateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-
-      headlineLabel = 'Next Risk Date';
-      headlineMetric = `${nextRiskDateFormatted} (in ${nextRiskDays}d)`;
-    } else {
-      headlineLabel = 'Shortfall Horizon';
-      headlineMetric = 'No Shortfall in 60 Days';
-    }
+    headlineLabel = 'Shortfall Horizon';
+    headlineMetric = 'No Shortfall in 60 Days';
   }
 
   // Calculate 15-day upcoming total for informational display

@@ -15,6 +15,7 @@ import {
   getFixedExpensesDueWithin15Days,
   toggleFixedExpenseStatus,
   getStoredFixedExpenses,
+  getDueEvents,
 } from '../services/expenseSync';
 import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
 import { getRetainedCashBeforeDueDate } from '../services/contextAdjuster';
@@ -167,24 +168,29 @@ export default function UpcomingExpensesSection() {
     showToast(`Removed expense: ${title || 'Entry'}`);
   };
 
-  const handleToggleFixed = (fixedId, title) => {
-    toggleFixedExpenseStatus(fixedId);
+  const handleToggleFixed = (fixedId, title, dueDate) => {
+    toggleFixedExpenseStatus(fixedId, dueDate);
     showToast(`Marked "${title}" as paid in Monthly Fixed Expenses.`);
   };
 
-  // Combine manual upcoming expenses with auto-synced monthly fixed expenses
-  const combinedExpenses = useMemo(() => {
-    const list = [...upcomingExpenses, ...fixedExpensesDue];
-    list.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-    return list;
+  const handleMarkPayablePaid = (id, title) => {
+    setUpcomingExpenses((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status: 'Paid' } : item))
+    );
+    showToast(`Marked "${title}" as paid.`);
+  };
+
+  // Combine manual upcoming expenses with auto-synced monthly fixed expenses via unified getDueEvents
+  const dueEventsData = useMemo(() => {
+    return getDueEvents({
+      fixedExpenses: getStoredFixedExpenses(),
+      upcomingExpenses,
+      horizonDays: 15,
+    });
   }, [upcomingExpenses, fixedExpensesDue]);
 
-  const totalUpcoming = useMemo(() => {
-    return combinedExpenses.reduce(
-      (sum, item) => sum + Number(item.amount || 0),
-      0
-    );
-  }, [combinedExpenses]);
+  const combinedExpenses = dueEventsData.events;
+  const totalUpcoming = dueEventsData.duesWithin15Days;
 
   // Compute cashflow timeline to know the exact retained cash before each due date
   const cashflowTimeline = useMemo(() => {
@@ -415,20 +421,30 @@ export default function UpcomingExpensesSection() {
                     </div>
                     {item.isFixedMonthly ? (
                       <button
-                        onClick={() => handleToggleFixed(item.fixedId, item.title)}
+                        onClick={() => handleToggleFixed(item.fixedId, item.title, item.dueDate)}
                         className="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1.5 shadow-2xs"
                       >
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         <span>Mark Paid</span>
                       </button>
                     ) : (
-                      <button
-                        onClick={() => handleDeleteExpense(item.id, item.title)}
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer border border-rose-200"
-                        title="Remove expense"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleMarkPayablePaid(item.id, item.title)}
+                          className="min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs"
+                          title="Mark payable as paid"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Mark Paid</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteExpense(item.id, item.title)}
+                          className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer border border-rose-200"
+                          title="Remove expense"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -558,7 +574,7 @@ export default function UpcomingExpensesSection() {
                     <td className="py-3.5 px-4 text-center">
                       {item.isFixedMonthly ? (
                         <button
-                          onClick={() => handleToggleFixed(item.fixedId, item.title)}
+                          onClick={() => handleToggleFixed(item.fixedId, item.title, item.dueDate)}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs hover:scale-105"
                           title="Mark as paid in Monthly Fixed Expenses"
                         >
@@ -566,13 +582,23 @@ export default function UpcomingExpensesSection() {
                           <span>Mark Paid</span>
                         </button>
                       ) : (
-                        <button
-                          onClick={() => handleDeleteExpense(item.id, item.title)}
-                          className="p-1 rounded hover:bg-rose-50 text-neutral-300 hover:text-rose-500 transition-colors cursor-pointer"
-                          title="Remove expense"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="inline-flex items-center space-x-1.5">
+                          <button
+                            onClick={() => handleMarkPayablePaid(item.id, item.title)}
+                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs hover:scale-105"
+                            title="Mark payable as paid"
+                          >
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>Mark Paid</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteExpense(item.id, item.title)}
+                            className="p-1 rounded hover:bg-rose-50 text-neutral-300 hover:text-rose-500 transition-colors cursor-pointer"
+                            title="Remove expense"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>

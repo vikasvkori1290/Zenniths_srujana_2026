@@ -198,7 +198,32 @@ export function parseLocalSmartIntent(rawText) {
     };
   }
 
-  // 4. Check SUBTRACT: "remove 20rs from nitish", "subtract 50 from rahul", "nitish paid 30", "remove 20rs from id number 1"
+  // 4. Check SETTLE: "settle id 1", "nitish ka hisaab chukta", "settle account of rahul", "mark paid"
+  if (
+    lower.includes('settle') ||
+    lower.includes('chukta') ||
+    lower.includes('barabar') ||
+    lower.includes('mark paid') ||
+    lower.includes('clear account') ||
+    lower.includes('hisaab khatam')
+  ) {
+    const settleMatch = lower.match(/(?:settle|chukta|barabar|clear)\s+(?:the\s+account\s+of\s+|account\s+of\s+)?(?:id\s*(?:number)?\s*(\d+)|([a-zA-Z]+))/i);
+    const parsedId = settleMatch && settleMatch[1] ? parseInt(settleMatch[1], 10) : targetId;
+    const parsedName = settleMatch && settleMatch[2] ? capitalize(settleMatch[2]) : (parsedId ? `ID ${parsedId}` : name);
+    return {
+      action: 'SETTLE',
+      targetId: parsedId || null,
+      name: parsedName,
+      newName: null,
+      amount: null,
+      dueDate: null,
+      isCompleteRemove: false,
+      engine: 'Smart Local NLP (Fallback)',
+      isGroq: false,
+    };
+  }
+
+  // 5. Check SUBTRACT: "remove 20rs from nitish", "subtract 50 from rahul", "nitish paid 30", "remove 20rs from id number 1", "jama kiye", "jama karwaye"
   if (
     lower.includes('remove') ||
     lower.includes('subtract') ||
@@ -206,7 +231,11 @@ export function parseLocalSmartIntent(rawText) {
     lower.includes('minus') ||
     lower.includes('paid') ||
     lower.includes('ghatao') ||
-    lower.includes('de diye')
+    lower.includes('de diye') ||
+    lower.includes('jama kiye') ||
+    lower.includes('jama karwaye') ||
+    lower.includes('jama kiya') ||
+    lower.includes('wapas diye')
   ) {
     action = 'SUBTRACT';
   }

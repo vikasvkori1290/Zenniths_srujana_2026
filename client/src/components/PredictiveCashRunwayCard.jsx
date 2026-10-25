@@ -268,10 +268,19 @@ export default function PredictiveCashRunwayCard() {
   const minVal = useMemo(() => {
     if (timelinePoints.length === 0) return 0;
     const lowest = Math.min(
-      ...timelinePoints.map((d) => Math.min(d.balance, d.balanceLow || d.balance)),
+      ...timelinePoints.map((d) =>
+        Math.min(
+          d.balance,
+          d.balanceAfterDues ?? d.balance,
+          d.balanceLowAfterDues ?? d.balanceLow ?? d.balance
+        )
+      ),
       analytics.safetyBuffer || 1500
     );
-    return Math.max(0, lowest - 6000);
+    if (lowest < 0) {
+      return Math.floor((lowest - 2000) / 5000) * 5000;
+    }
+    return 0;
   }, [timelinePoints, analytics.safetyBuffer]);
 
   const maxVal = useMemo(() => {
@@ -291,28 +300,53 @@ export default function PredictiveCashRunwayCard() {
     paddingBottom -
     ((val - minVal) / Math.max(1, maxVal - minVal)) * (chartHeight - paddingTop - paddingBottom);
 
-  // Reference Y-axis guideline levels
+  // Reference Y-axis guideline levels (handling negative and positive ticks)
   const yAxisTicks = useMemo(() => {
     if (timelinePoints.length === 0) return [];
-    const step = (maxVal - minVal) / 3;
-    return [
-      { val: maxVal, label: `₹${Math.round(maxVal / 1000)}k` },
-      { val: minVal + step * 2, label: `₹${Math.round((minVal + step * 2) / 1000)}k` },
-      { val: minVal + step, label: `₹${Math.round((minVal + step) / 1000)}k` },
-    ];
+    const count = 4;
+    const step = (maxVal - minVal) / count;
+    const ticks = [];
+    for (let i = 0; i <= count; i++) {
+      const val = Math.round((minVal + step * i) / 1000) * 1000;
+      ticks.push({
+        val,
+        label: `${val < 0 ? '-' : ''}₹${Math.abs(Math.round(val / 1000))}k`,
+      });
+    }
+    return ticks;
   }, [minVal, maxVal, timelinePoints]);
 
-  // Base Forecast line path
+  const zeroLineY = getY(0);
+
+  // Base Forecast line path with vertical step drop on each due date
   const basePath = useMemo(() => {
     if (timelinePoints.length === 0) return '';
-    return timelinePoints.reduce((acc, p, i) => {
+    const commands = [];
+    timelinePoints.forEach((p, i) => {
       const x = getX(i);
-      const y = getY(p.balance);
-      return i === 0 ? `M ${x} ${y}` : `${acc} L ${x} ${y}`;
-    }, '');
+      if (i === 0) {
+        commands.push(`M ${x} ${getY(p.balanceBeforeDues ?? p.balance)}`);
+      }
+      if (p.hasDues) {
+        // Vertical step on that date: from balance before dues to balance after dues
+        const yBefore = getY(p.balanceBeforeDues);
+        const yAfter = getY(p.balanceAfterDues);
+        const yEnd = getY(p.balance);
+        if (i !== 0) {
+          commands.push(`L ${x} ${yBefore}`);
+        }
+        commands.push(`L ${x} ${yAfter}`);
+        if (yEnd !== yAfter) {
+          commands.push(`L ${x} ${yEnd}`);
+        }
+      } else {
+        commands.push(`L ${x} ${getY(p.balance)}`);
+      }
+    });
+    return commands.join(' ');
   }, [timelinePoints, minVal, maxVal]);
 
-  // Confidence Corridor (Low to High area)
+  // Confidence Corridor (Low to High area) with step drops
   const confidenceAreaPath = useMemo(() => {
     if (timelinePoints.length === 0) return '';
     const topPoints = [];
@@ -320,10 +354,33 @@ export default function PredictiveCashRunwayCard() {
 
     timelinePoints.forEach((p, i) => {
       const x = getX(i);
-      const yHigh = getY(p.balanceHigh ?? p.balance);
-      const yLow = getY(p.balanceLow ?? p.balance);
-      topPoints.push(`${x} ${yHigh}`);
-      bottomPoints.unshift(`${x} ${yLow}`);
+      if (p.hasDues) {
+        const yHighBefore = getY(p.balanceHighBeforeDues ?? p.balanceHigh ?? p.balance);
+        const yHighAfter = getY(p.balanceHighAfterDues ?? p.balanceHigh ?? p.balance);
+        const yHighEnd = getY(p.balanceHigh ?? p.balance);
+
+        const yLowBefore = getY(p.balanceLowBeforeDues ?? p.balanceLow ?? p.balance);
+        const yLowAfter = getY(p.balanceLowAfterDues ?? p.balanceLow ?? p.balance);
+        const yLowEnd = getY(p.balanceLow ?? p.balance);
+
+        if (i !== 0) {
+          topPoints.push(`${x} ${yHighBefore}`);
+          bottomPoints.unshift(`${x} ${yLowBefore}`);
+        }
+        topPoints.push(`${x} ${yHighAfter}`);
+        bottomPoints.unshift(`${x} ${yLowAfter}`);
+        if (yHighEnd !== yHighAfter) {
+          topPoints.push(`${x} ${yHighEnd}`);
+        }
+        if (yLowEnd !== yLowAfter) {
+          bottomPoints.unshift(`${x} ${yLowEnd}`);
+        }
+      } else {
+        const yHigh = getY(p.balanceHigh ?? p.balance);
+        const yLow = getY(p.balanceLow ?? p.balance);
+        topPoints.push(`${x} ${yHigh}`);
+        bottomPoints.unshift(`${x} ${yLow}`);
+      }
     });
 
     return `M ${topPoints[0]} L ${topPoints.join(' L ')} L ${bottomPoints.join(' L ')} Z`;
@@ -592,8 +649,16 @@ export default function PredictiveCashRunwayCard() {
               </div>
             )}
             <div className="flex items-center space-x-1.5">
-              <span className="w-2.5 h-2.5 bg-amber-100 border border-amber-300 rounded-xs"></span>
-              <span className="text-neutral-600">Event Window</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-yellow-500"></span>
+              <span className="text-neutral-700 font-semibold">Due (Safe &ge; Buffer)</span>
+            </div>
+            <div className="flex items-center space-x-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 border border-rose-600"></span>
+              <span className="text-rose-700 font-bold">Due (Breach &lt; Buffer)</span>
+            </div>
+            <div className="flex items-center space-x-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-emerald-600"></span>
+              <span className="text-emerald-700 font-semibold">Expected Khata</span>
             </div>
             <div className="flex items-center space-x-1.5">
               <span className="w-3 h-0.5 border-t border-dashed border-rose-500"></span>
@@ -649,9 +714,9 @@ export default function PredictiveCashRunwayCard() {
               );
             })}
 
-            {/* Shaded Event Window Bands */}
+            {/* Shaded Event Window Bands (Only for active adjusted event windows, never for 1.0) */}
             {timelinePoints.map((p, i) => {
-              if (!p.activeEvents || p.activeEvents.length === 0 || !isFestivalAdjustmentOn) return null;
+              if (!p.activeEvents || p.activeEvents.length === 0 || !p.isAdjusted || !isFestivalAdjustmentOn) return null;
               const xStart = Math.max(paddingLeft, getX(i) - 6);
               const xEnd = Math.min(chartWidth - paddingRight, getX(i) + 6);
               return (
@@ -676,7 +741,7 @@ export default function PredictiveCashRunwayCard() {
               );
             })}
 
-            {/* Safety Reserve Threshold Dashed Line & Badge */}
+            {/* Safety Reserve Threshold Dashed Line & Badge (Positioned on the left to prevent curve overlap) */}
             {safetyLineY >= paddingTop && safetyLineY <= chartHeight - paddingBottom && (
               <g>
                 <line
@@ -689,7 +754,7 @@ export default function PredictiveCashRunwayCard() {
                   strokeDasharray="4 3"
                 />
                 <rect
-                  x={chartWidth - paddingRight - 118}
+                  x={paddingLeft + 12}
                   y={safetyLineY - 14}
                   width="118"
                   height="14"
@@ -699,15 +764,51 @@ export default function PredictiveCashRunwayCard() {
                   strokeWidth="0.5"
                 />
                 <text
-                  x={chartWidth - paddingRight - 6}
+                  x={paddingLeft + 18}
                   y={safetyLineY - 3}
-                  textAnchor="end"
+                  textAnchor="start"
                   fontSize="9.5"
                   fontWeight="700"
                   fill="#e11d48"
                   fontFamily="sans-serif"
                 >
                   Buffer (₹{analytics.safetyBuffer.toLocaleString()})
+                </text>
+              </g>
+            )}
+
+            {/* Labelled ₹0 Baseline Axis (Explicitly rendered and labelled when Y extends negative) */}
+            {minVal < 0 && zeroLineY >= paddingTop && zeroLineY <= chartHeight - paddingBottom && (
+              <g>
+                <line
+                  x1={paddingLeft}
+                  y1={zeroLineY}
+                  x2={chartWidth - paddingRight}
+                  y2={zeroLineY}
+                  stroke="#6b7280"
+                  strokeWidth="1.5"
+                  strokeDasharray="3 3"
+                />
+                <rect
+                  x={chartWidth - paddingRight - 72}
+                  y={zeroLineY - 14}
+                  width="72"
+                  height="14"
+                  fill="#ffffff"
+                  rx="3"
+                  stroke="#9ca3af"
+                  strokeWidth="0.8"
+                />
+                <text
+                  x={chartWidth - paddingRight - 8}
+                  y={zeroLineY - 3}
+                  textAnchor="end"
+                  fontSize="9.5"
+                  fontWeight="700"
+                  fill="#374151"
+                  fontFamily="monospace"
+                >
+                  ₹0 Baseline
                 </text>
               </g>
             )}
@@ -780,13 +881,60 @@ export default function PredictiveCashRunwayCard() {
               );
             })}
 
-            {/* Interactive Data Point Handles */}
+            {/* Vertical Step Drop Lines on Due Dates (from Before to After Balance) */}
+            {timelinePoints.map((p, i) => {
+              if (!p.hasDues) return null;
+              const x = getX(i);
+              const yBefore = getY(p.balanceBeforeDues);
+              const yAfter = getY(p.balanceAfterDues);
+              const isBreach = p.balanceAfterDues < analytics.safetyBuffer;
+              const strokeColor = isBreach ? '#ef4444' : '#eab308';
+              return (
+                <g key={`step-vert-${i}`}>
+                  {/* Vertical drop line */}
+                  <line
+                    x1={x}
+                    y1={yBefore}
+                    x2={x}
+                    y2={yAfter}
+                    stroke={strokeColor}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  />
+                  {/* Downward triangle notch indicating deduction step */}
+                  <path
+                    d={`M ${x - 3.5} ${yAfter - 5} L ${x} ${yAfter} L ${x + 3.5} ${yAfter - 5}`}
+                    fill="none"
+                    stroke={strokeColor}
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </g>
+              );
+            })}
+
+            {/* Interactive Data Point Handles and Colored Markers */}
             {timelinePoints.map((p, i) => {
               const cx = getX(i);
-              const cy = getY(p.balance);
+              // On due date, place marker at the balance AFTER deduction; else at p.balance
+              const cy = p.hasDues ? getY(p.balanceAfterDues) : getY(p.balance);
               const isHovered = hoveredDayIndex === i;
-              const hasDue = p.dayDuesTotal > 0;
               const hasFestival = p.activeEvents && p.activeEvents.length > 0;
+
+              let isMarker = false;
+              let markerFill = null;
+
+              if (p.hasDues) {
+                isMarker = true;
+                markerFill = p.balanceAfterDues < analytics.safetyBuffer ? '#ef4444' : '#eab308';
+              } else if (p.hasKhata) {
+                isMarker = true;
+                markerFill = '#10b981';
+              } else if (isHovered || (hasFestival && isFestivalAdjustmentOn)) {
+                isMarker = true;
+                markerFill = '#f59e0b';
+              }
 
               return (
                 <g
@@ -797,7 +945,7 @@ export default function PredictiveCashRunwayCard() {
                   onTouchStart={() => setHoveredDayIndex(i)}
                   className="cursor-pointer"
                 >
-                  {/* Hit target for smooth hovering / tapping */}
+                  {/* Invisible hit target for smooth hover and tap */}
                   <rect
                     x={cx - 10}
                     y={paddingTop}
@@ -806,16 +954,49 @@ export default function PredictiveCashRunwayCard() {
                     fill="transparent"
                   />
 
-                  {/* Highlight point circle */}
-                  {(isHovered || hasDue || (hasFestival && isFestivalAdjustmentOn)) && (
-                    <circle
-                      cx={cx}
-                      cy={cy}
-                      r={isHovered ? 6 : hasDue ? 4.5 : 3}
-                      fill={hasDue ? '#f43f5e' : '#f59e0b'}
-                      stroke="#ffffff"
-                      strokeWidth={isHovered ? 2 : 1.5}
-                    />
+                  {/* Marker Circle with glow aura */}
+                  {isMarker && (
+                    <g>
+                      {/* Aura halo for critical points */}
+                      {p.hasDues && p.balanceAfterDues < analytics.safetyBuffer && (
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={isHovered ? 10 : 8}
+                          fill="#ef4444"
+                          opacity="0.25"
+                          className="animate-pulse"
+                        />
+                      )}
+                      {p.hasDues && p.balanceAfterDues >= analytics.safetyBuffer && (
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={isHovered ? 9 : 7}
+                          fill="#eab308"
+                          opacity="0.2"
+                        />
+                      )}
+                      {p.hasKhata && !p.hasDues && (
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={isHovered ? 8 : 6.5}
+                          fill="#10b981"
+                          opacity="0.25"
+                        />
+                      )}
+
+                      {/* Main marker circle */}
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={isHovered ? 6 : p.hasDues ? 5 : p.hasKhata ? 4.5 : 3.5}
+                        fill={markerFill}
+                        stroke="#ffffff"
+                        strokeWidth={isHovered ? 2 : 1.5}
+                      />
+                    </g>
                   )}
                 </g>
               );
@@ -824,37 +1005,110 @@ export default function PredictiveCashRunwayCard() {
 
           {/* Interactive Tooltip Card on Hover */}
           {hoveredPoint && (
-            <div className="mt-2 p-3 bg-neutral-900 text-white rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs border border-neutral-700 animate-in fade-in">
-              <div className="space-y-0.5">
-                <div className="flex items-center space-x-2">
-                  <span className="font-mono font-bold text-amber-400">
+            <div className="mt-3 p-4 bg-neutral-900 text-white rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs border border-neutral-700 shadow-xl animate-in fade-in">
+              <div className="space-y-2 flex-1">
+                {/* Header Tag Bar */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono font-bold text-amber-400 text-sm">
                     Day +{hoveredPoint.day} ({hoveredPoint.date})
                   </span>
+
+                  {hoveredPoint.hasDues && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                        hoveredPoint.balanceAfterDues < analytics.safetyBuffer
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
+                      }`}
+                    >
+                      <span>●</span>
+                      <span>
+                        {hoveredPoint.balanceAfterDues < analytics.safetyBuffer
+                          ? 'Buffer Breach'
+                          : 'Buffer Safe'}
+                      </span>
+                    </span>
+                  )}
+
+                  {hoveredPoint.hasKhata && (
+                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                      📥 Expected Khata Receipt
+                    </span>
+                  )}
+
                   {hoveredPoint.activeEvents?.length > 0 && isFestivalAdjustmentOn && (
-                    <span className="bg-amber-400/20 text-amber-300 font-bold px-1.5 py-0.2 rounded text-[10px]">
+                    <span className="bg-amber-400/20 text-yellow-300 font-bold px-2 py-0.5 rounded-full text-[10px] border border-yellow-400/30">
                       {hoveredPoint.activeEvents[0]}
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] text-neutral-300">
-                  Daily retained cash:{' '}
-                  <strong className="text-emerald-400 font-mono">
-                    {hoveredPoint.retainedBase >= 0 ? '+' : ''}₹{hoveredPoint.retainedBase.toLocaleString()}
-                  </strong>{' '}
-                  (from sales ₹{hoveredPoint.adjSalesBase.toLocaleString()} at multiplier ×{hoveredPoint.multBase})
+
+                {/* Dues Breakdown: Merged list, total, and balance step */}
+                {hoveredPoint.hasDues && (
+                  <div className="p-3 rounded-xl bg-neutral-800/90 border border-neutral-700/80 space-y-1.5">
+                    <div className="text-[11px] font-bold text-neutral-300 flex items-center justify-between">
+                      <span>
+                        {hoveredPoint.dayDues.length > 1
+                          ? `Scheduled Dues (${hoveredPoint.dayDues.length} items merged):`
+                          : 'Scheduled Due:'}
+                      </span>
+                      <span className="font-mono text-rose-400 font-extrabold text-xs">
+                        Total: ₹{hoveredPoint.dayDuesTotal.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="space-y-0.5 pl-1 text-[11px] text-neutral-300">
+                      {hoveredPoint.dayDues.map((due, idx) => (
+                        <div key={`due-tip-${idx}`} className="flex items-center justify-between font-mono">
+                          <span className="truncate mr-2">• {due.title}</span>
+                          <span className="text-neutral-400 shrink-0">₹{due.amount.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-2 mt-1 border-t border-neutral-700/60 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                      <span className="text-neutral-400">
+                        Balance Step: <strong className="font-mono text-white">₹{hoveredPoint.balanceBeforeDues.toLocaleString()}</strong> &rarr; <strong className={`font-mono ${hoveredPoint.balanceAfterDues < analytics.safetyBuffer ? 'text-rose-400' : 'text-yellow-300'}`}>₹{hoveredPoint.balanceAfterDues.toLocaleString()}</strong>
+                      </span>
+
+                      {hoveredPoint.balanceAfterDues < analytics.safetyBuffer ? (
+                        <span className="bg-rose-500/30 text-rose-300 border border-rose-500/50 px-2 py-0.5 rounded font-black font-mono">
+                          Arrange ₹{(analytics.safetyBuffer - hoveredPoint.balanceAfterDues).toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-yellow-400/90 font-medium">
+                          Cushion: +₹{(hoveredPoint.balanceAfterDues - analytics.safetyBuffer).toLocaleString()} above buffer
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Khata expected collection if present */}
+                {hoveredPoint.hasKhata && (
+                  <div className="text-[11px] text-emerald-400 flex items-center gap-1 font-mono">
+                    <span>Expected Khata Collection:</span>
+                    <strong>+₹{hoveredPoint.dayRecv.toLocaleString()}</strong>
+                  </div>
+                )}
+
+                {/* Retained cash note */}
+                <div className="text-[11px] text-neutral-400 font-sans">
+                  Today's Retained Cash: <strong className="text-emerald-400 font-mono">{hoveredPoint.retainedBase >= 0 ? '+' : ''}₹{hoveredPoint.retainedBase.toLocaleString()}</strong> (from sales ₹{hoveredPoint.adjSalesBase.toLocaleString()} at ×{hoveredPoint.multBase})
                 </div>
               </div>
 
-              <div className="text-right">
-                <span className="text-[10px] uppercase font-bold text-neutral-400 block">
-                  Projected Balance
+              {/* Right Column: Final Projected End-of-Day Balance */}
+              <div className="text-left md:text-right shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-neutral-800">
+                <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">
+                  End-of-Day Balance
                 </span>
-                <span className="font-extrabold font-mono text-sm text-yellow-300">
+                <span className="font-extrabold font-mono text-lg text-white">
                   ₹{hoveredPoint.balance.toLocaleString()}
-                </span>{' '}
+                </span>
                 {isFestivalAdjustmentOn && (
                   <span className="text-[10px] text-neutral-400 font-mono block">
-                    (range ₹{(hoveredPoint.balanceLow || hoveredPoint.balance).toLocaleString()} - ₹{(hoveredPoint.balanceHigh || hoveredPoint.balance).toLocaleString()})
+                    Range: ₹{(hoveredPoint.balanceLow || hoveredPoint.balance).toLocaleString()} - ₹{(hoveredPoint.balanceHigh || hoveredPoint.balance).toLocaleString()}
                   </span>
                 )}
               </div>
