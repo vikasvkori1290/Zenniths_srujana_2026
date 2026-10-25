@@ -255,7 +255,7 @@ export default function LoginPage({ onLoginSuccess }) {
       <div
         className={`w-full ${
           activeTab === 'register' ? 'max-w-xl p-4 sm:p-6' : 'max-w-md p-4 sm:p-7'
-        } bg-white rounded-3xl border border-neutral-200/90 shadow-2xl space-y-3.5 sm:space-y-4 relative max-h-[94vh] overflow-x-hidden overflow-y-auto transition-all duration-300 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
+        } bg-white rounded-3xl border border-neutral-200/90 shadow-2xl space-y-3.5 sm:space-y-4 relative max-h-[94vh] overflow-x-hidden overflow-y-auto transition-all duration-300 scrollbar-none [&::-webkit-scrollbar]:hidden`}
       >
         {/* Subtle decorative glow */}
         <div className="absolute -top-16 -right-16 w-36 h-36 bg-amber-300/20 rounded-full blur-2xl pointer-events-none"></div>
@@ -387,7 +387,7 @@ export default function LoginPage({ onLoginSuccess }) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 sm:py-2.5 min-h-[46px] rounded-xl bg-black hover:bg-neutral-800 text-yellow-300 font-bold text-sm sm:text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5 mt-2"
+              className="w-full py-3 sm:py-2.5 min-h-11.5 rounded-xl bg-black hover:bg-neutral-800 text-yellow-300 font-bold text-sm sm:text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5 mt-2"
             >
               <span>{loading ? 'Authenticating...' : 'Sign In to Dashboard'}</span>
               <ArrowRight className="w-4 h-4 stroke-[2.5]" />
@@ -553,7 +553,7 @@ export default function LoginPage({ onLoginSuccess }) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 sm:py-2.5 min-h-[46px] rounded-xl bg-black hover:bg-neutral-800 text-yellow-300 font-bold text-sm sm:text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 mt-2"
+              className="w-full py-3 sm:py-2.5 min-h-11.5 rounded-xl bg-black hover:bg-neutral-800 text-yellow-300 font-bold text-sm sm:text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 mt-2"
             >
               <span>{loading ? 'Setting up Merchant Portal...' : 'Create Merchant Account'}</span>
               <CheckCircle2 className="w-4 h-4" />
@@ -697,7 +697,7 @@ export default function LoginPage({ onLoginSuccess }) {
                     placeholder="123456"
                     value={resetOtp}
                     onChange={(e) => setResetOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="w-full text-center tracking-[0.35em] font-mono font-black text-lg sm:text-xl py-2.5 min-h-[46px] rounded-xl bg-neutral-50 border border-neutral-300 text-black focus:border-yellow-400 focus:bg-white outline-none"
+                    className="w-full text-center tracking-[0.35em] font-mono font-black text-lg sm:text-xl py-2.5 min-h-11.5 rounded-xl bg-neutral-50 border border-neutral-300 text-black focus:border-yellow-400 focus:bg-white outline-none"
                   />
                   <div className="flex items-center justify-between mt-2 text-[11px]">
                     <button
@@ -875,7 +875,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   placeholder="123456"
                   value={registerOtp}
                   onChange={(e) => setRegisterOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="w-full text-center tracking-[0.35em] font-mono font-black text-lg sm:text-xl py-2.5 min-h-[46px] rounded-xl bg-neutral-50 border border-neutral-300 text-black focus:border-yellow-400 focus:bg-white outline-none"
+                  className="w-full text-center tracking-[0.35em] font-mono font-black text-lg sm:text-xl py-2.5 min-h-11.5 rounded-xl bg-neutral-50 border border-neutral-300 text-black focus:border-yellow-400 focus:bg-white outline-none"
                 />
                 <div className="flex items-center justify-between mt-2 text-[11px]">
                   <span className="text-neutral-400">Code expires in 10 minutes</span>
