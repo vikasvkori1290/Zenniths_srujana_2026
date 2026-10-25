@@ -204,8 +204,8 @@ class SpeechService {
         break;
 
       case 'DELETE':
-        message = `Account for ${person} has been removed from your credit ledger.`;
-        break;
+        // Deletion voice feedback removed completely
+        return;
 
       default:
         message = `Updated ledger account for ${person}. Current balance is ${totalAmount || 0} rupees.`;

@@ -522,6 +522,38 @@ export function calculateTimelineCashflow({
 
   const today = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
 
+  // Pre-simulation: check if crediting only gross profit margin for Khata collections
+  // causes the expected balance to fall below safety buffer on any future day.
+  const isBreachDay = new Array(horizonDays + 1).fill(false);
+  {
+    let simBal = expectedModeStart;
+    for (let d = 1; d <= horizonDays; d++) {
+      const dDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + d);
+      const dateStr = toLocalDateString(dDate);
+      const dayBaseline = getBaselineSalesForDate(dDate, salesHistory, baselineSales);
+      const { base: mult } = getMultipliersForDate(dateStr, contextAdjustments, isFestivalAdjustmentOn);
+      const adjSales = Math.round(dayBaseline * mult);
+      const retained = Math.round(adjSales * marginFraction) - runningCost;
+
+      const dayDues = duesByDay[d] || [];
+      const duesTotal = dayDues.reduce((s, item) => s + item.amount, 0);
+
+      const balAfterDues = simBal - duesTotal;
+
+      const dayRecv = recvByDay[d] || 0;
+      const dayRecvBase = Math.round(dayRecv * 0.8);
+      // Pure gross profit from Khata:
+      const khataProfit = Math.round(dayRecvBase * marginFraction);
+
+      const balEnd = balAfterDues + retained + khataProfit;
+
+      if (balAfterDues < safetyBuffer || balEnd < safetyBuffer) {
+        isBreachDay[d] = true;
+      }
+      simBal = balEnd;
+    }
+  }
+
   let prevDaySales = todayReceivedSales > 0 ? todayReceivedSales : baselineSales;
   let prevDayGrossProfit = Math.round(prevDaySales * marginFraction);
 
@@ -565,15 +597,50 @@ export function calculateTimelineCashflow({
     cumRetainedLow += retainedLow;
     cumRetainedHigh += retainedHigh;
 
-    // eKhata expected collections weighted by scenario
+    // eKhata expected collections weighted by scenario:
+    // Domain rule: If there is an upcoming lower buffer breach within lookahead window,
+    // calculate the FULL Khata amount to protect the buffer (and auto-schedule stock deduction later).
+    // Otherwise, add ONLY the Gross Profit Margin (+margin%), preserving the rest for stock with NO restock deduction.
     const dayRecv = recvByDay[d] || 0;
     const dayRecvDetails = recvDetailsByDay[d] || [];
     const dayRecvBase = Math.round(dayRecv * 0.8);
     const dayRecvLow = Math.round(dayRecv * 0.4);
     const dayRecvHigh = Math.round(dayRecv * 1.0);
-    cumRecvBase += dayRecvBase;
-    cumRecvLow += dayRecvLow;
-    cumRecvHigh += dayRecvHigh;
+
+    let hasUpcomingBufferBreach = false;
+    if (dayRecv > 0) {
+      const lookaheadLimit = Math.min(horizonDays, d + 30);
+      for (let t = d; t <= lookaheadLimit; t++) {
+        if (isBreachDay[t]) {
+          hasUpcomingBufferBreach = true;
+          break;
+        }
+      }
+    }
+
+    const isKhataBufferProtecting = dayRecv > 0 && hasUpcomingBufferBreach;
+    const isKhataStockPreserved = dayRecv > 0 && !hasUpcomingBufferBreach;
+
+    const dayRecvCashBase = isKhataStockPreserved
+      ? Math.round(dayRecvBase * marginFraction)
+      : dayRecvBase;
+    const dayRecvCashLow = isKhataStockPreserved
+      ? Math.round(dayRecvLow * marginFraction)
+      : dayRecvLow;
+    const dayRecvCashHigh = isKhataStockPreserved
+      ? Math.round(dayRecvHigh * marginFraction)
+      : dayRecvHigh;
+
+    const khataStockPreservedAmount = isKhataStockPreserved
+      ? (dayRecvBase - dayRecvCashBase)
+      : 0;
+    const khataBorrowedStock = isKhataBufferProtecting
+      ? (dayRecvBase - Math.round(dayRecvBase * marginFraction))
+      : 0;
+
+    cumRecvBase += dayRecvCashBase;
+    cumRecvLow += dayRecvCashLow;
+    cumRecvHigh += dayRecvCashHigh;
 
     // Merge multiple dues on the same date into one list
     const dayDues = duesByDay[d] || [];
@@ -592,10 +659,10 @@ export function calculateTimelineCashflow({
     const highAfterDues = highBeforeDues - dayDuesTotal;
 
     // Add future retained cash and khata collections (IDENTICAL for reality and expected)
-    const realityEnd = realityAfterDues + retainedBase + dayRecvBase;
-    const expectedEnd = expectedAfterDues + retainedBase + dayRecvBase;
-    const lowEnd = lowAfterDues + retainedLow + dayRecvLow;
-    const highEnd = highAfterDues + retainedHigh + dayRecvHigh;
+    const realityEnd = realityAfterDues + retainedBase + dayRecvCashBase;
+    const expectedEnd = expectedAfterDues + retainedBase + dayRecvCashBase;
+    const lowEnd = lowAfterDues + retainedLow + dayRecvCashLow;
+    const highEnd = highAfterDues + retainedHigh + dayRecvCashHigh;
 
     currentRealityBalance = realityEnd;
     currentExpectedBalance = expectedEnd;
@@ -674,7 +741,12 @@ export function calculateTimelineCashflow({
       cumRecv: cumRecvBase,
       dayRecv,
       dayRecvBase,
+      dayRecvCash: dayRecvCashBase,
       dayRecvDetails,
+      isKhataBufferProtecting,
+      isKhataStockPreserved,
+      khataStockPreservedAmount,
+      khataBorrowedStock,
       dayDues,
       dayDuesTotal,
       cumDues,

@@ -10,6 +10,7 @@ import {
 import { getDueEvents } from '../expenseSync.js';
 import { simulateScenarioTimeline, compareMitigationResponses } from '../scenarioSimulator.js';
 import { evaluateStockReserveRestock } from '../stockReserveEngine.js';
+import { getDuesForTomorrow, evaluateAndNotifyTomorrowBills } from '../mobileNotificationService.js';
 
 describe('FinSafe Cash-Flow Engine & Retained Cash Specifications', () => {
   // Test 1: The worked example ₹8,000 → ₹1,500
@@ -1032,6 +1033,151 @@ describe('Stock-Reserve Logic & Auto-Scheduled Restock Specifications', () => {
   });
 });
 
+describe('Dynamic Khata Cash-Inflow & Stock Preservation Specifications', () => {
+  // Test 1: Safe Buffer -> Only Gross Profit Margin is credited, rest is kept for stock with NO restock deduction
+  it('Safe Buffer: When no upcoming due breaches the buffer, Khata collection credits ONLY the gross profit margin and schedules no restock', () => {
+    const result = calculateTimelineCashflow({
+      openingReceivedCash: 50000,
+      todayReceivedSales: 8000,
+      grossMarginPct: 30, // 30% margin
+      dailyRunningCost: 500,
+      safetyBuffer: 1500,
+      eKhataCustomersList: [
+        { id: 'c-1', name: 'Safe Khata Customer', totalAmount: 10000, dueDate: '2026-11-03' },
+      ],
+      startDate: new Date('2026-11-01'),
+      enableStockReserve: true,
+    });
 
+    // Day 2 (Nov 3): Khata collection arrives
+    const khataPoint = result.timeline[1];
+    assert.equal(khataPoint.hasKhata, true, 'Must detect Khata collection on Nov 3');
+    assert.equal(khataPoint.isKhataStockPreserved, true, 'Stock must be preserved when buffer is safe');
+    assert.equal(khataPoint.isKhataBufferProtecting, false, 'Must not flag as buffer-protecting emergency');
 
+    // 10,000 * 0.8 base = 8,000 weighted Khata. 30% margin = 2,400.
+    assert.equal(khataPoint.dayRecvCash, 2400, 'Only gross profit margin (₹2,400) should be added to cash');
+    assert.equal(khataPoint.khataStockPreservedAmount, 5600, '₹5,600 stock portion preserved in inventory');
+
+    // No auto-restock deduction scheduled because stock was preserved directly
+    assert.equal(result.stockReserve?.triggered, false, 'No restock should be scheduled when buffer is safe');
+  });
+
+  // Test 2: Buffer Breach Risk -> Full Khata amount is calculated, saving the buffer, and stock is deducted on safe day
+  it('Upcoming Buffer Risk: When an upcoming due breaches the buffer, FULL Khata amount is calculated to protect buffer and restock is scheduled', () => {
+    const result = calculateTimelineCashflow({
+      openingReceivedCash: 1500,
+      todayReceivedSales: 0,
+      grossMarginPct: 30, // 30% margin
+      dailyRunningCost: 500,
+      safetyBuffer: 1500,
+      eKhataCustomersList: [
+        // Day 1 (Nov 2): ₹10,000 Khata collection
+        { id: 'c-1', name: 'Emergency Khata', totalAmount: 10000, dueDate: '2026-11-02' },
+      ],
+      upcomingExpensesList: [
+        // Day 3 (Nov 4): ₹20,000 due that threatens buffer without full Khata collection
+        { id: 'up-1', title: 'Supplier Payment', amount: 20000, dueDate: '2026-11-04' },
+      ],
+      startDate: new Date('2026-11-01'),
+      enableStockReserve: true,
+    });
+
+    // Day 1 (Nov 2): Khata collection arrives
+    const khataPoint = result.timeline[0];
+    assert.equal(khataPoint.hasKhata, true, 'Khata present on Nov 2');
+    assert.equal(khataPoint.isKhataBufferProtecting, true, 'Must flag as buffer-protecting collection');
+    assert.equal(khataPoint.isKhataStockPreserved, false, 'Stock is borrowed to protect buffer');
+
+    // Full weighted Khata amount (8,000) added to cash to protect against Nov 4 due
+    assert.equal(khataPoint.dayRecvCash, 8000, 'Full Khata collection (₹8,000) calculated into cash');
+
+    // Stock reserve triggers auto-restock because borrowed stock was used to fund the due
+    assert.equal(result.stockReserve?.triggered, true, 'Auto-restock must trigger to replenish borrowed stock');
+    assert.ok(result.stockReserve?.restockAmount > 0, 'Restock amount must be scheduled');
+  });
+});
+
+describe('Mobile App: Tomorrow Bill Push Notification & Money Arrangement Specifications', () => {
+  const baseNow = new Date('2026-11-01'); // Nov 1
+
+  // Test 1: getDuesForTomorrow accurately picks up upcoming and fixed expenses due tomorrow
+  it('Detection: Identifies both upcoming payables and monthly fixed expenses due tomorrow, excluding Paid items', () => {
+    const fixedExpenses = [
+      { id: 'f-1', title: 'Shop Electricity', amount: 3000, dueDay: 2, status: 'Pending' }, // Nov 2 (tomorrow)
+      { id: 'f-2', title: 'Store Rent', amount: 15000, dueDay: 5, status: 'Pending' }, // Nov 5 (not tomorrow)
+      { id: 'f-3', title: 'Paid Equipment Lease', amount: 4000, dueDay: 2, status: 'Paid', paidMonths: ['2026-11'] }, // Paid
+    ];
+
+    const upcomingExpenses = [
+      { id: 'u-1', title: 'Milk & Dairy Vendor', amount: 7000, dueDate: '2026-11-02', status: 'Pending' }, // Nov 2 (tomorrow)
+      { id: 'u-2', title: 'Wholesale Rice Batch', amount: 12000, dueDate: '2026-11-06', status: 'Pending' }, // Nov 6 (not tomorrow)
+      { id: 'u-3', title: 'Paid Cleaning Supplies', amount: 800, dueDate: '2026-11-02', status: 'Paid' }, // Paid
+    ];
+
+    const result = getDuesForTomorrow({
+      fixedExpenses,
+      upcomingExpenses,
+      now: baseNow,
+    });
+
+    assert.equal(result.hasDueTomorrow, true, 'Must detect dues tomorrow');
+    assert.equal(result.tomorrowDues.length, 2, 'Should pick exactly 2 pending dues for tomorrow');
+    // Electricity (3000) + Milk & Dairy (7000) = 10,000
+    assert.equal(result.totalDueTomorrow, 10000, 'Total due tomorrow should be ₹10,000');
+    assert.ok(result.tomorrowDues.some((d) => d.title === 'Shop Electricity'));
+    assert.ok(result.tomorrowDues.some((d) => d.title === 'Milk & Dairy Vendor'));
+  });
+
+  // Test 2: Case A - Sufficient Cash: Bill due tomorrow is notified as covered safely
+  it('Case A (Sufficient Cash): Notifies merchant that bill is due tomorrow and cash balance covers it safely', async () => {
+    const tomorrowDues = [
+      { id: 'up-1', title: 'FMCG Vendor Batch', amount: 5000, dueDate: '2026-11-02' },
+    ];
+
+    const result = await evaluateAndNotifyTomorrowBills({
+      upcomingExpenses: tomorrowDues,
+      fixedExpenses: [],
+      currentCash: 12000, // 12,000 > 5,000 + 1,500 buffer
+      safetyBuffer: 1500,
+      now: baseNow,
+    });
+
+    assert.equal(result.hasDueTomorrow, true);
+    assert.equal(result.isSufficient, true, 'Cash must be evaluated as sufficient');
+    assert.equal(result.shortfall, 0, 'Shortfall must be 0');
+    assert.ok(result.notificationTitle.includes('Bill Due Tomorrow'), 'Title must announce bill due tomorrow');
+    assert.ok(result.notificationBody.includes('covers it safely'), 'Notification body must confirm cash covers it');
+  });
+
+  // Test 3: Case B - Shortfall / Not Enough Money: LLM / AI money arrangement advisory is generated
+  it('Case B (Shortfall): Detects cash deficit and produces AI money arrangement plan with specific customer Udhar recovery', async () => {
+    const tomorrowDues = [
+      { id: 'up-1', title: 'Grain Wholesale Order', amount: 15000, dueDate: '2026-11-02' },
+    ];
+
+    const ekhataCustomers = [
+      { id: 'c-1', name: 'Suresh Kirana', totalAmount: 8000, dueDate: '2026-10-31' },
+      { id: 'c-2', name: 'Anita Provisions', totalAmount: 6000, dueDate: '2026-11-01' },
+    ];
+
+    const result = await evaluateAndNotifyTomorrowBills({
+      upcomingExpenses: tomorrowDues,
+      fixedExpenses: [],
+      ekhataCustomers,
+      currentCash: 4000, // Shortage: (15,000 + 1,500) - 4,000 = 12,500 shortfall
+      safetyBuffer: 1500,
+      now: baseNow,
+      dailySales: { retainedCashPerDay: 1500 },
+    });
+
+    assert.equal(result.hasDueTomorrow, true);
+    assert.equal(result.isSufficient, false, 'Must identify cash shortage');
+    assert.ok(result.shortfall > 0, 'Shortfall must be greater than 0');
+    assert.ok(result.notificationTitle.includes('Shortfall'), 'Title must alert of shortfall');
+    assert.ok(result.actionSteps?.length >= 2, 'Must provide concrete money arrangement action steps');
+    // Checks that customer recovery advice is present in the action steps
+    assert.ok(result.actionSteps.some((step) => step.toLowerCase().includes('suresh') || step.toLowerCase().includes('collect') || step.toLowerCase().includes('udhar')));
+  });
+});
 

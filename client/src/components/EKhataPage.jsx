@@ -50,6 +50,8 @@ function WhatsAppIcon({ className = 'w-3.5 h-3.5' }) {
   );
 }
 
+const formatRupee = (val) => '₹' + Number(val || 0).toLocaleString('en-IN');
+
 export default function EKhataPage() {
   // Customer Khata Ledger
   const [khataList, setKhataList] = useState(() => {
@@ -566,11 +568,6 @@ export default function EKhataPage() {
           return prevList;
         }
         showFeedback(`🗑️ [${engineLabel}] Completely removed ${displayTarget} from the list.`, 'warning');
-        speechService.speakCrudConfirmation({
-          action: 'DELETE',
-          name: existing.name,
-          lang: voiceLanguage,
-        });
         return prevList.filter((c) => c.id !== existing.id);
       }
 
@@ -840,11 +837,6 @@ export default function EKhataPage() {
     if (window.confirm(`Delete ${name}'s Khata record?`)) {
       setKhataList((prev) => prev.filter((c) => c.id !== id));
       showFeedback(`Removed ${name} from Khata`, 'warning');
-      speechService.speakCrudConfirmation({
-        action: 'DELETE',
-        name,
-        lang: voiceLanguage,
-      });
     }
   };
 
@@ -985,7 +977,7 @@ Thank you for your business! 🙏
           date: dateStr,
           note: `Customer details updated (Phone: ${updatedPhone}, Due: ${updatedDueDate})`,
         },
-        ...editingCustomer.history,
+        ...(editingCustomer.history || []),
       ],
     };
 
@@ -2004,7 +1996,7 @@ Thank you for your business! 🙏
                       Current Due Balance
                     </span>
                     <span className="text-lg font-black font-mono" style={{ color: '#3D2E18' }}>
-                      {formatRupee(editingCustomer.balance || 0)}
+                      {formatRupee(editingCustomer.totalAmount ?? editingCustomer.balance ?? 0)}
                     </span>
                   </div>
 

@@ -880,4 +880,222 @@ router.post('/context-adjuster', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/v1/prediction/tomorrow-bill-advisory
+ * Evaluates bills due tomorrow against current cash.
+ * If cash is sufficient -> returns status: 'SUFFICIENT' with confirmation.
+ * If cash has a shortfall -> invokes LLM to generate actionable push notification + money arrangement plan.
+ */
+router.post('/tomorrow-bill-advisory', async (req, res) => {
+  try {
+    const {
+      tomorrowDues = [],
+      totalDueTomorrow = 0,
+      currentCash = 0,
+      safetyBuffer = 1500,
+      shortfall = 0,
+      ekhataPending = [],
+      businessName = 'FinSafe Store',
+      businessType = 'kirana',
+      dailySales = {},
+    } = req.body;
+
+    if (!Array.isArray(tomorrowDues) || tomorrowDues.length === 0) {
+      return res.json({
+        success: true,
+        hasDueTomorrow: false,
+        message: 'No bills or expenses due tomorrow.',
+      });
+    }
+
+    const calculatedShortfall = Math.max(0, Math.round((Number(totalDueTomorrow) + Number(safetyBuffer)) - Number(currentCash)));
+    const isSufficient = calculatedShortfall <= 0;
+
+    const primaryDueTitle = tomorrowDues.length === 1
+      ? tomorrowDues[0].title
+      : `${tomorrowDues[0].title} (+${tomorrowDues.length - 1} more)`;
+
+    // CASE 1: SUFFICIENT CASH - Bill is covered safely
+    if (isSufficient) {
+      return res.json({
+        success: true,
+        hasDueTomorrow: true,
+        isSufficient: true,
+        totalDueTomorrow: Number(totalDueTomorrow),
+        currentCash: Number(currentCash),
+        safetyBuffer: Number(safetyBuffer),
+        shortfall: 0,
+        primaryDueTitle,
+        tomorrowDues,
+        notificationTitle: `Bill Due Tomorrow: ₹${Number(totalDueTomorrow).toLocaleString('en-IN')}`,
+        notificationBody: `You have ${primaryDueTitle} (₹${Number(totalDueTomorrow).toLocaleString('en-IN')}) due tomorrow. Your cash balance (₹${Number(currentCash).toLocaleString('en-IN')}) covers it safely with your ₹${Number(safetyBuffer).toLocaleString('en-IN')} buffer safe.`,
+        actionSteps: [
+          `Confirm settlement mode (UPI / NetBanking / Cheque) for ${primaryDueTitle}.`,
+          `Your safety buffer of ₹${Number(safetyBuffer).toLocaleString('en-IN')} will remain completely protected after settlement.`,
+        ],
+        contingencyAdvice: 'No emergency action needed. All accounts healthy.',
+      });
+    }
+
+    // CASE 2: SHORTAGE - Call LLM for actionable Money Arrangement Plan
+    const groqKey = process.env.GROQ_API_KEY?.trim();
+    const nvidiaKey = process.env.NVIDIA_API_KEY?.trim();
+
+    const pendingUdharListStr = Array.isArray(ekhataPending) && ekhataPending.length > 0
+      ? ekhataPending.slice(0, 6).map((c, i) => `${i + 1}. ${c.name}: owes ₹${Number(c.amount || 0).toLocaleString('en-IN')} (Due: ${c.dueDate || 'Immediate'})`).join('\n')
+      : 'No pending customer credit recorded.';
+
+    const systemPrompt = `You are "FinSafe Cash Copilot", an expert working capital advisor for Indian retail shops and SMBs.
+A merchant has a crucial bill due TOMORROW and faces a cash shortage. You must analyze their pending customer Udhar (Khata receivables) and shop cash flow to formulate an immediate, practical, step-by-step money arrangement plan to pay the bill on time.
+
+CRITICAL RULES:
+1. Provide a short, punchy 1-2 sentence mobile notification text suitable for phone push alerts.
+2. Outline 3 numbered, high-impact action steps detailing EXACTLY who to contact, how much to collect from pending Udhar, and how to safely arrange the rest.
+3. Keep tone supportive, highly practical, and respectful.
+4. DO NOT use LaTeX or backslash symbols ($...$, \\text, etc.). Use plain ₹ symbol.
+5. Return ONLY a valid JSON object matching the exact schema:
+{
+  "notificationTitle": "⚠️ Bill Due Tomorrow: ₹...",
+  "notificationBody": "1-2 sentence alert with the immediate money arrangement action.",
+  "quickSummary": "Concise summary of the shortage and plan.",
+  "actionSteps": [
+    "Step 1: Specific customer recovery with name and amount",
+    "Step 2: Operational retained sales set-aside",
+    "Step 3: Supplier grace / bridge tactic"
+  ],
+  "contingencyAdvice": "Emergency backup option if recovery is delayed"
+}`;
+
+    const userPrompt = `MERCHANT LIVE SITUATION:
+- Store: ${businessName} (${businessType})
+- Bill Due Tomorrow: ₹${Number(totalDueTomorrow).toLocaleString('en-IN')} (${primaryDueTitle})
+- Current Liquid Cash: ₹${Number(currentCash).toLocaleString('en-IN')}
+- Required Safety Buffer: ₹${Number(safetyBuffer).toLocaleString('en-IN')}
+- Cash Shortfall: ₹${calculatedShortfall.toLocaleString('en-IN')} needed by tomorrow morning!
+- Daily Retained Cash Velocity: +₹${Number(dailySales?.retainedCashPerDay || 1500).toLocaleString('en-IN')}/day
+
+PENDING CUSTOMER UDHAR (KHATA RECEIVABLES TO RECOVER):
+${pendingUdharListStr}
+
+Please generate the urgent Money Arrangement Advisory in JSON.`;
+
+    let aiResult = null;
+
+    // Try Groq first for sub-second speed
+    if (groqKey) {
+      const groqModels = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
+      for (const gm of groqModels) {
+        try {
+          const resp = await fetch(GROQ_API_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${groqKey}`,
+            },
+            body: JSON.stringify({
+              model: gm,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+              ],
+              temperature: 0.2,
+              response_format: { type: 'json_object' },
+            }),
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            const content = data?.choices?.[0]?.message?.content;
+            if (content) {
+              aiResult = JSON.parse(content);
+              break;
+            }
+          }
+        } catch (gErr) {
+          console.warn(`[Groq ${gm} advisory error]:`, gErr.message);
+        }
+      }
+    }
+
+    // Try NVIDIA Nemotron if Groq was not used or failed
+    if (!aiResult && nvidiaKey) {
+      try {
+        const nvResp = await fetch(NVIDIA_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${nvidiaKey}`,
+          },
+          body: JSON.stringify({
+            model: 'nvidia/llama-3.1-nemotron-70b-instruct',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: 0.3,
+            max_tokens: 1024,
+          }),
+        });
+        if (nvResp.ok) {
+          const nvData = await nvResp.json();
+          const content = nvData?.choices?.[0]?.message?.content;
+          if (content) {
+            const cleanJson = content.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
+            aiResult = JSON.parse(cleanJson);
+          }
+        }
+      } catch (nvErr) {
+        console.warn('[NVIDIA Nemotron advisory error]:', nvErr.message);
+      }
+    }
+
+    // High quality deterministic fallback if AI key missing or network fails
+    if (!aiResult) {
+      const topDebtor = Array.isArray(ekhataPending) ? ekhataPending[0] : null;
+      const secondDebtor = Array.isArray(ekhataPending) ? ekhataPending[1] : null;
+      const debtorAdvice = topDebtor
+        ? `Request ₹${Math.min(calculatedShortfall, Number(topDebtor.amount || 0)).toLocaleString('en-IN')} from ${topDebtor.name} via morning UPI`
+        : 'Request early customer Udhar settlements';
+
+      aiResult = {
+        notificationTitle: `⚠️ Bill Due Tomorrow: ₹${Number(totalDueTomorrow).toLocaleString('en-IN')} (Shortfall ₹${calculatedShortfall.toLocaleString('en-IN')})`,
+        notificationBody: `Bill of ₹${Number(totalDueTomorrow).toLocaleString('en-IN')} due tomorrow with ₹${calculatedShortfall.toLocaleString('en-IN')} gap. Action: ${debtorAdvice} to protect safety buffer.`,
+        quickSummary: `Shortfall of ₹${calculatedShortfall.toLocaleString('en-IN')} detected for tomorrow's ${primaryDueTitle}. Recover pending customer credit immediately.`,
+        actionSteps: [
+          topDebtor
+            ? `Call ${topDebtor.name} (owes ₹${Number(topDebtor.amount || 0).toLocaleString('en-IN')}) to collect ₹${Math.min(calculatedShortfall, Number(topDebtor.amount || 0)).toLocaleString('en-IN')} before 11:00 AM.`
+            : `Collect ₹${calculatedShortfall.toLocaleString('en-IN')} from active customer Udhar accounts.`,
+          secondDebtor
+            ? `Follow up with ${secondDebtor.name} for ₹${Number(secondDebtor.amount || 0).toLocaleString('en-IN')} as an emergency cushion.`
+            : `Set aside today's evening retained sales (+₹${Number(dailySales?.retainedCashPerDay || 1500).toLocaleString('en-IN')}) directly for the bill.`,
+          `If cash is still short, contact ${primaryDueTitle} vendor today to arrange a 48-hour split settlement without penalty.`,
+        ],
+        contingencyAdvice: 'Request vendor to accept 50% tomorrow and remainder on weekend.',
+      };
+    }
+
+    return res.json({
+      success: true,
+      hasDueTomorrow: true,
+      isSufficient: false,
+      totalDueTomorrow: Number(totalDueTomorrow),
+      currentCash: Number(currentCash),
+      safetyBuffer: Number(safetyBuffer),
+      shortfall: calculatedShortfall,
+      primaryDueTitle,
+      tomorrowDues,
+      notificationTitle: stripLatex(aiResult.notificationTitle || `⚠️ Bill Due Tomorrow: ₹${Number(totalDueTomorrow).toLocaleString('en-IN')}`),
+      notificationBody: stripLatex(aiResult.notificationBody || `Shortfall of ₹${calculatedShortfall.toLocaleString('en-IN')} detected. Review arrangement plan.`),
+      quickSummary: stripLatex(aiResult.quickSummary || ''),
+      actionSteps: Array.isArray(aiResult.actionSteps) ? aiResult.actionSteps.map(stripLatex) : [],
+      contingencyAdvice: stripLatex(aiResult.contingencyAdvice || ''),
+    });
+  } catch (error) {
+    console.error('[Tomorrow Bill Advisory Error]:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error while evaluating tomorrow bills',
+    });
+  }
+});
+
 export default router;

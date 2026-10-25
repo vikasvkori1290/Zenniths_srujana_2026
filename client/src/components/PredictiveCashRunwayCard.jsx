@@ -1558,7 +1558,9 @@ export default function PredictiveCashRunwayCard() {
 
                   {hoveredPoint.hasKhata && (
                     <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                      📥 Expected Khata Receipt
+                      {hoveredPoint.isKhataStockPreserved
+                        ? `📥 Khata Profit Margin (+₹${(hoveredPoint.dayRecvCash ?? hoveredPoint.dayRecv).toLocaleString()})`
+                        : `📥 Khata Collection (Buffer Protection +₹${(hoveredPoint.dayRecvCash ?? hoveredPoint.dayRecv).toLocaleString()})`}
                     </span>
                   )}
 
@@ -1690,14 +1692,41 @@ export default function PredictiveCashRunwayCard() {
 
                 {/* Khata expected collection if present */}
                 {hoveredPoint.hasKhata && (
-                  <div className={`p-2.5 rounded-xl ${timelineMode === 'reality' ? 'bg-sky-950/40 border border-sky-500/30 text-sky-300' : 'bg-emerald-950/40 border border-emerald-500/30 text-emerald-300'} space-y-1`}>
+                  <div className={`p-2.5 rounded-xl ${timelineMode === 'reality' ? 'bg-sky-950/40 border border-sky-500/30 text-sky-300' : 'bg-emerald-950/40 border border-emerald-500/30 text-emerald-300'} space-y-1.5`}>
                     <div className="flex items-center justify-between text-[11px] font-mono">
                       <span className="font-semibold flex items-center gap-1.5">
                         <span>📥</span>
-                        <span>Expected Khata Collection:</span>
+                        <span>
+                          {hoveredPoint.isKhataStockPreserved
+                            ? 'Expected Khata Profit Credited:'
+                            : 'Expected Khata Collection:'}
+                        </span>
                       </span>
-                      <strong className="text-emerald-400 font-bold text-xs">+₹{hoveredPoint.dayRecv.toLocaleString()}</strong>
+                      <strong className="text-emerald-400 font-bold text-xs">
+                        +₹{(hoveredPoint.dayRecvCash ?? hoveredPoint.dayRecv).toLocaleString()}
+                      </strong>
                     </div>
+
+                    {hoveredPoint.isKhataStockPreserved ? (
+                      <div className="text-[10px] text-emerald-300/90 font-sans pt-1 border-t border-emerald-500/20 flex flex-wrap items-center justify-between gap-1">
+                        <span>
+                          {analytics.grossMarginPct}% gross margin added to cash
+                        </span>
+                        <span className="font-mono font-semibold text-emerald-400">
+                          ₹{(hoveredPoint.khataStockPreservedAmount ?? 0).toLocaleString()} kept for stock (no restock deduction)
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-amber-300/90 font-sans pt-1 border-t border-amber-500/20 flex flex-wrap items-center justify-between gap-1">
+                        <span>
+                          Full collection unlocked to protect safety buffer
+                        </span>
+                        <span className="font-mono font-semibold text-amber-300">
+                          Stock replenished later on safe day
+                        </span>
+                      </div>
+                    )}
+
                     {hoveredPoint.dayRecvDetails?.length > 0 && (
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-neutral-300 font-sans pt-1 border-t border-emerald-500/20">
                         {hoveredPoint.dayRecvDetails.map((item, idx) => (

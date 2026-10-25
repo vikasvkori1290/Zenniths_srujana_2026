@@ -152,7 +152,9 @@ export function evaluateStockReserveRestock({
   for (let i = 0; i < timeline.length; i++) {
     const pt = timeline[i];
     const day = pt.day;
-    const dayKhata = pt.dayRecv ?? pt.dayRecvBase ?? 0;
+    // If stock cost was preserved at collection time (only profit margin was credited),
+    // no stock money was borrowed, so do not count it towards auto-restock deduction.
+    const dayKhata = pt.isKhataStockPreserved ? 0 : (pt.dayRecv ?? pt.dayRecvBase ?? 0);
     cumKhata += dayKhata;
 
     const dayDuesTotal = pt.dayDuesTotal ?? 0;
