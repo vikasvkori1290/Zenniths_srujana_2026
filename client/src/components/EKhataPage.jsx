@@ -49,6 +49,8 @@ function WhatsAppIcon({ className = 'w-3.5 h-3.5' }) {
   );
 }
 
+const formatRupee = (val) => `₹${Number(val || 0).toLocaleString()}`;
+
 export default function EKhataPage() {
   // Customer Khata Ledger
   const [khataList, setKhataList] = useState(() => {
@@ -919,7 +921,7 @@ Thank you for your business! 🙏
           date: dateStr,
           note: `Customer details updated (Phone: ${updatedPhone}, Due: ${updatedDueDate})`,
         },
-        ...editingCustomer.history,
+        ...(editingCustomer.history || []),
       ],
     };
 
@@ -1492,7 +1494,10 @@ Thank you for your business! 🙏
                             <span className="font-semibold">{customer.phone}</span>
                           ) : (
                             <button
-                              onClick={() => setEditingCustomer(customer)}
+                              onClick={() => {
+                                setEditingCustomer({ ...customer });
+                                setEditTab('DETAILS');
+                              }}
                               className="text-amber-600 underline font-bold cursor-pointer"
                             >
                               + Add Phone
@@ -1664,7 +1669,10 @@ Thank you for your business! 🙏
                                   <span className="text-neutral-700 font-semibold">{customer.phone}</span>
                                 ) : (
                                   <button
-                                    onClick={() => setEditingCustomer(customer)}
+                                    onClick={() => {
+                                      setEditingCustomer({ ...customer });
+                                      setEditTab('DETAILS');
+                                    }}
                                     className="text-amber-600 hover:underline font-bold cursor-pointer"
                                   >
                                     + Add Phone
@@ -2036,7 +2044,7 @@ Thank you for your business! 🙏
                       Current Due Balance
                     </span>
                     <span className="text-lg font-black font-mono" style={{ color: '#3D2E18' }}>
-                      {formatRupee(editingCustomer.balance || 0)}
+                      {formatRupee(editingCustomer.totalAmount ?? editingCustomer.balance ?? 0)}
                     </span>
                   </div>
 
@@ -2163,8 +2171,8 @@ Thank you for your business! 🙏
                       <span>New Balance after this txn:</span>
                       <span className="font-mono font-black text-sm">
                         ₹{(newTxType === 'ADD'
-                          ? editingCustomer.totalAmount + Number(newTxAmount)
-                          : Math.max(0, editingCustomer.totalAmount - Number(newTxAmount))
+                          ? (Number(editingCustomer.totalAmount) || 0) + Number(newTxAmount)
+                          : Math.max(0, (Number(editingCustomer.totalAmount) || 0) - Number(newTxAmount))
                         ).toLocaleString()}
                       </span>
                     </div>
@@ -2205,7 +2213,7 @@ Thank you for your business! 🙏
                     <input
                       type="text"
                       required
-                      value={editingCustomer.name}
+                      value={editingCustomer.name || ''}
                       onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
                       className="w-full px-3 py-2.5 sm:py-2 rounded-xl text-black font-semibold text-base sm:text-xs outline-none border transition-all min-h-11 sm:min-h-0"
                       style={{ borderColor: '#3D2E18' }}

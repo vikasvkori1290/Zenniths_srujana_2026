@@ -442,7 +442,7 @@ export function calculateTimelineCashflow({
   const baselineSales = calculateBaselineSales({
     salesHistory,
     ownerTargetDailySales: Number(ownerTargetDailySales || 8000),
-    todayDateStr: new Date(startDate).toISOString().split('T')[0],
+    todayDateStr: toLocalDateString(startDate),
   });
 
   // 2. Retained cash today (Actual vs Expected)

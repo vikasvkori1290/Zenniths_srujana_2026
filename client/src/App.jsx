@@ -7,7 +7,10 @@ import FixedExpensesPage from './pages/FixedExpensesPage';
 import EKhataLedgerPage from './pages/EKhataLedgerPage';
 import ProfilePage from './pages/ProfilePage';
 import PredictionPage from './pages/PredictionPage';
+import ScenarioSimulatorPage from './pages/ScenarioSimulatorPage';
 import AuthPage from './pages/AuthPage';
+
+import ErrorBoundary from './components/ErrorBoundary';
 
 import { useAuth } from './context/AuthContext';
 
@@ -30,12 +33,13 @@ export default function App() {
   const { isAuthenticated } = useAuth();
 
   return (
-    <div className="min-h-screen bg-white text-neutral-900 flex flex-col selection:bg-amber-300 selection:text-black">
-      {/* Sleek Navigation Bar */}
-      <FinanceHeader />
+    <ErrorBoundary>
+      <div className="min-h-screen bg-white text-neutral-900 flex flex-col selection:bg-amber-300 selection:text-black">
+        {/* Sleek Navigation Bar */}
+        <FinanceHeader />
 
-      {/* Routed Main Content */}
-      <main className="flex-1 w-full bg-white pb-20 lg:pb-0">
+        {/* Routed Main Content */}
+        <main className="flex-1 w-full bg-white pb-20 lg:pb-0">
         <Routes>
           {/* Public Authentication Route */}
           <Route
@@ -103,6 +107,17 @@ export default function App() {
             }
           />
 
+          {/* 7. Cash Runway Scenario Simulator Page */}
+          <Route
+            path="/simulator"
+            element={
+              <ProtectedRoute>
+                <ScenarioSimulatorPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/scenario-simulator" element={<Navigate to="/simulator" replace />} />
+
           {/* Direct redirects */}
 
           <Route path="/overview" element={<Navigate to="/profile" replace />} />
@@ -115,5 +130,6 @@ export default function App() {
         </Routes>
       </main>
     </div>
+  </ErrorBoundary>
   );
 }

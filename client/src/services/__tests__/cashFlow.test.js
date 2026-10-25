@@ -8,6 +8,7 @@ import {
   DEFAULT_MARGINS_BY_TYPE,
 } from '../predictiveAnalytics.js';
 import { getDueEvents } from '../expenseSync.js';
+import { simulateScenarioTimeline, compareMitigationResponses } from '../scenarioSimulator.js';
 
 describe('FinSafe Cash-Flow Engine & Retained Cash Specifications', () => {
   // Test 1: The worked example ₹8,000 → ₹1,500
@@ -707,5 +708,78 @@ describe('User Explicit Verification Tests (Unified Cash Engine)', () => {
     assert.equal(recvByDay[16], 5000, 'Nov 10 receipt must be on Day 16');
   });
 });
+
+describe('Scenario Simulator & Response Comparison Specifications', () => {
+  const today = new Date('2026-10-25');
+  const baseParams = {
+    openingReceivedCash: 20000,
+    todayReceivedSales: 0,
+    grossMarginPct: 0,
+    dailyRunningCost: 0,
+    safetyBuffer: 1500,
+    fixedExpensesList: [],
+    upcomingExpensesList: [],
+    eKhataCustomersList: [
+      { id: 'c1', name: 'Alok', totalAmount: 5000, dueDate: '2026-10-26', avgDelayDays: 0 },
+    ],
+    horizonDays: 60,
+    startDate: today,
+    ownerTargetDailySales: 0,
+    salesHistory: [],
+    isFestivalAdjustmentOn: false,
+  };
+
+  it('Test 1: A 10-day khata delay moves receipts by 10 days', () => {
+    const sim = simulateScenarioTimeline(baseParams, { khataDelayDays: 10 });
+    // In baseline, customer c1 is on Day 1 (Oct 26)
+    assert.equal(sim.baseResult.timeline[0].dayRecv, 5000, 'Baseline Day 1 receipt should be 5000');
+    // In scenario with 10-day delay, Day 1 is 0 and Day 11 is 5000
+    assert.equal(sim.scenarioResult.timeline[0].dayRecv, 0, 'Scenario Day 1 receipt should be 0');
+    assert.equal(sim.scenarioResult.timeline[10].dayRecv, 5000, 'Scenario Day 11 (moved by 10 days) receipt must be 5000');
+  });
+
+  it('Test 2: A ₹30,000 expense on a date with ₹20,000 balance gives RISK with a ₹11,500 gap (buffer ₹1,500)', () => {
+    const sim = simulateScenarioTimeline(baseParams, {
+      unexpectedExpense: { amount: 30000, date: '2026-10-26' },
+    });
+    assert.equal(sim.status, 'RISK', 'Status must be RISK');
+    assert.equal(sim.minBalance, -10000, 'Min balance must drop to -₹10,000 (20k - 30k)');
+    assert.equal(sim.gap, 11500, 'Gap must be exactly ₹11,500 (buffer ₹1,500 - (-10,000))');
+  });
+
+  it('Test 3: The base line is unchanged when all controls are at zero', () => {
+    const sim = simulateScenarioTimeline(baseParams, {
+      khataDelayDays: 0,
+      salesDropPct: 0,
+      unexpectedExpense: { amount: 0, date: '' },
+      dueModification: { action: 'none' },
+    });
+    assert.equal(sim.baseResult.timeline.length, sim.scenarioResult.timeline.length);
+    for (let i = 0; i < sim.baseResult.timeline.length; i++) {
+      assert.equal(
+        sim.baseResult.timeline[i].expectedBalance,
+        sim.scenarioResult.timeline[i].expectedBalance,
+        `Day ${i + 1} expected balance must match baseline exactly`
+      );
+    }
+  });
+
+  it('Test 4: Compare responses panel highlights the lowest-cost action that clears shortage', () => {
+    const sim = simulateScenarioTimeline(baseParams, {
+      unexpectedExpense: { amount: 30000, date: '2026-10-26' },
+    });
+    const responses = compareMitigationResponses({
+      baseParams,
+      controls: { unexpectedExpense: { amount: 30000, date: '2026-10-26' } },
+      scenarioResult: sim.scenarioResult,
+      gap: sim.gap,
+      interestRatePct: 12,
+    });
+    assert.ok(responses.length >= 4, 'Must provide 4 standard mitigation actions');
+    const best = responses.find((r) => r.isBest);
+    assert.ok(best, 'Must identify and rank the best response');
+  });
+});
+
 
 
