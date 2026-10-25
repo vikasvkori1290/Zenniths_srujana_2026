@@ -10,6 +10,7 @@ import PredictionPage from './pages/PredictionPage';
 import ScenarioSimulatorPage from './pages/ScenarioSimulatorPage';
 import AuthPage from './pages/AuthPage';
 import HowItWorksPage from './pages/HowItWorksPage';
+import { isCapacitorNative, evaluateAndNotifyTomorrowBills } from './services/mobileNotificationService';
 
 import { useAuth } from './context/AuthContext';
 
@@ -50,6 +51,13 @@ export default function App() {
       document.documentElement.style.overflow = '';
     };
   }, [isFixedLayout]);
+
+  // On Native Mobile: Automatically evaluate and deliver push notification to status bar in background
+  React.useEffect(() => {
+    if (isCapacitorNative() && isAuthenticated) {
+      evaluateAndNotifyTomorrowBills({ forceNotification: false }).catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   return (
     <div className={`min-h-screen bg-white text-neutral-900 flex flex-col selection:bg-amber-300 selection:text-black ${isFixedLayout ? 'h-screen max-h-screen overflow-hidden' : ''}`}>

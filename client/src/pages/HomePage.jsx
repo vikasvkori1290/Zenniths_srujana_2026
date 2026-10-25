@@ -3,11 +3,10 @@ import PredictiveCashRunwayCard from '../components/PredictiveCashRunwayCard';
 import UpcomingExpensesSection from '../components/UpcomingExpensesSection';
 import EKhataReceivablesSection from '../components/EKhataReceivablesSection';
 import FirstTimeOnboardingModal from '../components/FirstTimeOnboardingModal';
-import TomorrowBillNotificationModal from '../components/TomorrowBillNotificationModal';
-import { Sliders, Sparkles, Package, AlertTriangle, ArrowRight, Bell, CheckCircle2 } from 'lucide-react';
+import { Sliders, Sparkles, Package, AlertTriangle, ArrowRight } from 'lucide-react';
 import { loadUserDataFromDb } from '../services/api';
 import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
-import { getStoredTomorrowBillAlert, evaluateAndNotifyTomorrowBills } from '../services/mobileNotificationService';
+import { evaluateAndNotifyTomorrowBills } from '../services/mobileNotificationService';
 
 export default function HomePage() {
   // Always ensure fresh data is loaded from MongoDB on page mount
@@ -51,11 +50,8 @@ export default function HomePage() {
     }
   }, [stockSyncKey]);
 
-  const [tomorrowAlert, setTomorrowAlert] = useState(() => getStoredTomorrowBillAlert());
-  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
-
   useEffect(() => {
-    // Automatically evaluate tomorrow's obligations against current cash
+    // Automatically evaluate tomorrow's obligations in background (triggers native mobile push notifications)
     const runEvaluation = async () => {
       try {
         const todayIncome = JSON.parse(localStorage.getItem('aurum_today_income') || '[]');
@@ -71,7 +67,7 @@ export default function HomePage() {
           isFestivalAdjustmentOn: isFestivalOn,
         });
 
-        const alertRes = await evaluateAndNotifyTomorrowBills({
+        await evaluateAndNotifyTomorrowBills({
           fixedExpenses: allFixed,
           upcomingExpenses: up,
           ekhataCustomers: khata,
@@ -83,21 +79,12 @@ export default function HomePage() {
             dailyRunningCost: analytics.dailyRunningCost,
           },
         });
-        setTomorrowAlert(alertRes);
       } catch (err) {
         console.warn('[Tomorrow Bill Auto-Evaluation Error]:', err);
       }
     };
 
     runEvaluation();
-
-    const handleAlertSync = () => setTomorrowAlert(getStoredTomorrowBillAlert());
-    window.addEventListener('aurum_tomorrow_bill_updated', handleAlertSync);
-    window.addEventListener('storage', handleAlertSync);
-    return () => {
-      window.removeEventListener('aurum_tomorrow_bill_updated', handleAlertSync);
-      window.removeEventListener('storage', handleAlertSync);
-    };
   }, [stockSyncKey]);
 
   const [showSetupBanner, setShowSetupBanner] = useState(() => {
@@ -151,71 +138,6 @@ export default function HomePage() {
               <Sliders className="w-3.5 h-3.5" />
               <span>Customize Store Financials</span>
             </button>
-          </div>
-        )}
-
-        {/* Tomorrow's Bill & Money Arrangement Notification Card */}
-        {tomorrowAlert?.hasDueTomorrow && (
-          <div
-            className={`p-4 sm:p-5 rounded-3xl border shadow-sm transition-all animate-in fade-in ${
-              tomorrowAlert.isSufficient
-                ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
-                : 'bg-linear-to-r from-amber-50 via-rose-50/70 to-amber-100/80 border-amber-400 text-neutral-900 shadow-md'
-            }`}
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-start space-x-3.5">
-                <div
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
-                    tomorrowAlert.isSufficient
-                      ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30'
-                      : 'bg-amber-500/20 text-amber-600 border-amber-500/40 animate-pulse'
-                  }`}
-                >
-                  {tomorrowAlert.isSufficient ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  ) : (
-                    <Bell className="w-5 h-5 text-amber-600" />
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-extrabold text-sm sm:text-base">
-                      {tomorrowAlert.notificationTitle}
-                    </span>
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                        tomorrowAlert.isSufficient
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                          : 'bg-rose-100 text-rose-800 border border-rose-300'
-                      }`}
-                    >
-                      {tomorrowAlert.isSufficient ? 'Covered by Cash' : 'Shortfall • Action Plan Ready'}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-neutral-700 leading-relaxed font-sans max-w-3xl">
-                    {tomorrowAlert.notificationBody}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-amber-200/60">
-                <button
-                  onClick={() => setIsAlertModalOpen(true)}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs hover:scale-102 transition-transform min-h-11 sm:min-h-0 w-full sm:w-auto ${
-                    tomorrowAlert.isSufficient
-                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                      : 'gold-button-gradient text-black border border-yellow-400'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{tomorrowAlert.isSufficient ? 'View Tomorrow Bill' : 'View AI Money Plan'}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
           </div>
         )}
 
@@ -313,13 +235,6 @@ export default function HomePage() {
           <EKhataReceivablesSection />
         </section>
       </div>
-
-      {/* Tomorrow Bill & LLM Money Arrangement Modal */}
-      <TomorrowBillNotificationModal
-        isOpen={isAlertModalOpen}
-        onClose={() => setIsAlertModalOpen(false)}
-        alertData={tomorrowAlert}
-      />
     </div>
   );
 }

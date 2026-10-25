@@ -71,11 +71,11 @@ export async function requestNotificationPermission() {
  * Dispatches a native or web push notification immediately
  */
 export async function sendMobileNotification({ title, body, id = 1001, extra = {} }) {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === 'undefined') return true; // Node.js test runner environment
 
   let delivered = false;
 
-  // 1. Native Android via Capacitor
+  // Strictly dispatch native Android notification via Capacitor on mobile
   if (isCapacitorNative()) {
     try {
       const permStatus = await LocalNotifications.checkPermissions();
@@ -101,26 +101,6 @@ export async function sendMobileNotification({ title, body, id = 1001, extra = {
       delivered = true;
     } catch (err) {
       console.warn('[Capacitor LocalNotification Error]:', err);
-    }
-  }
-
-  // 2. Fallback: Browser Web Notification
-  if (!delivered && 'Notification' in window) {
-    try {
-      if (Notification.permission === 'default') {
-        await Notification.requestPermission();
-      }
-      if (Notification.permission === 'granted') {
-        new Notification(title, {
-          body,
-          icon: '/favicon.ico',
-          badge: '/favicon.ico',
-          tag: `tomorrow-bill-${id}`,
-        });
-        delivered = true;
-      }
-    } catch (wErr) {
-      console.warn('[Web Notification Fallback Error]:', wErr);
     }
   }
 

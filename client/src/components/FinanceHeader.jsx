@@ -14,12 +14,9 @@ import {
   ArrowUpRight,
   Sparkles,
   Sliders,
-  Bell,
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
-import TomorrowBillNotificationModal from './TomorrowBillNotificationModal';
-import { getStoredTomorrowBillAlert, evaluateAndNotifyTomorrowBills } from '../services/mobileNotificationService';
 
 export default function FinanceHeader() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -70,21 +67,6 @@ export default function FinanceHeader() {
     return () => {
       window.removeEventListener('storage', handleProfileSync);
       window.removeEventListener('aurum_profile_updated', handleProfileSync);
-    };
-  }, []);
-
-  const [tomorrowAlert, setTomorrowAlert] = useState(() => getStoredTomorrowBillAlert());
-  const [isBillModalOpen, setIsBillModalOpen] = useState(false);
-
-  useEffect(() => {
-    const handleAlertSync = () => {
-      setTomorrowAlert(getStoredTomorrowBillAlert());
-    };
-    window.addEventListener('aurum_tomorrow_bill_updated', handleAlertSync);
-    window.addEventListener('storage', handleAlertSync);
-    return () => {
-      window.removeEventListener('aurum_tomorrow_bill_updated', handleAlertSync);
-      window.removeEventListener('storage', handleAlertSync);
     };
   }, []);
 
@@ -212,25 +194,6 @@ export default function FinanceHeader() {
             <span>How It Works</span>
           </Link>
 
-          {isAuthenticated && (
-            /* Tomorrow's Bill Alert Bell Button */
-            <button
-              type="button"
-              onClick={() => setIsBillModalOpen(true)}
-              title="Tomorrow's Bill Notifications & AI Advisory"
-              className="relative min-h-11 min-w-11 p-2 rounded-xl text-neutral-700 hover:text-black hover:bg-neutral-100 border border-neutral-200 flex items-center justify-center cursor-pointer transition-colors"
-            >
-              <Bell className="w-4 h-4 text-neutral-800" />
-              {tomorrowAlert?.hasDueTomorrow && (
-                <span
-                  className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
-                    tomorrowAlert.isSufficient ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'
-                  }`}
-                />
-              )}
-            </button>
-          )}
-
           {isAuthenticated ? (
             /* User Avatar & Dropdown */
             <div className="relative" ref={dropdownRef}>
@@ -251,15 +214,6 @@ export default function FinanceHeader() {
               {/* Dropdown Menu - Profile directing to /profile and Logout */}
               {isDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl border border-neutral-200 shadow-xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2">
-                  <Link
-                    to="/how-it-works"
-                    onClick={() => setIsDropdownOpen(false)}
-                    className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-neutral-800 hover:text-black hover:bg-neutral-100 flex items-center space-x-2 cursor-pointer transition-colors"
-                  >
-                    <BookOpen className="w-3.5 h-3.5 text-amber-600" />
-                    <span>How It Works (Story Page)</span>
-                  </Link>
-
                   <Link
                     to="/profile"
                     onClick={() => setIsDropdownOpen(false)}
@@ -490,13 +444,6 @@ export default function FinanceHeader() {
           </NavLink>
         </div>
       </nav>
-
-      {/* Tomorrow Bill & LLM Advisory Modal */}
-      <TomorrowBillNotificationModal
-        isOpen={isBillModalOpen}
-        onClose={() => setIsBillModalOpen(false)}
-        alertData={tomorrowAlert}
-      />
     </>
   );
 }
