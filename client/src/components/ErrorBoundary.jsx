@@ -29,7 +29,7 @@ export default class ErrorBoundary extends React.Component {
         <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-6 text-neutral-900">
           <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 border border-neutral-200 shadow-xl text-center space-y-4">
             <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shadow-xs">
-              <AlertCircle className="w-7 h-7 stroke-[2]" />
+              <AlertCircle className="w-7 h-7 stroke-2" />
             </div>
 
             <div>
@@ -42,7 +42,7 @@ export default class ErrorBoundary extends React.Component {
             </div>
 
             {this.state.error && (
-              <div className="p-3 rounded-xl bg-neutral-100 text-left font-mono text-[11px] text-neutral-700 max-h-28 overflow-y-auto border border-neutral-200 break-words">
+              <div className="p-3 rounded-xl bg-neutral-100 text-left font-mono text-[11px] text-neutral-700 max-h-28 overflow-y-auto border border-neutral-200 wrap-break-word">
                 {this.state.error.toString()}
               </div>
             )}

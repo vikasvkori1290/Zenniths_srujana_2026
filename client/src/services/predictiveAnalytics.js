@@ -905,7 +905,7 @@ export function calculatePredictiveCashRunway({
   const settings = customSettings || getStoredCashflowSettings();
 
   const totalTodayReceivedSales = (todayIncomeList || []).reduce(
-    (sum, item) => sum + Number(item.amount || 0),
+    (sum, item) => sum + Number(item.amount ?? item.total ?? (Number(item.cash || 0) + Number(item.upi || 0)) ?? 0),
     0
   );
 

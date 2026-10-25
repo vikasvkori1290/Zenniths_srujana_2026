@@ -191,7 +191,7 @@ export default function FinanceHeader() {
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 title={`${user?.name || 'Merchant'} • Profile & Logout`}
-                className={`min-h-[44px] min-w-[44px] px-2.5 rounded-xl font-black text-xs flex items-center justify-center space-x-1.5 transition-all cursor-pointer shadow-xs ${
+                className={`min-h-11 min-w-11 px-2.5 rounded-xl font-black text-xs flex items-center justify-center space-x-1.5 transition-all cursor-pointer shadow-xs ${
                   location.pathname === '/profile' || isDropdownOpen
                     ? 'bg-black text-yellow-300 ring-2 ring-yellow-400 shadow-md'
                     : 'bg-black text-yellow-300 border-2 border-yellow-400 hover:scale-102'
@@ -232,7 +232,7 @@ export default function FinanceHeader() {
             /* Sign In Button */
             <Link
               to="/login"
-              className="gold-button-gradient min-h-[44px] px-4 py-2 rounded-xl font-bold text-xs text-black border border-yellow-400 shadow-2xs flex items-center space-x-1.5 hover:scale-105 transition-transform"
+              className="gold-button-gradient min-h-11 px-4 py-2 rounded-xl font-bold text-xs text-black border border-yellow-400 shadow-2xs flex items-center space-x-1.5 hover:scale-105 transition-transform"
             >
               <LogIn className="w-4 h-4" />
               <span>Sign In</span>
@@ -242,7 +242,7 @@ export default function FinanceHeader() {
           {/* Mobile menu hamburger toggle button */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden min-h-[44px] min-w-[44px] p-2 rounded-xl text-neutral-700 hover:bg-neutral-100 border border-neutral-200 flex items-center justify-center cursor-pointer"
+            className="lg:hidden min-h-11 min-w-11 p-2 rounded-xl text-neutral-700 hover:bg-neutral-100 border border-neutral-200 flex items-center justify-center cursor-pointer"
             aria-label="Toggle navigation"
           >
             {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -260,7 +260,7 @@ export default function FinanceHeader() {
               end={link.path === '/'}
               onClick={() => setIsMobileMenuOpen(false)}
               className={({ isActive }) =>
-                `min-h-[44px] flex items-center px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                `min-h-11 flex items-center px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                   isActive
                     ? 'bg-neutral-100 text-black border border-neutral-300'
                     : 'text-neutral-600 hover:text-black hover:bg-neutral-50'
@@ -274,7 +274,7 @@ export default function FinanceHeader() {
             to="/fixed-expenses"
             onClick={() => setIsMobileMenuOpen(false)}
             className={({ isActive }) =>
-              `min-h-[44px] flex items-center px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              `min-h-11 flex items-center px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                 isActive
                   ? 'bg-neutral-100 text-black border border-neutral-300'
                   : 'text-neutral-600 hover:text-black hover:bg-neutral-50'
@@ -286,14 +286,14 @@ export default function FinanceHeader() {
           <NavLink
             to="/profile"
             onClick={() => setIsMobileMenuOpen(false)}
-            className="min-h-[44px] flex items-center px-4 py-2.5 rounded-xl text-xs font-bold text-neutral-600 hover:text-black hover:bg-neutral-50"
+            className="min-h-11 flex items-center px-4 py-2.5 rounded-xl text-xs font-bold text-neutral-600 hover:text-black hover:bg-neutral-50"
           >
             Profile & Overview
           </NavLink>
           <NavLink
             to="/ekhata"
             onClick={() => setIsMobileMenuOpen(false)}
-            className="min-h-[44px] flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-black bg-yellow-300 text-black border border-yellow-400 text-center shadow-xs"
+            className="min-h-11 flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-black bg-yellow-300 text-black border border-yellow-400 text-center shadow-xs"
           >
             eKhata Smart Ledger
           </NavLink>
@@ -312,7 +312,7 @@ export default function FinanceHeader() {
             to="/"
             end
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
+              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-11 ${
                 isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
               }`
             }
@@ -335,7 +335,7 @@ export default function FinanceHeader() {
           <NavLink
             to="/income"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
+              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-11 ${
                 isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
               }`
             }
@@ -358,7 +358,7 @@ export default function FinanceHeader() {
           <NavLink
             to="/ekhata"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
+              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-11 ${
                 isActive ? 'text-black font-extrabold' : 'text-neutral-600'
               }`
             }
@@ -383,7 +383,7 @@ export default function FinanceHeader() {
           <NavLink
             to="/prediction"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
+              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-11 ${
                 isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
               }`
             }
@@ -406,7 +406,7 @@ export default function FinanceHeader() {
           <NavLink
             to="/profile"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
+              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-11 ${
                 isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
               }`
             }

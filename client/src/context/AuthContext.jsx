@@ -273,6 +273,178 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Send OTP for Forgot Password
+  const sendPasswordResetOtp = async (identifier) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/forgot-password/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: identifier?.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to send OTP code');
+      }
+      return {
+        success: true,
+        message: data.message,
+        maskedEmail: data.maskedEmail,
+        email: data.email,
+        otpPreview: data.otpPreview,
+      };
+    } catch (err) {
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verify OTP for Forgot Password
+  const verifyPasswordResetOtp = async (identifier, otp) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/forgot-password/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: identifier?.trim(), otp: otp?.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Invalid verification code');
+      }
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reset Password with verified OTP
+  const resetPasswordWithOtp = async (identifier, otp, newPassword) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/forgot-password/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: identifier?.trim(), otp: otp?.trim(), newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Password reset failed');
+      }
+      if (data.token && data.user) {
+        setToken(data.token);
+        setUser(data.user);
+        localStorage.setItem('aurum_auth_token', data.token);
+        localStorage.setItem('aurum_auth_user', JSON.stringify(data.user));
+        try {
+          await loadUserDataFromDb();
+        } catch (e) {}
+      }
+      return { success: true, message: data.message, user: data.user };
+    } catch (err) {
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Registration Step 1: Send OTP to email
+  const sendRegisterOtp = async (userData) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/register/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to send registration OTP');
+      }
+      return {
+        success: true,
+        message: data.message,
+        maskedEmail: data.maskedEmail,
+        email: data.email,
+        otpPreview: data.otpPreview,
+      };
+    } catch (err) {
+      setAuthError(err.message);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Registration Step 2: Verify OTP and finalize account
+  const verifyRegisterOtp = async (email, otp) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/register/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email?.trim(), otp: otp?.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Verification failed');
+      }
+
+      // Clear previous demo / stale data
+      localStorage.setItem('aurum_ekhata_data', '[]');
+      localStorage.setItem('aurum_ekhata_customers', '[]');
+      localStorage.setItem('aurum_all_income_records', '[]');
+      localStorage.setItem('aurum_today_income', '[]');
+      localStorage.setItem('aurum_fixed_expenses', '[]');
+      localStorage.setItem('aurum_upcoming_expenses', '[]');
+      localStorage.setItem('aurum_other_receivables', '[]');
+      localStorage.removeItem('aurum_today_gross_profit_entered');
+      localStorage.removeItem('aurum_cashflow_settings');
+
+      const userProfile = {
+        name: data.user.name,
+        initials: data.user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2),
+        businessName: data.user.businessName,
+        businessType: data.user.businessType,
+        phone: data.user.phone ? String(data.user.phone).replace(/\D/g, '').slice(0, 10) : '9876543210',
+        email: data.user.email,
+        upiId: data.user.upiId || 'demo.store@okhdfcbank',
+        role: 'Owner & Primary Operator',
+        currency: '₹',
+        dailyGoal: data.user.dailyGoal || 10000,
+        joinedDate: 'October 2026',
+      };
+      localStorage.setItem('aurum_profile_info', JSON.stringify(userProfile));
+      localStorage.setItem('aurum_business_type', data.user.businessType || 'Retail');
+
+      setToken(data.token);
+      setUser(data.user);
+      localStorage.setItem('aurum_auth_token', data.token);
+      localStorage.setItem('aurum_auth_user', JSON.stringify(data.user));
+
+      window.dispatchEvent(new Event('aurum_ekhata_updated'));
+      window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
+      window.dispatchEvent(new Event('aurum_expenses_updated'));
+      window.dispatchEvent(new Event('aurum_income_updated'));
+      window.dispatchEvent(new Event('storage'));
+
+      return { success: true, user: data.user };
+    } catch (err) {
+      setAuthError(err.message);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -288,6 +460,11 @@ export function AuthProvider({ children }) {
         updateUser,
         updatePassword,
         forgotPassword,
+        sendPasswordResetOtp,
+        verifyPasswordResetOtp,
+        resetPasswordWithOtp,
+        sendRegisterOtp,
+        verifyRegisterOtp,
         setAuthError,
       }}
     >

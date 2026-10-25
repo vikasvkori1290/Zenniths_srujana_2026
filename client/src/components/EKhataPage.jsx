@@ -39,7 +39,7 @@ import {
 import { parseLocalSmartIntent, parseWithGroqAI, checkGroqStatus } from '../services/voiceParser';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 import { speechService } from '../services/speechSynthesis';
-import { syncEKhataListToDb } from '../services/api';
+import { syncEKhataListToDb, loadUserDataFromDb } from '../services/api';
 import { deduplicateEKhataCustomers } from '../services/expenseSync';
 
 function WhatsAppIcon({ className = 'w-3.5 h-3.5' }) {
@@ -168,6 +168,24 @@ export default function EKhataPage() {
   }, []);
 
   const isInitialMountRef = useRef(true);
+  const [isLoadingDb, setIsLoadingDb] = useState(true);
+
+  // On mount: ALWAYS ensure fresh eKhata data is fetched from MongoDB Atlas
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadDb() {
+      setIsLoadingDb(true);
+      const data = await loadUserDataFromDb();
+      if (!isCancelled && data && Array.isArray(data.ekhata)) {
+        setKhataList(deduplicateEKhataCustomers(data.ekhata));
+      }
+      if (!isCancelled) setIsLoadingDb(false);
+    }
+    loadDb();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   // Listen to external updates (e.g. from MongoDB Atlas load or other tabs)
   useEffect(() => {
@@ -197,8 +215,8 @@ export default function EKhataPage() {
 
   // Sync state to localStorage and MongoDB Atlas
   useEffect(() => {
-    if (isInitialMountRef.current) {
-      isInitialMountRef.current = false;
+    if (isLoadingDb || isInitialMountRef.current) {
+      if (!isLoadingDb) isInitialMountRef.current = false;
       return;
     }
     const cleanList = deduplicateEKhataCustomers(khataList);
@@ -210,7 +228,7 @@ export default function EKhataPage() {
       window.dispatchEvent(new Event('storage'));
     }
     syncEKhataListToDb(cleanList).catch(() => {});
-  }, [khataList]);
+  }, [khataList, isLoadingDb]);
 
   useEffect(() => {
     localStorage.setItem('ekhata_groq_key', groqKey);
@@ -1439,7 +1457,7 @@ Thank you for your business! 🙏
           {voiceTranscript && (
             <div className="flex items-center space-x-2 bg-neutral-950/80 border border-neutral-800 px-3 py-1.5 rounded-xl text-xs max-w-full sm:max-w-md shrink-0">
               <span className="text-[10px] font-bold uppercase text-amber-400 shrink-0">Heard:</span>
-              <span className="font-mono text-white text-[11px] truncate max-w-[160px] sm:max-w-[200px]">
+              <span className="font-mono text-white text-[11px] truncate max-w-40 sm:max-w-50">
                 {voiceTranscript}
               </span>
               {lastExtracted && lastExtracted.action && (lastExtracted.name || lastExtracted.targetId) && (

@@ -17,8 +17,8 @@ import {
 } from 'lucide-react';
 import { getStoredCashflowSettings, saveCashflowSettings } from '../services/predictiveAnalytics';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
-import { syncSettingsToDb, syncFixedExpensesToDb, syncDailyIncomeToDb } from '../services/api';
-import { deduplicateFixedExpenses } from '../services/expenseSync';
+import { syncSettingsToDb, syncFixedExpensesToDb, syncDailyIncomeToDb, syncProfileToDb } from '../services/api';
+import { deduplicateFixedExpenses, deduplicateDailyIncomeRecords } from '../services/expenseSync';
 
 const DEFAULT_FIXED_PRESETS = [];
 
@@ -34,9 +34,9 @@ export default function FirstTimeOnboardingModal({ isOpen: controlledIsOpen, onC
   const [businessType, setBusinessType] = useState('Retail');
 
   // Step 1: Cash Engine Settings
-  const [openingCash, setOpeningCash] = useState(0);
+  const [openingCash, setOpeningCash] = useState(40000);
   const [grossMarginPct, setGrossMarginPct] = useState(25);
-  const [dailyRunningCost, setDailyRunningCost] = useState(0);
+  const [dailyRunningCost, setDailyRunningCost] = useState(500);
 
   // Step 2: Fixed Expenses
   const [fixedList, setFixedList] = useState([]);
@@ -51,6 +51,20 @@ export default function FirstTimeOnboardingModal({ isOpen: controlledIsOpen, onC
     const checkSetup = () => {
       const needsSetup = localStorage.getItem('finsafe_first_time_setup') === 'true';
       if (needsSetup) {
+        const cur = getStoredCashflowSettings();
+        setOpeningCash(cur.openingCash || 40000);
+        setGrossMarginPct(cur.grossMarginPct || 25);
+        setDailyRunningCost(cur.dailyRunningCost || 500);
+
+        const savedFixed = localStorage.getItem('aurum_fixed_expenses');
+        if (savedFixed) {
+          try {
+            const parsed = JSON.parse(savedFixed);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setFixedList(parsed);
+            }
+          } catch (e) {}
+        }
         setIsOpen(true);
       }
     };
@@ -132,12 +146,14 @@ export default function FirstTimeOnboardingModal({ isOpen: controlledIsOpen, onC
 
   const totalMonthlyFixed = fixedList.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
-  const handleFinalSave = () => {
+  const handleFinalSave = async () => {
+    // 1. Settings
     const settingsPayload = {
       openingCash: Number(openingCash) || 0,
       grossMarginPct: Number(grossMarginPct) || 20,
       dailyRunningCost: Number(dailyRunningCost) || 0,
       ownerTargetDailySales: Number(dailyTarget) || 10000,
+      dailyGoal: Number(dailyTarget) || 10000,
     };
     saveCashflowSettings(settingsPayload);
     syncSettingsToDb(settingsPayload).catch((err) => {
@@ -167,22 +183,51 @@ export default function FirstTimeOnboardingModal({ isOpen: controlledIsOpen, onC
       const p = JSON.parse(localStorage.getItem('aurum_profile_info') || '{}');
       p.dailyGoal = Number(dailyTarget) || 10000;
       localStorage.setItem('aurum_profile_info', JSON.stringify(p));
+      syncProfileToDb({ dailyGoal: Number(dailyTarget) || 10000 }).catch(() => {});
     } catch (e) {}
 
-    // 4. If today sales entered, save to income
+    // 4. If today sales entered, save to income with proper amount, mode, and DB sync
     if (Number(cashSalesToday) > 0 || Number(upiSalesToday) > 0) {
-      const todayEntry = {
-        id: 'inc-setup-' + Date.now(),
-        date: new Date().toISOString().split('T')[0],
-        timestamp: new Date().toISOString(),
-        cash: Number(cashSalesToday) || 0,
-        upi: Number(upiSalesToday) || 0,
-        udhar: 0,
-        total: (Number(cashSalesToday) || 0) + (Number(upiSalesToday) || 0),
-        note: 'Opening sales recorded during store setup',
-      };
-      localStorage.setItem('aurum_today_income', JSON.stringify([todayEntry]));
-      syncDailyIncomeToDb([todayEntry]).catch((err) => {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      const newEntries = [];
+
+      if (Number(cashSalesToday) > 0) {
+        newEntries.push({
+          id: 'inc-cash-' + Date.now(),
+          date: todayStr,
+          source: 'Counter Cash Sales',
+          amount: Number(cashSalesToday),
+          mode: 'Cash',
+          time: timeStr,
+          category: 'In-Store Retail',
+          isConfirmed: true,
+          unconfirmed: false,
+        });
+      }
+
+      if (Number(upiSalesToday) > 0) {
+        newEntries.push({
+          id: 'inc-upi-' + (Date.now() + 1),
+          date: todayStr,
+          source: 'QR / UPI Sales',
+          amount: Number(upiSalesToday),
+          mode: 'UPI',
+          time: timeStr,
+          category: 'In-Store Retail',
+          isConfirmed: true,
+          unconfirmed: false,
+        });
+      }
+
+      const existingAll = JSON.parse(localStorage.getItem('aurum_all_income_records') || '[]');
+      const combinedAll = deduplicateDailyIncomeRecords([...newEntries, ...existingAll]);
+      localStorage.setItem('aurum_all_income_records', JSON.stringify(combinedAll));
+
+      const todayItems = combinedAll.filter((i) => i.date === todayStr);
+      localStorage.setItem('aurum_today_income', JSON.stringify(todayItems));
+
+      syncDailyIncomeToDb(combinedAll).catch((err) => {
         console.warn('Failed to sync income to DB:', err);
       });
       window.dispatchEvent(new Event('aurum_income_updated'));

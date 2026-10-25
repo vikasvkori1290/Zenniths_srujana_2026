@@ -24,7 +24,7 @@ import {
 import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
 import { getRetainedCashBeforeDueDate } from '../services/contextAdjuster';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
-import { syncUpcomingExpensesToDb } from '../services/api';
+import { syncUpcomingExpensesToDb, fetchUpcomingExpensesFromDb } from '../services/api';
 import {
   saveCustomRestock,
   clearCustomRestock,
@@ -32,7 +32,6 @@ import {
 } from '../services/stockReserveEngine';
 
 const DEFAULT_UPCOMING_EXPENSES = [];
-
 
 export default function UpcomingExpensesSection() {
   // 1. One-off / scheduled upcoming expenses
@@ -48,6 +47,7 @@ export default function UpcomingExpensesSection() {
     }
     return [];
   });
+  const [isLoadingDb, setIsLoadingDb] = useState(true);
 
   // 2. Auto-synced monthly fixed expenses due within 15 days
   const [fixedExpensesDue, setFixedExpensesDue] = useState(() =>
@@ -73,6 +73,23 @@ export default function UpcomingExpensesSection() {
     category: 'Supplier Dues',
   });
 
+  // On mount: ALWAYS fetch upcoming expenses directly from MongoDB Atlas
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadDb() {
+      setIsLoadingDb(true);
+      const items = await fetchUpcomingExpensesFromDb();
+      if (!isCancelled && items && Array.isArray(items)) {
+        setUpcomingExpenses(items);
+      }
+      if (!isCancelled) setIsLoadingDb(false);
+    }
+    loadDb();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
   // Listen for stock reserve engine updates
   useEffect(() => {
     const handleStockReserve = () => {
@@ -84,8 +101,9 @@ export default function UpcomingExpensesSection() {
     };
   }, []);
 
-  // Sync manual upcoming expenses to localStorage and MongoDB with loop guard
+  // Sync manual upcoming expenses to localStorage and MongoDB with loop & initial load guard
   useEffect(() => {
+    if (isLoadingDb) return; // Prevent overwriting MongoDB before initial fetch completes
     const clean = deduplicateUpcomingExpenses(upcomingExpenses);
     const serialized = JSON.stringify(clean);
     if (localStorage.getItem('aurum_upcoming_expenses') === serialized) return;
@@ -97,7 +115,7 @@ export default function UpcomingExpensesSection() {
     syncUpcomingExpensesToDb(clean).catch((err) => {
       console.warn('Failed to sync upcoming expenses to DB:', err);
     });
-  }, [upcomingExpenses]);
+  }, [upcomingExpenses, isLoadingDb]);
 
   // Sync fixed expenses due within 15 days whenever profile or fixed expenses change
   useEffect(() => {

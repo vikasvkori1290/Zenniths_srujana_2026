@@ -175,6 +175,28 @@ export async function syncUpcomingExpensesToDb(expenses) {
 }
 
 /**
+ * Directly fetch user's Upcoming Scheduled Payables from MongoDB Atlas
+ */
+export async function fetchUpcomingExpensesFromDb() {
+  try {
+    const res = await fetch(`${API_BASE}/finance/upcoming-expense`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json();
+    if (data.success && Array.isArray(data.upcomingExpenses)) {
+      const clean = deduplicateUpcomingExpenses(data.upcomingExpenses);
+      localStorage.setItem('aurum_upcoming_expenses', JSON.stringify(clean));
+      window.dispatchEvent(new Event('aurum_expenses_updated'));
+      window.dispatchEvent(new Event('storage'));
+      return clean;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch upcoming expenses from DB:', err);
+  }
+  return null;
+}
+
+/**
  * Directly fetch user's Fixed Expenses from MongoDB Atlas
  */
 export async function fetchFixedExpensesFromDb() {
@@ -255,12 +277,29 @@ export async function syncSettingsToDb(settings) {
 }
 
 /**
+ * Sync Merchant Business Profile updates to MongoDB Atlas
+ */
+export async function syncProfileToDb(profileData) {
+  try {
+    const res = await fetch(`${API_BASE}/finance/settings`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(profileData),
+    });
+    return await res.json();
+  } catch (err) {
+    console.warn('Failed to sync profile to DB:', err);
+    return { success: false };
+  }
+}
+
+/**
  * Load user's data from MongoDB Atlas into application state and clear hardcoded defaults
  */
 export async function loadUserDataFromDb() {
   const summaryRes = await getFinanceSummary();
   if (summaryRes && summaryRes.success && summaryRes.data) {
-    const { ekhata, fixedExpenses, upcomingExpenses, dailyIncome, cashflowSettings } = summaryRes.data;
+    const { ekhata, fixedExpenses, upcomingExpenses, dailyIncome, cashflowSettings, userProfile } = summaryRes.data;
 
     // Set eKhata (deduplicated)
     const cleanKhata = deduplicateEKhataCustomers(ekhata || []);
@@ -290,6 +329,37 @@ export async function loadUserDataFromDb() {
     if (cashflowSettings) {
       localStorage.setItem('aurum_cashflow_settings', JSON.stringify(cashflowSettings));
       window.dispatchEvent(new Event('aurum_cashflow_settings_updated'));
+    }
+
+    // Set user business profile if present
+    if (userProfile) {
+      const curProf = JSON.parse(localStorage.getItem('aurum_profile_info') || '{}');
+      const updatedProf = {
+        ...curProf,
+        name: userProfile.name || curProf.name,
+        businessName: userProfile.businessName || curProf.businessName,
+        businessType: userProfile.businessType || curProf.businessType,
+        dailyGoal: userProfile.dailyGoal !== undefined ? userProfile.dailyGoal : curProf.dailyGoal,
+        phone: userProfile.phone || curProf.phone,
+        email: userProfile.email || curProf.email,
+        upiId: userProfile.upiId || curProf.upiId,
+      };
+      localStorage.setItem('aurum_profile_info', JSON.stringify(updatedProf));
+      if (userProfile.businessType) {
+        localStorage.setItem('aurum_business_type', userProfile.businessType);
+      }
+      try {
+        const u = JSON.parse(localStorage.getItem('aurum_auth_user') || '{}');
+        u.name = userProfile.name || u.name;
+        u.businessName = userProfile.businessName || u.businessName;
+        u.businessType = userProfile.businessType || u.businessType;
+        u.dailyGoal = userProfile.dailyGoal !== undefined ? userProfile.dailyGoal : u.dailyGoal;
+        u.phone = userProfile.phone || u.phone;
+        u.upiId = userProfile.upiId || u.upiId;
+        localStorage.setItem('aurum_auth_user', JSON.stringify(u));
+      } catch (e) {}
+      window.dispatchEvent(new Event('aurum_profile_updated'));
+      window.dispatchEvent(new Event('aurum_business_type_updated'));
     }
 
     window.dispatchEvent(new Event('storage'));

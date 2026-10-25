@@ -6,6 +6,7 @@ import {
   deleteEKhataCustomer,
   getFixedExpenses,
   syncFixedExpenses,
+  getUpcomingExpenses,
   syncUpcomingExpenses,
   getDailyIncome,
   syncDailyIncome,
@@ -31,6 +32,7 @@ router.get('/fixed-expense', getFixedExpenses);
 router.post('/fixed-expense/sync', syncFixedExpenses);
 
 // 4. Upcoming Scheduled Payables Operations
+router.get('/upcoming-expense', getUpcomingExpenses);
 router.post('/upcoming-expense/sync', syncUpcomingExpenses);
 
 // 5. Daily Income Operations

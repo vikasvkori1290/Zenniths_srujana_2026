@@ -8,6 +8,23 @@ import { isDbConnected } from '../config/db.js';
 // Helper to get userId from req.user
 const getUserId = (req) => req.user?.id || req.user?._id || null;
 
+// Helper to build robust user query filter matching both string and ObjectId representations
+const buildUserFilter = (req, extraFilter = {}) => {
+  const uid = getUserId(req);
+  if (!uid) return { userId: null, ...extraFilter };
+  const strId = String(uid);
+  if (mongoose.isValidObjectId(strId)) {
+    return {
+      $or: [
+        { userId: strId },
+        { userId: new mongoose.Types.ObjectId(strId) },
+      ],
+      ...extraFilter,
+    };
+  }
+  return { userId: strId, ...extraFilter };
+};
+
 /**
  * Get comprehensive financial overview from MongoDB for the authenticated user
  * GET /api/v1/finance/summary
@@ -45,11 +62,12 @@ export const getFinanceSummary = async (req, res) => {
       });
     }
 
+    const userFilter = buildUserFilter(req);
     const [ekhata, fixed, upcoming, income, userRecord] = await Promise.all([
-      EKhataCustomer.find({ userId }).sort({ idNumber: 1 }),
-      FixedExpense.find({ userId }).sort({ dueDay: 1 }),
-      UpcomingExpense.find({ userId }).sort({ dueDate: 1 }),
-      DailyIncome.find({ userId }).sort({ date: -1, createdAt: -1 }).limit(100),
+      EKhataCustomer.find(userFilter).sort({ idNumber: 1 }),
+      FixedExpense.find(userFilter).sort({ dueDay: 1 }),
+      UpcomingExpense.find(userFilter).sort({ dueDate: 1 }),
+      DailyIncome.find(userFilter).sort({ date: -1, createdAt: -1 }).limit(100),
       mongoose.isValidObjectId(userId) ? User.findById(userId).select('-password') : null,
     ]);
 
@@ -170,9 +188,9 @@ export const saveEKhataCustomer = async (req, res) => {
     const num = Number(idNumber) || 1;
 
     const customer = await EKhataCustomer.findOneAndUpdate(
-      { userId, idNumber: num },
+      buildUserFilter(req, { idNumber: num }),
       {
-        userId,
+        userId: mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : userId,
         clientId: id || `khata-${num}`,
         name: name?.trim() || 'Customer',
         totalAmount: Number(totalAmount) || 0,
@@ -209,7 +227,7 @@ export const syncEKhataList = async (req, res) => {
     }
 
     // Replace all records for this user to keep exact state
-    await EKhataCustomer.deleteMany({ userId });
+    await EKhataCustomer.deleteMany(buildUserFilter(req));
 
     if (customers.length > 0) {
       const seenNames = new Map();
@@ -243,7 +261,7 @@ export const syncEKhataList = async (req, res) => {
         if (id) seenIds.add(id);
 
         const doc = {
-          userId,
+          userId: mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : userId,
           clientId: id || `khata-${cleanDocs.length + 1}`,
           idNumber: cleanDocs.length + 1,
           name: c.name?.trim() || `Customer #${cleanDocs.length + 1}`,
@@ -283,7 +301,7 @@ export const deleteEKhataCustomer = async (req, res) => {
     }
 
     const { idNumber } = req.params;
-    await EKhataCustomer.deleteOne({ userId, idNumber: Number(idNumber) });
+    await EKhataCustomer.deleteOne(buildUserFilter(req, { idNumber: Number(idNumber) }));
     return res.status(200).json({ success: true });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -327,11 +345,11 @@ export const syncFixedExpenses = async (req, res) => {
       cleanExpenses.push(e);
     }
 
-    await FixedExpense.deleteMany({ userId });
+    await FixedExpense.deleteMany(buildUserFilter(req));
 
     if (cleanExpenses.length > 0) {
       const docs = cleanExpenses.map((e, idx) => ({
-        userId,
+        userId: mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : userId,
         clientId: e.id || `fix-${idx + 1}`,
         title: e.title?.trim() || 'Monthly Expense',
         amount: Number(e.amount) || 0,
@@ -388,11 +406,11 @@ export const syncUpcomingExpenses = async (req, res) => {
       cleanExpenses.push(u);
     }
 
-    await UpcomingExpense.deleteMany({ userId });
+    await UpcomingExpense.deleteMany(buildUserFilter(req));
 
     if (cleanExpenses.length > 0) {
       const docs = cleanExpenses.map((e, idx) => ({
-        userId,
+        userId: mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : userId,
         clientId: e.id || `up-${idx + 1}`,
         title: e.title?.trim() || 'Payable',
         payee: e.payee || 'Vendor',
@@ -428,7 +446,7 @@ export const syncDailyIncome = async (req, res) => {
       return res.status(400).json({ success: false, message: 'records array required' });
     }
 
-    await DailyIncome.deleteMany({ userId });
+    await DailyIncome.deleteMany(buildUserFilter(req));
 
     if (records.length > 0) {
       const seenIncome = new Set();
@@ -440,7 +458,7 @@ export const syncDailyIncome = async (req, res) => {
         if (!seenIncome.has(key)) {
           seenIncome.add(key);
           docs.push({
-            userId,
+            userId: mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : userId,
             entryId: r.id || `inc-${docs.length + 1}`,
             date: r.date || new Date().toISOString().split('T')[0],
             source: r.source?.trim() || 'Daily Sales',
@@ -478,25 +496,86 @@ export const saveCashflowSettings = async (req, res) => {
       return res.status(200).json({ success: true, offline: true });
     }
 
-    const { openingCash, grossMarginPct, dailyRunningCost, ownerTargetDailySales, openingDate, dailyGoal, upiId } = req.body;
+    const {
+      openingCash,
+      grossMarginPct,
+      dailyRunningCost,
+      ownerTargetDailySales,
+      openingDate,
+      dailyGoal,
+      upiId,
+      name,
+      phone,
+      businessName,
+      businessType,
+    } = req.body;
 
-    const updateFields = {
-      cashflowSettings: {
+    const updateFields = {};
+
+    if (
+      openingCash !== undefined ||
+      grossMarginPct !== undefined ||
+      dailyRunningCost !== undefined ||
+      ownerTargetDailySales !== undefined ||
+      openingDate !== undefined
+    ) {
+      updateFields.cashflowSettings = {
         openingCash: Number(openingCash) || 0,
         grossMarginPct: Number(grossMarginPct) || 25,
         dailyRunningCost: Number(dailyRunningCost) || 0,
         ownerTargetDailySales: Number(ownerTargetDailySales) || 10000,
         openingDate: openingDate || new Date().toISOString().split('T')[0],
-      },
-    };
+      };
+    }
 
     if (dailyGoal !== undefined) updateFields.dailyGoal = Number(dailyGoal);
-    if (upiId !== undefined) updateFields.upiId = upiId.trim();
+    if (upiId !== undefined) updateFields.upiId = String(upiId).trim();
+    if (name !== undefined) updateFields.name = String(name).trim();
+    if (phone !== undefined) updateFields.phone = String(phone).trim();
+    if (businessName !== undefined) updateFields.businessName = String(businessName).trim();
+    if (businessType !== undefined) updateFields.businessType = String(businessType).trim();
 
-    const updatedUser = await User.findByIdAndUpdate(userId, updateFields, { new: true }).select('-password');
+    const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateFields }, { new: true }).select('-password');
     return res.status(200).json({ success: true, user: updatedUser });
   } catch (err) {
     console.error('[Save Settings Error]:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * Get Upcoming Scheduled Payables directly from MongoDB for the current user
+ * GET /api/v1/finance/upcoming-expense
+ */
+export const getUpcomingExpenses = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!isDbConnected() || !userId) {
+      return res.status(200).json({ success: true, offline: true, upcomingExpenses: [] });
+    }
+
+    const upcoming = await UpcomingExpense.find(buildUserFilter(req)).sort({ dueDate: 1 });
+    const seen = new Set();
+    const clean = [];
+    for (const u of upcoming) {
+      const key = `${u.title?.trim().toLowerCase()}__${u.dueDate}__${u.amount}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        clean.push({
+          id: u.clientId || `up-${u._id}`,
+          title: u.title,
+          payee: u.payee,
+          amount: u.amount,
+          dueDate: u.dueDate,
+          urgency: u.urgency,
+          category: u.category,
+          status: u.status,
+        });
+      }
+    }
+    return res.status(200).json({ success: true, upcomingExpenses: clean });
+  } catch (err) {
+    console.error('[Get Upcoming Expenses Error]:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -512,7 +591,7 @@ export const getFixedExpenses = async (req, res) => {
       return res.status(200).json({ success: true, offline: true, fixedExpenses: [] });
     }
 
-    const fixed = await FixedExpense.find({ userId }).sort({ dueDay: 1 });
+    const fixed = await FixedExpense.find(buildUserFilter(req)).sort({ dueDay: 1 });
     const seen = new Set();
     const clean = [];
     for (const f of fixed) {
@@ -549,7 +628,7 @@ export const getDailyIncome = async (req, res) => {
       return res.status(200).json({ success: true, offline: true, dailyIncome: [] });
     }
 
-    const income = await DailyIncome.find({ userId }).sort({ date: -1, createdAt: -1 });
+    const income = await DailyIncome.find(buildUserFilter(req)).sort({ date: -1, createdAt: -1 });
     const seen = new Set();
     const clean = [];
     for (const i of income) {

@@ -25,6 +25,7 @@ import {
 import FirstTimeOnboardingModal from '../components/FirstTimeOnboardingModal';
 import { useAuth } from '../context/AuthContext';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
+import { syncProfileToDb, loadUserDataFromDb } from '../services/api';
 
 const DEFAULT_DEMO_UPI = 'demo.store@okhdfcbank';
 
@@ -104,6 +105,11 @@ export default function ProfilePage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // Load fresh user profile data from MongoDB Atlas on mount
+  useEffect(() => {
+    loadUserDataFromDb().catch(() => {});
+  }, []);
+
   // Sync if auth user updates
   useEffect(() => {
     if (user) {
@@ -164,6 +170,9 @@ export default function ProfilePage() {
       localStorage.setItem('aurum_auth_user', JSON.stringify(u));
     } catch (err) {}
 
+    // Persist immediately to MongoDB Atlas
+    syncProfileToDb({ name: updated.name, phone: updated.phone }).catch(() => {});
+
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new Event('aurum_profile_updated'));
     setIsEditModalOpen(false);
@@ -198,6 +207,14 @@ export default function ProfilePage() {
       window.dispatchEvent(new Event('storage'));
     }
 
+    // Persist immediately to MongoDB Atlas
+    syncProfileToDb({
+      businessName: updated.businessName,
+      businessType: updated.businessType,
+      dailyGoal: updated.dailyGoal,
+      upiId: updated.upiId,
+    }).catch(() => {});
+
     setIsEditModalOpen(false);
     showToast('Store details updated successfully!');
   };
@@ -215,6 +232,10 @@ export default function ProfilePage() {
       u.upiId = cleaned;
       localStorage.setItem('aurum_auth_user', JSON.stringify(u));
     } catch (err) {}
+
+    // Persist immediately to MongoDB Atlas
+    syncProfileToDb({ upiId: cleaned }).catch(() => {});
+
     setIsUpiModalOpen(false);
     showToast(`Merchant UPI ID saved: ${cleaned}`);
   };
@@ -326,7 +347,7 @@ export default function ProfilePage() {
                   {/* Personal Email Address */}
                   <span className="flex items-center space-x-1.5 bg-white/95 border border-neutral-300/80 px-2 py-0.5 rounded-lg font-medium">
                     <Mail className="w-3 h-3 text-neutral-500 shrink-0" />
-                    <span className="truncate max-w-[220px]">{profile.email}</span>
+                    <span className="truncate max-w-55">{profile.email}</span>
                   </span>
                 </div>
               </div>
@@ -374,7 +395,7 @@ export default function ProfilePage() {
           {/* CARD A: STORE IDENTITY & DETAILS (EQUAL 50% WIDTH)      */}
           {/* ------------------------------------------------------- */}
           <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-neutral-200/90 shadow-2xs flex flex-col justify-start overflow-hidden">
-            <div className="flex items-center justify-between pb-2.5 border-b border-neutral-100 min-h-[42px]">
+            <div className="flex items-center justify-between pb-2.5 border-b border-neutral-100 min-h-10.5">
               <div className="flex items-center space-x-2">
                 <div className="w-7 h-7 rounded-lg bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-900">
                   <Store className="w-3.5 h-3.5 text-amber-900" />
@@ -460,7 +481,7 @@ export default function ProfilePage() {
           {/* ------------------------------------------------------- */}
           <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-neutral-200/90 shadow-2xs flex flex-col justify-start overflow-hidden">
             <div>
-              <div className="flex items-center justify-between pb-2.5 border-b border-neutral-100 min-h-[42px]">
+              <div className="flex items-center justify-between pb-2.5 border-b border-neutral-100 min-h-10.5">
                 <div className="flex items-center space-x-2">
                   <div className="w-7 h-7 rounded-lg bg-yellow-100 border border-yellow-300 flex items-center justify-center text-black">
                     <KeyRound className="w-3.5 h-3.5 text-black" />
@@ -698,7 +719,7 @@ export default function ProfilePage() {
                       placeholder="Full Name"
                       value={profileForm.name}
                       onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                      className="w-full pl-9 pr-3 py-2.5 min-h-10.5 rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
                     />
                   </div>
                 </div>
@@ -721,7 +742,7 @@ export default function ProfilePage() {
                         const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
                         setProfileForm({ ...profileForm, phone: digits });
                       }}
-                      className="w-full pl-16 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs font-mono font-bold text-black focus:border-yellow-400 focus:bg-white outline-none"
+                      className="w-full pl-16 pr-3 py-2.5 min-h-10.5 rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs font-mono font-bold text-black focus:border-yellow-400 focus:bg-white outline-none"
                     />
                   </div>
                   <span className="text-[10px] text-neutral-400 mt-1 block">
@@ -742,7 +763,7 @@ export default function ProfilePage() {
                       placeholder="name@business.com"
                       value={profileForm.email}
                       onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                      className="w-full pl-9 pr-3 py-2.5 min-h-10.5 rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
                     />
                   </div>
                 </div>
@@ -795,7 +816,7 @@ export default function ProfilePage() {
                       placeholder="Store / Enterprise Name"
                       value={profileForm.businessName}
                       onChange={(e) => setProfileForm({ ...profileForm, businessName: e.target.value })}
-                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                      className="w-full pl-9 pr-3 py-2.5 min-h-10.5 rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
                     />
                   </div>
                 </div>
@@ -810,7 +831,7 @@ export default function ProfilePage() {
                     <select
                       value={profileForm.businessType || 'Retail Store / General'}
                       onChange={(e) => setProfileForm({ ...profileForm, businessType: e.target.value })}
-                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none font-medium cursor-pointer"
+                      className="w-full pl-9 pr-3 py-2.5 min-h-10.5 rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none font-medium cursor-pointer"
                     >
                       <option value="Retail Store / General">Retail Store & Supermarket</option>
                       <option value="Kirana / Groceries">Kirana / Provision Store</option>
@@ -841,7 +862,7 @@ export default function ProfilePage() {
                       placeholder="Daily target in ₹"
                       value={profileForm.dailyGoal || 20000}
                       onChange={(e) => setProfileForm({ ...profileForm, dailyGoal: Number(e.target.value) })}
-                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs font-mono font-bold text-black focus:border-yellow-400 focus:bg-white outline-none"
+                      className="w-full pl-9 pr-3 py-2.5 min-h-10.5 rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs font-mono font-bold text-black focus:border-yellow-400 focus:bg-white outline-none"
                     />
                   </div>
                 </div>
@@ -858,7 +879,7 @@ export default function ProfilePage() {
                       placeholder={DEFAULT_DEMO_UPI}
                       value={profileForm.upiId}
                       onChange={(e) => setProfileForm({ ...profileForm, upiId: e.target.value })}
-                      className="w-full pl-9 pr-3 py-2.5 min-h-[42px] rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs font-mono font-semibold text-black focus:border-yellow-400 focus:bg-white outline-none"
+                      className="w-full pl-9 pr-3 py-2.5 min-h-10.5 rounded-xl bg-neutral-50 border border-neutral-200 text-sm sm:text-xs font-mono font-semibold text-black focus:border-yellow-400 focus:bg-white outline-none"
                     />
                   </div>
                   <span className="text-[10px] text-neutral-400 mt-1 block">
