@@ -19,6 +19,7 @@ import {
 
 import { useAuth } from '../context/AuthContext';
 import TomorrowBillNotificationModal from './TomorrowBillNotificationModal';
+import HowItWorksStoryModal from './HowItWorksStoryModal';
 import { getStoredTomorrowBillAlert, evaluateAndNotifyTomorrowBills } from '../services/mobileNotificationService';
 
 export default function FinanceHeader() {
@@ -75,6 +76,7 @@ export default function FinanceHeader() {
 
   const [tomorrowAlert, setTomorrowAlert] = useState(() => getStoredTomorrowBillAlert());
   const [isBillModalOpen, setIsBillModalOpen] = useState(false);
+  const [isStoryModalOpen, setIsStoryModalOpen] = useState(false);
 
   useEffect(() => {
     const handleAlertSync = () => {
@@ -202,6 +204,17 @@ export default function FinanceHeader() {
 
         {/* Right Info / User context */}
         <div className="flex items-center space-x-2.5 text-xs">
+          {/* How It Works Story Button */}
+          <button
+            type="button"
+            onClick={() => setIsStoryModalOpen(true)}
+            title="How FinSafe Works: Nitish's Story & Buffer Rules"
+            className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold text-neutral-700 hover:text-black hover:bg-neutral-100 border border-neutral-200 cursor-pointer transition-colors shadow-2xs"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+            <span>How It Works</span>
+          </button>
+
           {isAuthenticated && (
             /* Tomorrow's Bill Alert Bell Button */
             <button
@@ -241,6 +254,18 @@ export default function FinanceHeader() {
               {/* Dropdown Menu - Profile directing to /profile and Logout */}
               {isDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl border border-neutral-200 shadow-xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      setIsStoryModalOpen(true);
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-neutral-800 hover:text-black hover:bg-neutral-100 flex items-center space-x-2 cursor-pointer transition-colors"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                    <span>How It Works (Story)</span>
+                  </button>
+
                   <Link
                     to="/profile"
                     onClick={() => setIsDropdownOpen(false)}
@@ -327,6 +352,17 @@ export default function FinanceHeader() {
           >
             Profile & Overview
           </NavLink>
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              setIsStoryModalOpen(true);
+            }}
+            className="min-h-11 w-full text-left flex items-center px-4 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 space-x-2"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+            <span>How FinSafe Works (Story)</span>
+          </button>
           <NavLink
             to="/ekhata"
             onClick={() => setIsMobileMenuOpen(false)}
@@ -469,6 +505,12 @@ export default function FinanceHeader() {
         isOpen={isBillModalOpen}
         onClose={() => setIsBillModalOpen(false)}
         alertData={tomorrowAlert}
+      />
+
+      {/* How It Works Story & Rules Modal */}
+      <HowItWorksStoryModal
+        isOpen={isStoryModalOpen}
+        onClose={() => setIsStoryModalOpen(false)}
       />
     </>
   );

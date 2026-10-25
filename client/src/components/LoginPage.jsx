@@ -17,9 +17,11 @@ import {
   KeyRound,
   RefreshCw,
   Sparkles,
+  BookOpen,
   X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import HowItWorksStoryModal from './HowItWorksStoryModal';
 
 export default function LoginPage({ onLoginSuccess }) {
   const {
@@ -75,6 +77,7 @@ export default function LoginPage({ onLoginSuccess }) {
   });
 
   const [demoLoading, setDemoLoading] = useState(false);
+  const [isStoryModalOpen, setIsStoryModalOpen] = useState(false);
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
@@ -293,6 +296,15 @@ export default function LoginPage({ onLoginSuccess }) {
             <span className="text-[10px] font-bold text-amber-800 bg-amber-200/70 px-1.5 py-0.2 rounded">
               Predictive Cash
             </span>
+            <button
+              type="button"
+              onClick={() => setIsStoryModalOpen(true)}
+              className="text-[10px] font-bold text-amber-950 bg-amber-200/90 hover:bg-amber-300 px-2 py-0.5 rounded-full flex items-center space-x-1 cursor-pointer transition-colors ml-1 shadow-2xs"
+              title="Click to read Nitish's story: base cash, profit, low buffer, and how the app works"
+            >
+              <BookOpen className="w-2.5 h-2.5 text-amber-950" />
+              <span>How It Works</span>
+            </button>
           </div>
 
           <h1 className="text-xl sm:text-2xl font-black text-black font-['Outfit'] tracking-tight">
@@ -417,21 +429,34 @@ export default function LoginPage({ onLoginSuccess }) {
             <div className="relative flex items-center justify-center pt-1.5">
               <div className="border-t border-neutral-200 w-full"></div>
               <span className="bg-white px-2.5 text-[10px] uppercase font-bold tracking-wider text-neutral-400">
-                Or Quick Access
+                Or Quick Access & Story
               </span>
             </div>
 
-            <button
-              type="button"
-              disabled={loading || demoLoading}
-              onClick={handleDemoLogin}
-              className="w-full py-2.5 sm:py-2 min-h-11 rounded-xl bg-amber-50 hover:bg-amber-100/90 border border-amber-300 text-amber-950 font-bold text-xs shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-2"
-            >
-              <Sparkles className="w-4 h-4 text-amber-600 fill-amber-300" />
-              <span>
-                {demoLoading ? 'Logging into Demo...' : 'Demo Login (nin46642@gmail.com)'}
-              </span>
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={loading || demoLoading}
+                onClick={handleDemoLogin}
+                className="w-full py-2.5 sm:py-2 min-h-11 rounded-xl bg-amber-50 hover:bg-amber-100/90 border border-amber-300 text-amber-950 font-bold text-xs shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                title="1-Click Demo Login as Nitish Kumar (nin46642@gmail.com)"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-600 fill-amber-300 shrink-0" />
+                <span>
+                  {demoLoading ? 'Logging In...' : 'Demo Login'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsStoryModalOpen(true)}
+                className="w-full py-2.5 sm:py-2 min-h-11 rounded-xl bg-neutral-900 hover:bg-black text-yellow-300 border border-neutral-800 font-bold text-xs shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                title="See how FinSafe works: Nitish's daily profit, base cash, low buffer rules & features"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-yellow-300 shrink-0" />
+                <span>How It Works (Story)</span>
+              </button>
+            </div>
           </form>
         ) : (
           /* ===================== TAB 2: CREATE ACCOUNT (PROFESSIONAL REGISTERING PAGE) ===================== */
@@ -952,6 +977,14 @@ export default function LoginPage({ onLoginSuccess }) {
           </div>
         </div>
       )}
+
+      {/* ===================== HOW IT WORKS STORY MODAL ===================== */}
+      <HowItWorksStoryModal
+        isOpen={isStoryModalOpen}
+        onClose={() => setIsStoryModalOpen(false)}
+        onDemoLogin={handleDemoLogin}
+        demoLoading={demoLoading}
+      />
     </div>
   );
 }
