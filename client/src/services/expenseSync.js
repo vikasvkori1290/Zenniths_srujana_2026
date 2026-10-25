@@ -6,7 +6,63 @@
 export const DEFAULT_FIXED_EXPENSES = [];
 
 /**
- * Retrieve raw stored fixed expenses from localStorage or default
+ * Deduplicate fixed expenses by unique id or (title + dueDay + amount) composite key
+ */
+export function deduplicateFixedExpenses(list) {
+  if (!Array.isArray(list)) return [];
+  const seenIds = new Set();
+  const seenComposite = new Set();
+  const unique = [];
+
+  for (const item of list) {
+    if (!item) continue;
+    const id = item.id || item.clientId;
+    const titleNorm = String(item.title || '').trim().toLowerCase();
+    const dueDay = Number(item.dueDay) || 1;
+    const amount = Number(item.amount) || 0;
+    const compositeKey = `${titleNorm}__${dueDay}__${amount}`;
+
+    if (id && seenIds.has(id)) continue;
+    if (compositeKey && seenComposite.has(compositeKey)) continue;
+
+    if (id) seenIds.add(id);
+    seenComposite.add(compositeKey);
+    unique.push(item);
+  }
+
+  return unique;
+}
+
+/**
+ * Deduplicate upcoming payables by unique id or (title + dueDate + amount) composite key
+ */
+export function deduplicateUpcomingExpenses(list) {
+  if (!Array.isArray(list)) return [];
+  const seenIds = new Set();
+  const seenComposite = new Set();
+  const unique = [];
+
+  for (const item of list) {
+    if (!item) continue;
+    const id = item.id || item.clientId;
+    const titleNorm = String(item.title || '').trim().toLowerCase();
+    const dueDate = String(item.dueDate || '').trim();
+    const amount = Number(item.amount) || 0;
+    const compositeKey = `${titleNorm}__${dueDate}__${amount}`;
+
+    if (id && seenIds.has(id)) continue;
+    if (compositeKey && seenComposite.has(compositeKey)) continue;
+
+    if (id) seenIds.add(id);
+    seenComposite.add(compositeKey);
+    unique.push(item);
+  }
+
+  return unique;
+}
+
+/**
+ * Retrieve raw stored fixed expenses from localStorage or default, with auto-deduplication
  */
 export function getStoredFixedExpenses() {
   if (typeof window === 'undefined') return [];
@@ -14,7 +70,14 @@ export function getStoredFixedExpenses() {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        const clean = deduplicateFixedExpenses(parsed);
+        // If duplicates were pruned, update localStorage silently
+        if (clean.length !== parsed.length) {
+          localStorage.setItem('aurum_fixed_expenses', JSON.stringify(clean));
+        }
+        return clean;
+      }
     } catch (e) {
       console.warn('Failed to parse aurum_fixed_expenses', e);
     }
@@ -26,7 +89,7 @@ export function getStoredFixedExpenses() {
  * Calculate which monthly fixed expenses are due within 15 days from today
  */
 export function getFixedExpensesDueWithin15Days(fixedExpenses = null) {
-  const items = fixedExpenses || getStoredFixedExpenses();
+  const items = deduplicateFixedExpenses(fixedExpenses || getStoredFixedExpenses());
   if (!Array.isArray(items)) return [];
 
   const now = new Date();
@@ -133,18 +196,20 @@ export function getDueEvents(dateRange = {}) {
     ? new Date(options.endDate)
     : new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate() + horizonDays);
 
-  const fixedList = Array.isArray(options.fixedExpenses)
-    ? options.fixedExpenses
-    : getStoredFixedExpenses();
+  const fixedList = deduplicateFixedExpenses(
+    Array.isArray(options.fixedExpenses)
+      ? options.fixedExpenses
+      : getStoredFixedExpenses()
+  );
 
   let upcomingList = [];
   if (Array.isArray(options.upcomingExpenses)) {
-    upcomingList = options.upcomingExpenses;
+    upcomingList = deduplicateUpcomingExpenses(options.upcomingExpenses);
   } else if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('aurum_upcoming_expenses');
     if (saved) {
       try {
-        upcomingList = JSON.parse(saved) || [];
+        upcomingList = deduplicateUpcomingExpenses(JSON.parse(saved) || []);
       } catch (e) {}
     }
   }

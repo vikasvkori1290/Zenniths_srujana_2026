@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { getFixedExpensesDueWithin15Days } from '../services/expenseSync';
-import { syncFixedExpensesToDb, syncUpcomingExpensesToDb, syncSettingsToDb } from '../services/api';
+import {
+  getFixedExpensesDueWithin15Days,
+  getStoredFixedExpenses,
+  deduplicateFixedExpenses,
+  deduplicateUpcomingExpenses,
+} from '../services/expenseSync';
+import {
+  syncFixedExpensesToDb,
+  syncUpcomingExpensesToDb,
+  syncSettingsToDb,
+  loadUserDataFromDb,
+} from '../services/api';
 import {
   User,
   IndianRupee,
@@ -80,16 +90,7 @@ export default function ProfileDashboard({ setActivePage }) {
   // ----------------------------------------------------
   // 3. Monthly Fixed Expenses State (Rent, EMI, etc.)
   // ----------------------------------------------------
-  const [fixedExpenses, setFixedExpenses] = useState(() => {
-    const saved = localStorage.getItem('aurum_fixed_expenses');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      } catch (e) {}
-    }
-    return [];
-  });
+  const [fixedExpenses, setFixedExpenses] = useState(() => getStoredFixedExpenses());
 
   // ----------------------------------------------------
   // 4. Upcoming Expenses State (Just below Fixed Expenses)
@@ -99,7 +100,7 @@ export default function ProfileDashboard({ setActivePage }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return deduplicateUpcomingExpenses(parsed);
       } catch (e) {}
     }
     return [];
@@ -131,6 +132,11 @@ export default function ProfileDashboard({ setActivePage }) {
     return [];
   });
 
+  // Always load latest data from MongoDB Atlas on mount
+  useEffect(() => {
+    loadUserDataFromDb().catch(() => {});
+  }, []);
+
   useEffect(() => {
     const handleKhataSync = () => {
       const saved = localStorage.getItem('aurum_ekhata_data');
@@ -145,14 +151,17 @@ export default function ProfileDashboard({ setActivePage }) {
     return () => window.removeEventListener('aurum_ekhata_updated', handleKhataSync);
   }, []);
 
-  // Sync with upcoming expenses stored in localStorage
+  // Sync with upcoming expenses stored in localStorage (with equality guard)
   useEffect(() => {
     const handleSync = () => {
       const saved = localStorage.getItem('aurum_upcoming_expenses');
       if (saved) {
         try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setUpcomingExpenses(parsed);
+          const clean = deduplicateUpcomingExpenses(JSON.parse(saved));
+          setUpcomingExpenses((prev) => {
+            if (JSON.stringify(prev) === JSON.stringify(clean)) return prev;
+            return clean;
+          });
         } catch (e) {}
       }
     };
@@ -160,16 +169,14 @@ export default function ProfileDashboard({ setActivePage }) {
     return () => window.removeEventListener('aurum_expenses_updated', handleSync);
   }, []);
 
-  // Listen for fixed expenses updates (e.g. if marked paid from Home page)
+  // Listen for fixed expenses updates (with equality guard)
   useEffect(() => {
     const syncFixed = () => {
-      const saved = localStorage.getItem('aurum_fixed_expenses');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setFixedExpenses(parsed);
-        } catch (e) {}
-      }
+      const clean = getStoredFixedExpenses();
+      setFixedExpenses((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(clean)) return prev;
+        return clean;
+      });
     };
     window.addEventListener('aurum_fixed_expenses_updated', syncFixed);
     return () => window.removeEventListener('aurum_fixed_expenses_updated', syncFixed);
@@ -191,18 +198,26 @@ export default function ProfileDashboard({ setActivePage }) {
   }, [todayIncome]);
 
   useEffect(() => {
-    localStorage.setItem('aurum_fixed_expenses', JSON.stringify(fixedExpenses));
+    const clean = deduplicateFixedExpenses(fixedExpenses);
+    const serialized = JSON.stringify(clean);
+    if (localStorage.getItem('aurum_fixed_expenses') === serialized) return;
+
+    localStorage.setItem('aurum_fixed_expenses', serialized);
     window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
     window.dispatchEvent(new Event('aurum_expenses_updated'));
-    syncFixedExpensesToDb(fixedExpenses).catch((err) =>
+    syncFixedExpensesToDb(clean).catch((err) =>
       console.warn('Failed to sync fixed expenses to DB:', err)
     );
   }, [fixedExpenses]);
 
   useEffect(() => {
-    localStorage.setItem('aurum_upcoming_expenses', JSON.stringify(upcomingExpenses));
+    const clean = deduplicateUpcomingExpenses(upcomingExpenses);
+    const serialized = JSON.stringify(clean);
+    if (localStorage.getItem('aurum_upcoming_expenses') === serialized) return;
+
+    localStorage.setItem('aurum_upcoming_expenses', serialized);
     window.dispatchEvent(new Event('aurum_expenses_updated'));
-    syncUpcomingExpensesToDb(upcomingExpenses).catch((err) =>
+    syncUpcomingExpensesToDb(clean).catch((err) =>
       console.warn('Failed to sync upcoming expenses to DB:', err)
     );
   }, [upcomingExpenses]);
@@ -318,7 +333,7 @@ export default function ProfileDashboard({ setActivePage }) {
       notes: fixedForm.notes.trim() || 'Scheduled recurring fixed expense',
     };
 
-    setFixedExpenses([...fixedExpenses, newItem]);
+    setFixedExpenses(deduplicateFixedExpenses([...fixedExpenses, newItem]));
     setFixedForm({ title: '', amount: '', category: 'Rent', dueDay: 5, notes: '', receiptName: '' });
     setModalType(null);
     showToast(`Added monthly fixed expense: ${newItem.title}`);
@@ -355,7 +370,7 @@ export default function ProfileDashboard({ setActivePage }) {
       status: 'Upcoming',
     };
 
-    setUpcomingExpenses([...upcomingExpenses, newItem]);
+    setUpcomingExpenses(deduplicateUpcomingExpenses([...upcomingExpenses, newItem]));
     setUpcomingForm({
       title: '',
       payee: '',

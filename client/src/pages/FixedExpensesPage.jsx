@@ -14,19 +14,12 @@ import {
   Edit3,
 } from 'lucide-react';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
-import { syncFixedExpensesToDb } from '../services/api';
+import { syncFixedExpensesToDb, fetchFixedExpensesFromDb } from '../services/api';
+import { getStoredFixedExpenses, deduplicateFixedExpenses } from '../services/expenseSync';
 
 export default function FixedExpensesPage() {
-  const [fixedExpenses, setFixedExpenses] = useState(() => {
-    const saved = localStorage.getItem('aurum_fixed_expenses');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      } catch (e) {}
-    }
-    return [];
-  });
+  const [fixedExpenses, setFixedExpenses] = useState(() => getStoredFixedExpenses());
+  const [isLoadingDb, setIsLoadingDb] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -43,17 +36,56 @@ export default function FixedExpensesPage() {
     notes: '',
   });
 
-  // Sync to localStorage, MongoDB, and dispatch update events
+  // On mount: ALWAYS load latest fixed expenses directly from MongoDB Atlas
   useEffect(() => {
-    localStorage.setItem('aurum_fixed_expenses', JSON.stringify(fixedExpenses));
+    let isCancelled = false;
+    async function loadDb() {
+      setIsLoadingDb(true);
+      const items = await fetchFixedExpensesFromDb();
+      if (!isCancelled && items && Array.isArray(items)) {
+        setFixedExpenses(items);
+      }
+      if (!isCancelled) setIsLoadingDb(false);
+    }
+    loadDb();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  // Listen for updates from other tabs or components
+  useEffect(() => {
+    const handleSync = () => {
+      const clean = getStoredFixedExpenses();
+      setFixedExpenses((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(clean)) return prev;
+        return clean;
+      });
+    };
+    window.addEventListener('aurum_fixed_expenses_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('aurum_fixed_expenses_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
+  // Sync to localStorage, MongoDB, and dispatch update events with loop & mount guard
+  useEffect(() => {
+    if (isLoadingDb) return; // Prevent overwriting MongoDB before initial load completes
+    const clean = deduplicateFixedExpenses(fixedExpenses);
+    const serialized = JSON.stringify(clean);
+    if (localStorage.getItem('aurum_fixed_expenses') === serialized) return;
+
+    localStorage.setItem('aurum_fixed_expenses', serialized);
     window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
     window.dispatchEvent(new Event('aurum_expenses_updated'));
     window.dispatchEvent(new Event('storage'));
 
-    syncFixedExpensesToDb(fixedExpenses).catch((err) => {
+    syncFixedExpensesToDb(clean).catch((err) => {
       console.warn('Failed to sync fixed expenses to DB:', err);
     });
-  }, [fixedExpenses]);
+  }, [fixedExpenses, isLoadingDb]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -106,19 +138,21 @@ export default function FixedExpensesPage() {
 
     if (editingId) {
       setFixedExpenses(
-        fixedExpenses.map((exp) => {
-          if (exp.id === editingId) {
-            return {
-              ...exp,
-              title: form.title.trim(),
-              amount: Number(form.amount),
-              category: form.category,
-              dueDay: Number(form.dueDay) || 1,
-              notes: form.notes.trim() || 'Recurring monthly commitment',
-            };
-          }
-          return exp;
-        })
+        deduplicateFixedExpenses(
+          fixedExpenses.map((exp) => {
+            if (exp.id === editingId) {
+              return {
+                ...exp,
+                title: form.title.trim(),
+                amount: Number(form.amount),
+                category: form.category,
+                dueDay: Number(form.dueDay) || 1,
+                notes: form.notes.trim() || 'Recurring monthly commitment',
+              };
+            }
+            return exp;
+          })
+        )
       );
       showToast(`Updated ${form.title.trim()} (₹${Number(form.amount).toLocaleString()})!`);
     } else {
@@ -132,7 +166,7 @@ export default function FixedExpensesPage() {
         notes: form.notes.trim() || 'Recurring monthly commitment',
         receiptName: null,
       };
-      setFixedExpenses([...fixedExpenses, newItem]);
+      setFixedExpenses(deduplicateFixedExpenses([...fixedExpenses, newItem]));
       showToast(`Added ${newItem.title} (₹${newItem.amount.toLocaleString()})!`);
     }
 

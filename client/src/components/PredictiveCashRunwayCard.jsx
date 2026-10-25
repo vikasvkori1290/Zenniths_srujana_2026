@@ -151,6 +151,31 @@ export default function PredictiveCashRunwayCard() {
   const [hoveredDayIndex, setHoveredDayIndex] = useState(null);
   const [hoveredHistoryDay, setHoveredHistoryDay] = useState(null); // 'yesterday' | 'today' | null
 
+  // Dropdown & Accordion state for "Why this forecast?" section
+  const [isWhyForecastOpen, setIsWhyForecastOpen] = useState(() => {
+    const saved = localStorage.getItem('aurum_why_forecast_dropdown_open');
+    return saved !== null ? saved === 'true' : false;
+  });
+  const [eventFilter, setEventFilter] = useState('ALL'); // 'ALL' | 'BOOST' | 'SLUMP'
+
+  const handleToggleWhyForecast = () => {
+    setIsWhyForecastOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('aurum_why_forecast_dropdown_open', String(next));
+      return next;
+    });
+  };
+
+  const filteredAdjustments = useMemo(() => {
+    if (eventFilter === 'BOOST') {
+      return contextAdjustments.filter((a) => (a.multiplier?.base || 1.0) > 1.05);
+    }
+    if (eventFilter === 'SLUMP') {
+      return contextAdjustments.filter((a) => (a.multiplier?.base || 1.0) < 0.95);
+    }
+    return contextAdjustments;
+  }, [contextAdjustments, eventFilter]);
+
   // Load / fetch adjustments whenever businessType, city, or refresh happens
   useEffect(() => {
     let isCancelled = false;
@@ -1531,104 +1556,162 @@ export default function PredictiveCashRunwayCard() {
         </div>
       </div>
 
-      {/* "WHY THIS FORECAST?" CARD LISTING UPCOMING EVENTS, MULTIPLIERS, BADGES, AND REASONS */}
-      <div className="p-5 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-amber-200/60 gap-2">
+      {/* "WHY THIS FORECAST?" CARD WITH COLLAPSIBLE DROPDOWN & CATEGORY SELECTOR */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/50 border border-amber-200/80 transition-all space-y-4">
+        <div
+          onClick={handleToggleWhyForecast}
+          className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 sm:pb-3 border-b border-amber-200/60 gap-3 cursor-pointer select-none group"
+        >
           <div className="flex items-center space-x-2.5">
-            <div className="w-7 h-7 rounded-lg bg-amber-400/20 text-amber-800 flex items-center justify-center border border-amber-400/40">
+            <div className="w-8 h-8 rounded-lg bg-amber-400/20 text-amber-800 flex items-center justify-center border border-amber-400/40 shrink-0">
               <Sparkles className="w-4 h-4 text-amber-700" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-black font-['Outfit']">
-                Why this forecast?
-              </h3>
-              <p className="text-[11px] text-neutral-500">
-                AI Sales Context Analyst bounded adjustments for{' '}
-                <strong className="text-black font-bold">
-                  {registeredBusinessLabel}
-                </strong>{' '}
-                in {profileLocation.city}. Code enforces all rupee math.
+              <div className="flex items-center space-x-2">
+                <h3 className="text-base font-bold text-black font-['Outfit'] group-hover:text-amber-900 transition-colors">
+                  Why this forecast?
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                  {contextAdjustments.length} Events
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-500 flex flex-wrap items-center gap-1.5 mt-0.5">
+                <span>AI Sales Context Analyst bounded adjustments for</span>
+                <span
+                  onClick={(e) => e.stopPropagation()}
+                  className="relative inline-block"
+                >
+                  <select
+                    value={businessType}
+                    onChange={(e) => handleChangeBusinessType(e.target.value)}
+                    className="bg-white text-black font-bold text-[11px] px-2 py-0.5 rounded-lg border border-amber-300 hover:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 shadow-2xs cursor-pointer"
+                  >
+                    {BUSINESS_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+                <span>in {profileLocation.city}. Code enforces all rupee math.</span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 text-xs">
+          <div
+            className="flex items-center space-x-2 text-xs shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
             {adjusterUnavailable && (
               <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-md border border-rose-200">
                 Context adjustment unavailable (Fallback 1.0)
               </span>
             )}
-            <span className="text-[11px] text-neutral-500 font-medium">
-              Next 90 Days Events: {contextAdjustments.length}
-            </span>
+
+            {/* Filter Dropdown when section is open */}
+            {isWhyForecastOpen && (
+              <select
+                value={eventFilter}
+                onChange={(e) => setEventFilter(e.target.value)}
+                className="bg-white text-neutral-700 text-xs font-semibold px-2.5 py-1 rounded-xl border border-amber-300 focus:outline-none cursor-pointer shadow-2xs"
+              >
+                <option value="ALL">All Events ({contextAdjustments.length})</option>
+                <option value="BOOST">Boosts Only (&times;&gt;1.05)</option>
+                <option value="SLUMP">Slumps Only (&times;&lt;0.95)</option>
+              </select>
+            )}
+
+            {/* Collapsible Dropdown Toggle Button */}
+            <button
+              type="button"
+              onClick={handleToggleWhyForecast}
+              className="px-3 py-1.5 rounded-xl bg-white hover:bg-amber-100 border border-amber-300 text-amber-950 font-bold text-xs flex items-center space-x-1.5 shadow-2xs transition-all cursor-pointer"
+              title={isWhyForecastOpen ? 'Collapse forecast events' : 'Expand forecast events'}
+            >
+              <span>{isWhyForecastOpen ? 'Hide Events' : `View ${contextAdjustments.length} Events`}</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-amber-700 transition-transform duration-200 ${
+                  isWhyForecastOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
           </div>
         </div>
 
-        {/* Event Adjustments Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {contextAdjustments.slice(0, 8).map((adj, idx) => {
-            const mult = adj.multiplier || { low: 1.0, base: 1.0, high: 1.0 };
-            const isBoost = mult.base > 1.05;
-            const isSlump = mult.base < 0.95;
+        {/* Event Adjustments Grid - expands when isWhyForecastOpen is true */}
+        {isWhyForecastOpen && (
+          <div className="space-y-3 animate-in fade-in duration-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {filteredAdjustments.slice(0, 8).map((adj, idx) => {
+                const mult = adj.multiplier || { low: 1.0, base: 1.0, high: 1.0 };
+                const isBoost = mult.base > 1.05;
+                const isSlump = mult.base < 0.95;
 
-            return (
-              <div
-                key={idx}
-                className="p-3.5 rounded-xl bg-white border border-neutral-200/90 shadow-2xs space-y-1.5 hover:border-amber-400 transition-all"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="font-bold text-xs text-black block leading-tight">
-                      {adj.event}
-                    </span>
-                    <span className="text-[10px] font-mono text-neutral-400 block mt-0.5">
-                      {adj.window_start} &rarr; {adj.window_end}
-                    </span>
-                  </div>
-
-                  {/* Multiplier pill */}
-                  <div className="text-right shrink-0">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-black font-mono border ${
-                        isBoost
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                          : isSlump
-                          ? 'bg-rose-50 text-rose-700 border-rose-300'
-                          : 'bg-neutral-50 text-neutral-700 border-neutral-200'
-                      }`}
-                    >
-                      &times;{Number(mult.base).toFixed(2)}
-                    </span>
-                    <span className="text-[9px] text-neutral-400 block font-mono">
-                      [{Number(mult.low).toFixed(2)} - {Number(mult.high).toFixed(2)}]
-                    </span>
-                  </div>
-                </div>
-
-                {/* Plain sentence reason */}
-                <p className="text-[11px] text-neutral-600 leading-relaxed italic">
-                  "{adj.reason}"
-                </p>
-
-                {/* Confidence Badge */}
-                <div className="flex items-center justify-between pt-1 border-t border-neutral-100 text-[10px]">
-                  <span className="text-neutral-400">AI Confidence:</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded font-bold uppercase text-[9px] ${
-                      adj.confidence === 'high'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : adj.confidence === 'medium'
-                        ? 'bg-amber-100 text-amber-800'
-                        : 'bg-neutral-100 text-neutral-600'
-                    }`}
+                return (
+                  <div
+                    key={idx}
+                    className="p-3.5 rounded-xl bg-white border border-neutral-200/90 shadow-2xs space-y-1.5 hover:border-amber-400 transition-all"
                   >
-                    {adj.confidence || 'medium'}
-                  </span>
-                </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-bold text-xs text-black block leading-tight">
+                          {adj.event}
+                        </span>
+                        <span className="text-[10px] font-mono text-neutral-400 block mt-0.5">
+                          {adj.window_start} &rarr; {adj.window_end}
+                        </span>
+                      </div>
+
+                      {/* Multiplier pill */}
+                      <div className="text-right shrink-0">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-black font-mono border ${
+                            isBoost
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                              : isSlump
+                              ? 'bg-rose-50 text-rose-700 border-rose-300'
+                              : 'bg-neutral-50 text-neutral-700 border-neutral-200'
+                          }`}
+                        >
+                          &times;{Number(mult.base).toFixed(2)}
+                        </span>
+                        <span className="text-[9px] text-neutral-400 block font-mono">
+                          [{Number(mult.low).toFixed(2)} - {Number(mult.high).toFixed(2)}]
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Plain sentence reason */}
+                    <p className="text-[11px] text-neutral-600 leading-relaxed italic">
+                      "{adj.reason}"
+                    </p>
+
+                    {/* Confidence Badge */}
+                    <div className="flex items-center justify-between pt-1 border-t border-neutral-100 text-[10px]">
+                      <span className="text-neutral-400">AI Confidence:</span>
+                      <span
+                        className={`px-1.5 py-0.2 rounded font-bold uppercase text-[9px] ${
+                          adj.confidence === 'high'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : adj.confidence === 'medium'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-neutral-100 text-neutral-600'
+                        }`}
+                      >
+                        {adj.confidence || 'medium'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {filteredAdjustments.length === 0 && (
+              <div className="p-4 text-center text-xs text-neutral-500 bg-white rounded-xl border border-neutral-200">
+                No events matching the selected filter.
               </div>
-            );
-          })}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Advisory & Onboarding Parameters Bar */}

@@ -19,6 +19,20 @@ const startServer = async () => {
     console.log(`===============================================`);
   });
 
+  // Handle port-in-use error gracefully instead of crashing
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\n❌ Port ${PORT} is already in use. Retrying in 2 seconds...`);
+      setTimeout(() => {
+        server.close();
+        server.listen(PORT);
+      }, 2000);
+    } else {
+      console.error('Server error:', err);
+      process.exit(1);
+    }
+  });
+
   // Graceful shutdown handling
   const shutdown = (signal) => {
     console.log(`\n[${signal}] Received. Shutting down gracefully...`);

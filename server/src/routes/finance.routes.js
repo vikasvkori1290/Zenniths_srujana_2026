@@ -4,8 +4,10 @@ import {
   saveEKhataCustomer,
   syncEKhataList,
   deleteEKhataCustomer,
+  getFixedExpenses,
   syncFixedExpenses,
   syncUpcomingExpenses,
+  getDailyIncome,
   syncDailyIncome,
   saveCashflowSettings,
 } from '../controllers/finance.controller.js';
@@ -25,12 +27,14 @@ router.post('/ekhata/sync', syncEKhataList);
 router.delete('/ekhata/:idNumber', deleteEKhataCustomer);
 
 // 3. Fixed Monthly Expenses Operations
+router.get('/fixed-expense', getFixedExpenses);
 router.post('/fixed-expense/sync', syncFixedExpenses);
 
 // 4. Upcoming Scheduled Payables Operations
 router.post('/upcoming-expense/sync', syncUpcomingExpenses);
 
 // 5. Daily Income Operations
+router.get('/income', getDailyIncome);
 router.post('/income/sync', syncDailyIncome);
 
 // 6. Store Financial Settings

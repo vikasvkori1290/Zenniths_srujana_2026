@@ -52,6 +52,28 @@ export const getFinanceSummary = async (req, res) => {
       User.findById(userId).select('-password'),
     ]);
 
+    // Deduplicate fixed expenses returned from DB
+    const seenFixed = new Set();
+    const cleanDbFixed = [];
+    for (const f of fixed) {
+      const key = `${f.title?.trim().toLowerCase()}__${f.dueDay}__${f.amount}`;
+      if (!seenFixed.has(key)) {
+        seenFixed.add(key);
+        cleanDbFixed.push(f);
+      }
+    }
+
+    // Deduplicate upcoming expenses returned from DB
+    const seenUpcoming = new Set();
+    const cleanDbUpcoming = [];
+    for (const u of upcoming) {
+      const key = `${u.title?.trim().toLowerCase()}__${u.dueDate}__${u.amount}`;
+      if (!seenUpcoming.has(key)) {
+        seenUpcoming.add(key);
+        cleanDbUpcoming.push(u);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       isDbConnected: true,
@@ -67,7 +89,7 @@ export const getFinanceSummary = async (req, res) => {
           lastUpdated: c.lastUpdated,
           history: c.history || [],
         })),
-        fixedExpenses: fixed.map((f) => ({
+        fixedExpenses: cleanDbFixed.map((f) => ({
           id: f.clientId || `fix-${f._id}`,
           title: f.title,
           amount: f.amount,
@@ -77,7 +99,7 @@ export const getFinanceSummary = async (req, res) => {
           receiptName: f.receiptName,
           notes: f.notes,
         })),
-        upcomingExpenses: upcoming.map((u) => ({
+        upcomingExpenses: cleanDbUpcoming.map((u) => ({
           id: u.clientId || `up-${u._id}`,
           title: u.title,
           payee: u.payee,
@@ -223,10 +245,31 @@ export const syncFixedExpenses = async (req, res) => {
       return res.status(400).json({ success: false, message: 'expenses array required' });
     }
 
+    // Deduplicate incoming array by id and composite (title + dueDay + amount)
+    const seenIds = new Set();
+    const seenComposite = new Set();
+    const cleanExpenses = [];
+
+    for (const e of expenses) {
+      if (!e) continue;
+      const id = e.id || e.clientId;
+      const titleNorm = String(e.title || '').trim().toLowerCase();
+      const dueDay = Number(e.dueDay) || 1;
+      const amount = Number(e.amount) || 0;
+      const compositeKey = `${titleNorm}__${dueDay}__${amount}`;
+
+      if (id && seenIds.has(id)) continue;
+      if (compositeKey && seenComposite.has(compositeKey)) continue;
+
+      if (id) seenIds.add(id);
+      seenComposite.add(compositeKey);
+      cleanExpenses.push(e);
+    }
+
     await FixedExpense.deleteMany({ userId });
 
-    if (expenses.length > 0) {
-      const docs = expenses.map((e, idx) => ({
+    if (cleanExpenses.length > 0) {
+      const docs = cleanExpenses.map((e, idx) => ({
         userId,
         clientId: e.id || `fix-${idx + 1}`,
         title: e.title?.trim() || 'Monthly Expense',
@@ -240,7 +283,7 @@ export const syncFixedExpenses = async (req, res) => {
       await FixedExpense.insertMany(docs);
     }
 
-    return res.status(200).json({ success: true, count: expenses.length });
+    return res.status(200).json({ success: true, count: cleanExpenses.length });
   } catch (err) {
     console.error('[Sync Fixed Expenses Error]:', err);
     return res.status(500).json({ success: false, message: err.message });
@@ -263,10 +306,31 @@ export const syncUpcomingExpenses = async (req, res) => {
       return res.status(400).json({ success: false, message: 'expenses array required' });
     }
 
+    // Deduplicate incoming array by id and composite (title + dueDate + amount)
+    const seenIds = new Set();
+    const seenComposite = new Set();
+    const cleanExpenses = [];
+
+    for (const u of expenses) {
+      if (!u) continue;
+      const id = u.id || u.clientId;
+      const titleNorm = String(u.title || '').trim().toLowerCase();
+      const dueDate = String(u.dueDate || '').trim();
+      const amount = Number(u.amount) || 0;
+      const compositeKey = `${titleNorm}__${dueDate}__${amount}`;
+
+      if (id && seenIds.has(id)) continue;
+      if (compositeKey && seenComposite.has(compositeKey)) continue;
+
+      if (id) seenIds.add(id);
+      seenComposite.add(compositeKey);
+      cleanExpenses.push(u);
+    }
+
     await UpcomingExpense.deleteMany({ userId });
 
-    if (expenses.length > 0) {
-      const docs = expenses.map((e, idx) => ({
+    if (cleanExpenses.length > 0) {
+      const docs = cleanExpenses.map((e, idx) => ({
         userId,
         clientId: e.id || `up-${idx + 1}`,
         title: e.title?.trim() || 'Payable',
@@ -280,7 +344,7 @@ export const syncUpcomingExpenses = async (req, res) => {
       await UpcomingExpense.insertMany(docs);
     }
 
-    return res.status(200).json({ success: true, count: expenses.length });
+    return res.status(200).json({ success: true, count: cleanExpenses.length });
   } catch (err) {
     console.error('[Sync Upcoming Expenses Error]:', err);
     return res.status(500).json({ success: false, message: err.message });
@@ -358,6 +422,81 @@ export const saveCashflowSettings = async (req, res) => {
     return res.status(200).json({ success: true, user: updatedUser });
   } catch (err) {
     console.error('[Save Settings Error]:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * Get Fixed Expenses directly from MongoDB for the current user
+ * GET /api/v1/finance/fixed-expense
+ */
+export const getFixedExpenses = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!isDbConnected() || !userId) {
+      return res.status(200).json({ success: true, offline: true, fixedExpenses: [] });
+    }
+
+    const fixed = await FixedExpense.find({ userId }).sort({ dueDay: 1 });
+    const seen = new Set();
+    const clean = [];
+    for (const f of fixed) {
+      const key = `${f.title?.trim().toLowerCase()}__${f.dueDay}__${f.amount}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        clean.push({
+          id: f.clientId || `fix-${f._id}`,
+          title: f.title,
+          amount: f.amount,
+          category: f.category,
+          dueDay: f.dueDay,
+          status: f.status,
+          receiptName: f.receiptName,
+          notes: f.notes,
+        });
+      }
+    }
+    return res.status(200).json({ success: true, fixedExpenses: clean });
+  } catch (err) {
+    console.error('[Get Fixed Expenses Error]:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * Get Daily Income History directly from MongoDB for the current user
+ * GET /api/v1/finance/income
+ */
+export const getDailyIncome = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!isDbConnected() || !userId) {
+      return res.status(200).json({ success: true, offline: true, dailyIncome: [] });
+    }
+
+    const income = await DailyIncome.find({ userId }).sort({ date: -1, createdAt: -1 });
+    const seen = new Set();
+    const clean = [];
+    for (const i of income) {
+      const key = `${i.entryId || i._id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        clean.push({
+          id: i.entryId || `inc-${i._id}`,
+          date: i.date,
+          source: i.source,
+          amount: i.amount,
+          mode: i.mode,
+          time: i.time,
+          category: i.category,
+          isConfirmed: i.isConfirmed,
+          unconfirmed: i.unconfirmed,
+        });
+      }
+    }
+    return res.status(200).json({ success: true, dailyIncome: clean });
+  } catch (err) {
+    console.error('[Get Daily Income Error]:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };

@@ -4,8 +4,14 @@ import UpcomingExpensesSection from '../components/UpcomingExpensesSection';
 import EKhataReceivablesSection from '../components/EKhataReceivablesSection';
 import FirstTimeOnboardingModal from '../components/FirstTimeOnboardingModal';
 import { Sliders, Sparkles } from 'lucide-react';
+import { loadUserDataFromDb } from '../services/api';
 
 export default function HomePage() {
+  // Always ensure fresh data is loaded from MongoDB on page mount
+  useEffect(() => {
+    loadUserDataFromDb().catch(() => {});
+  }, []);
+
   const [showSetupBanner, setShowSetupBanner] = useState(() => {
     // Only show if user just registered for the first time AND hasn't pressed "Launch My Financial Runway"
     const isFirstTime = localStorage.getItem('finsafe_first_time_setup') === 'true';

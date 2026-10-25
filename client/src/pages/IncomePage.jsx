@@ -24,7 +24,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 import { getStoredCashflowSettings, calculateBaselineSales } from '../services/predictiveAnalytics';
-import { syncDailyIncomeToDb } from '../services/api';
+import { syncDailyIncomeToDb, fetchDailyIncomeFromDb } from '../services/api';
 
 // Date utility helpers
 const getLocalDateString = (d = new Date()) => {
@@ -85,9 +85,9 @@ export default function IncomePage() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
-
     return [];
   });
+  const [isLoadingDb, setIsLoadingDb] = useState(true);
 
   // Today's entries derived and kept in sync with aurum_today_income
   const todayIncome = useMemo(() => {
@@ -111,6 +111,43 @@ export default function IncomePage() {
     category: 'In-Store Retail',
   });
 
+  // On mount: ALWAYS load income history directly from MongoDB Atlas
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadDb() {
+      setIsLoadingDb(true);
+      const records = await fetchDailyIncomeFromDb();
+      if (!isCancelled && records && Array.isArray(records)) {
+        setAllIncomeRecords(records);
+      }
+      if (!isCancelled) setIsLoadingDb(false);
+    }
+    loadDb();
+
+    // Listen to updates from other tabs or components
+    const handleUpdate = () => {
+      try {
+        const saved = localStorage.getItem('aurum_all_income_records');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setAllIncomeRecords((prev) => {
+              if (JSON.stringify(prev) === JSON.stringify(parsed)) return prev;
+              return parsed;
+            });
+          }
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('aurum_income_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      isCancelled = true;
+      window.removeEventListener('aurum_income_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
   // Calculate Baseline Daily Sales (Requirement 4: 7-day complete trading median, 2x median cap, exclude unconfirmed)
   const baselineDailySales = useMemo(() => {
     return calculateBaselineSales({
@@ -127,13 +164,17 @@ export default function IncomePage() {
 
   // Sync both aurum_all_income_records and aurum_today_income & MongoDB Atlas
   useEffect(() => {
-    localStorage.setItem('aurum_all_income_records', JSON.stringify(allIncomeRecords));
+    if (isLoadingDb) return; // Prevent overwriting MongoDB before initial load completes
+    const serialized = JSON.stringify(allIncomeRecords);
+    if (localStorage.getItem('aurum_all_income_records') === serialized) return;
+
+    localStorage.setItem('aurum_all_income_records', serialized);
     const currentToday = allIncomeRecords.filter((item) => (item.date || todayStr) === todayStr);
     localStorage.setItem('aurum_today_income', JSON.stringify(currentToday));
     window.dispatchEvent(new Event('aurum_income_updated'));
     window.dispatchEvent(new Event('storage'));
     syncDailyIncomeToDb(allIncomeRecords).catch(() => {});
-  }, [allIncomeRecords, todayStr]);
+  }, [allIncomeRecords, todayStr, isLoadingDb]);
 
   const showToast = (msg) => {
     setToastMessage(msg);

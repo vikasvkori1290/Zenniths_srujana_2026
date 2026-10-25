@@ -1,3 +1,5 @@
+import { deduplicateFixedExpenses, deduplicateUpcomingExpenses } from './expenseSync';
+
 export const API_BASE = (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '') + '/api/v1';
 
 /**
@@ -129,6 +131,53 @@ export async function syncUpcomingExpensesToDb(expenses) {
 }
 
 /**
+ * Directly fetch user's Fixed Expenses from MongoDB Atlas
+ */
+export async function fetchFixedExpensesFromDb() {
+  try {
+    const res = await fetch(`${API_BASE}/finance/fixed-expense`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json();
+    if (data.success && Array.isArray(data.fixedExpenses)) {
+      const clean = deduplicateFixedExpenses(data.fixedExpenses);
+      localStorage.setItem('aurum_fixed_expenses', JSON.stringify(clean));
+      window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
+      window.dispatchEvent(new Event('storage'));
+      return clean;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch fixed expenses from DB:', err);
+  }
+  return null;
+}
+
+/**
+ * Directly fetch user's Daily Income History from MongoDB Atlas
+ */
+export async function fetchDailyIncomeFromDb() {
+  try {
+    const res = await fetch(`${API_BASE}/finance/income`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json();
+    if (data.success && Array.isArray(data.dailyIncome)) {
+      const records = data.dailyIncome;
+      localStorage.setItem('aurum_all_income_records', JSON.stringify(records));
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayItems = records.filter((i) => i.date === todayStr);
+      localStorage.setItem('aurum_today_income', JSON.stringify(todayItems));
+      window.dispatchEvent(new Event('aurum_income_updated'));
+      window.dispatchEvent(new Event('storage'));
+      return records;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch daily income from DB:', err);
+  }
+  return null;
+}
+
+/**
  * Sync Daily Income Records to MongoDB Atlas for the current user
  */
 export async function syncDailyIncomeToDb(records) {
@@ -172,12 +221,14 @@ export async function loadUserDataFromDb() {
     localStorage.setItem('aurum_ekhata_data', JSON.stringify(ekhata || []));
     window.dispatchEvent(new Event('aurum_ekhata_updated'));
 
-    // Set fixed expenses
-    localStorage.setItem('aurum_fixed_expenses', JSON.stringify(fixedExpenses || []));
+    // Set fixed expenses (deduplicated)
+    const cleanFixed = deduplicateFixedExpenses(fixedExpenses || []);
+    localStorage.setItem('aurum_fixed_expenses', JSON.stringify(cleanFixed));
     window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
 
-    // Set upcoming expenses
-    localStorage.setItem('aurum_upcoming_expenses', JSON.stringify(upcomingExpenses || []));
+    // Set upcoming expenses (deduplicated)
+    const cleanUpcoming = deduplicateUpcomingExpenses(upcomingExpenses || []);
+    localStorage.setItem('aurum_upcoming_expenses', JSON.stringify(cleanUpcoming));
     window.dispatchEvent(new Event('aurum_expenses_updated'));
 
     // Set daily income

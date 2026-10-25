@@ -18,6 +18,7 @@ import {
 import { getStoredCashflowSettings, saveCashflowSettings } from '../services/predictiveAnalytics';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
 import { syncSettingsToDb, syncFixedExpensesToDb, syncDailyIncomeToDb } from '../services/api';
+import { deduplicateFixedExpenses } from '../services/expenseSync';
 
 const DEFAULT_FIXED_PRESETS = [];
 
@@ -144,16 +145,18 @@ export default function FirstTimeOnboardingModal({ isOpen: controlledIsOpen, onC
     });
 
     // 2. Save fixed expenses
-    const cleanedFixed = fixedList.map((item, idx) => ({
-      id: item.id || `fix-${idx + 1}`,
-      title: item.title?.trim() || 'Monthly Expense',
-      amount: Number(item.amount) || 0,
-      category: item.category || 'Utilities',
-      dueDay: Math.min(31, Math.max(1, Number(item.dueDay) || 1)),
-      status: item.status || 'Pending',
-      notes: item.notes || 'Recurring monthly commitment',
-      receiptName: item.receiptName || null,
-    }));
+    const cleanedFixed = deduplicateFixedExpenses(
+      fixedList.map((item, idx) => ({
+        id: item.id || `fix-${idx + 1}`,
+        title: item.title?.trim() || 'Monthly Expense',
+        amount: Number(item.amount) || 0,
+        category: item.category || 'Utilities',
+        dueDay: Math.min(31, Math.max(1, Number(item.dueDay) || 1)),
+        status: item.status || 'Pending',
+        notes: item.notes || 'Recurring monthly commitment',
+        receiptName: item.receiptName || null,
+      }))
+    );
     localStorage.setItem('aurum_fixed_expenses', JSON.stringify(cleanedFixed));
     syncFixedExpensesToDb(cleanedFixed).catch((err) => {
       console.warn('Failed to sync fixed expenses to DB:', err);

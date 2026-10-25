@@ -17,6 +17,8 @@ import {
   toggleFixedExpenseStatus,
   getStoredFixedExpenses,
   getDueEvents,
+  deduplicateUpcomingExpenses,
+  deduplicateFixedExpenses,
 } from '../services/expenseSync';
 import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
 import { getRetainedCashBeforeDueDate } from '../services/contextAdjuster';
@@ -32,7 +34,7 @@ export default function UpcomingExpensesSection() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return deduplicateUpcomingExpenses(parsed);
       } catch (e) {
         // fallback
       }
@@ -62,13 +64,17 @@ export default function UpcomingExpensesSection() {
     category: 'Supplier Dues',
   });
 
-  // Sync manual upcoming expenses to localStorage and MongoDB
+  // Sync manual upcoming expenses to localStorage and MongoDB with loop guard
   useEffect(() => {
-    localStorage.setItem('aurum_upcoming_expenses', JSON.stringify(upcomingExpenses));
+    const clean = deduplicateUpcomingExpenses(upcomingExpenses);
+    const serialized = JSON.stringify(clean);
+    if (localStorage.getItem('aurum_upcoming_expenses') === serialized) return;
+
+    localStorage.setItem('aurum_upcoming_expenses', serialized);
     window.dispatchEvent(new Event('aurum_expenses_updated'));
     window.dispatchEvent(new Event('storage'));
 
-    syncUpcomingExpensesToDb(upcomingExpenses).catch((err) => {
+    syncUpcomingExpensesToDb(clean).catch((err) => {
       console.warn('Failed to sync upcoming expenses to DB:', err);
     });
   }, [upcomingExpenses]);
@@ -80,17 +86,18 @@ export default function UpcomingExpensesSection() {
       const saved = localStorage.getItem('aurum_upcoming_expenses');
       if (saved) {
         try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setUpcomingExpenses(parsed);
+          const parsed = deduplicateUpcomingExpenses(JSON.parse(saved));
+          setUpcomingExpenses((prev) => {
+            if (JSON.stringify(prev) === JSON.stringify(parsed)) return prev;
+            return parsed;
+          });
         } catch (e) {}
       }
     };
     window.addEventListener('aurum_fixed_expenses_updated', handleRefresh);
-    window.addEventListener('aurum_expenses_updated', handleRefresh);
     window.addEventListener('storage', handleRefresh);
     return () => {
       window.removeEventListener('aurum_fixed_expenses_updated', handleRefresh);
-      window.removeEventListener('aurum_expenses_updated', handleRefresh);
       window.removeEventListener('storage', handleRefresh);
     };
   }, []);
@@ -143,27 +150,30 @@ export default function UpcomingExpensesSection() {
           }
           return fx;
         });
-        localStorage.setItem('aurum_fixed_expenses', JSON.stringify(updatedFixed));
+        const cleanFixed = deduplicateFixedExpenses(updatedFixed);
+        localStorage.setItem('aurum_fixed_expenses', JSON.stringify(cleanFixed));
         window.dispatchEvent(new Event('aurum_fixed_expenses_updated'));
         window.dispatchEvent(new Event('aurum_expenses_updated'));
         window.dispatchEvent(new Event('storage'));
         showToast(`Updated monthly commitment: ${form.title} (₹${Number(form.amount).toLocaleString()})`);
       } else {
         setUpcomingExpenses(
-          upcomingExpenses.map((item) => {
-            if (item.id === editingExpense.id) {
-              return {
-                ...item,
-                title: form.title.trim(),
-                payee: form.payee.trim() || 'Vendor',
-                amount: Number(form.amount),
-                dueDate: form.dueDate,
-                urgency: form.urgency,
-                category: form.category,
-              };
-            }
-            return item;
-          })
+          deduplicateUpcomingExpenses(
+            upcomingExpenses.map((item) => {
+              if (item.id === editingExpense.id) {
+                return {
+                  ...item,
+                  title: form.title.trim(),
+                  payee: form.payee.trim() || 'Vendor',
+                  amount: Number(form.amount),
+                  dueDate: form.dueDate,
+                  urgency: form.urgency,
+                  category: form.category,
+                };
+              }
+              return item;
+            })
+          )
         );
         showToast(`Updated expense: ${form.title} (₹${Number(form.amount).toLocaleString()})`);
       }
@@ -178,7 +188,7 @@ export default function UpcomingExpensesSection() {
         category: form.category,
         status: 'Upcoming',
       };
-      setUpcomingExpenses([newItem, ...upcomingExpenses]);
+      setUpcomingExpenses(deduplicateUpcomingExpenses([newItem, ...upcomingExpenses]));
       showToast(`Scheduled expense: ${newItem.title} (₹${newItem.amount.toLocaleString()})`);
     }
 
