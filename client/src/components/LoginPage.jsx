@@ -255,8 +255,13 @@ export default function LoginPage({ onLoginSuccess }) {
                   className="w-full px-2.5 py-2.5 sm:py-2 min-h-[44px] rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none font-medium"
                 >
                   <option value="Retail">Retail Store</option>
-                  <option value="Wholesale">Wholesale Trading</option>
                   <option value="Kirana">Kirana / Groceries</option>
+                  <option value="Sweets">Sweets & Bakery</option>
+                  <option value="Hardware">Hardware, Paints & Electricals</option>
+                  <option value="Stationery">Books & Stationery</option>
+                  <option value="Garments">Garments & Apparel</option>
+                  <option value="Pharmacy">Retail Pharmacy</option>
+                  <option value="Wholesale">Wholesale Trading</option>
                   <option value="Services">Services / Agency</option>
                   <option value="Manufacturing">Manufacturing</option>
                   <option value="Other">Other</option>

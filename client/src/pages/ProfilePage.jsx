@@ -36,6 +36,7 @@ export default function ProfilePage() {
         const parsed = JSON.parse(saved);
         return {
           ...parsed,
+          businessType: parsed.businessType || user?.businessType || 'Retail Store',
           upiId: parsed.upiId || 'vikas.kori@okhdfcbank',
         };
       } catch (e) {}
@@ -44,6 +45,7 @@ export default function ProfilePage() {
       name: user?.name || 'Vikas Kori',
       initials: 'VK',
       businessName: user?.businessName || 'Zenniths Enterprise',
+      businessType: user?.businessType || 'Retail Store',
       phone: user?.phone || '+91 98765 12900',
       email: user?.email || 'vikas.kori@zenniths.com',
       upiId: 'vikas.kori@okhdfcbank',
@@ -177,6 +179,21 @@ export default function ProfilePage() {
     e.preventDefault();
     setProfile(profileForm);
     localStorage.setItem('aurum_profile_info', JSON.stringify(profileForm));
+    if (profileForm.businessType) {
+      localStorage.setItem('aurum_business_type', profileForm.businessType);
+      try {
+        const u = JSON.parse(localStorage.getItem('aurum_auth_user') || '{}');
+        u.businessType = profileForm.businessType;
+        u.businessName = profileForm.businessName;
+        u.name = profileForm.name;
+        u.phone = profileForm.phone;
+        u.email = profileForm.email;
+        u.dailyGoal = profileForm.dailyGoal;
+        localStorage.setItem('aurum_auth_user', JSON.stringify(u));
+      } catch (err) {}
+      window.dispatchEvent(new Event('aurum_business_type_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
     setIsEditProfileOpen(false);
     showToast('Profile information updated successfully!');
   };
@@ -574,7 +591,13 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80">
+              <span className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">Registered Shop Model</span>
+              <span className="font-extrabold text-black text-sm block font-['Outfit']">{profile.businessType || 'Retail Store'}</span>
+              <span className="text-[11px] text-amber-700 mt-1 block font-medium">Auto-derived from signup profile</span>
+            </div>
+
             <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80">
               <span className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">GSTIN Identification</span>
               <span className="font-mono font-bold text-black text-sm block">29AABCK1290P1Z4</span>
@@ -642,6 +665,27 @@ export default function ProfilePage() {
                   onChange={(e) => setProfileForm({ ...profileForm, businessName: e.target.value })}
                   className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
                 />
+              </div>
+
+              <div>
+                <label className="block text-neutral-600 mb-1">Shop Model / Business Type</label>
+                <select
+                  value={profileForm.businessType || 'Retail Store'}
+                  onChange={(e) => setProfileForm({ ...profileForm, businessType: e.target.value })}
+                  className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-semibold bg-white"
+                >
+                  <option value="Retail Store">Retail Store / General</option>
+                  <option value="Kirana / Groceries">Kirana / Groceries & Provisions</option>
+                  <option value="Sweets & Bakery">Sweets & Bakery</option>
+                  <option value="Hardware, Paints & Electricals">Hardware, Paints & Electricals</option>
+                  <option value="Books & Stationery">Books & Stationery</option>
+                  <option value="Garments & Apparel">Garments & Apparel</option>
+                  <option value="Retail Pharmacy">Retail Pharmacy / Chemist</option>
+                  <option value="Wholesale Trading">Wholesale Trading</option>
+                  <option value="Services / Agency">Services / Agency</option>
+                  <option value="Manufacturing">Manufacturing</option>
+                  <option value="Other">Other Business</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

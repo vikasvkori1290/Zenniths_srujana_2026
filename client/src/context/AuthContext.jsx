@@ -40,6 +40,19 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (user) {
       localStorage.setItem('aurum_auth_user', JSON.stringify(user));
+      if (user.businessType) {
+        localStorage.setItem('aurum_business_type', user.businessType);
+        try {
+          const prof = JSON.parse(localStorage.getItem('aurum_profile_info') || '{}');
+          prof.businessType = user.businessType;
+          if (user.businessName) prof.businessName = user.businessName;
+          if (user.name) prof.name = user.name;
+          if (user.phone) prof.phone = user.phone;
+          if (user.email) prof.email = user.email;
+          localStorage.setItem('aurum_profile_info', JSON.stringify(prof));
+        } catch (e) {}
+        window.dispatchEvent(new Event('aurum_business_type_updated'));
+      }
     } else {
       localStorage.removeItem('aurum_auth_user');
     }

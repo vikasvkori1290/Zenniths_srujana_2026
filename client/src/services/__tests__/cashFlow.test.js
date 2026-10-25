@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   calculateRetainedCashPerDay,
   calculateTimelineCashflow,
+  calculateExpectedKhataDate,
+  buildTimelineReceivables,
   DEFAULT_MARGINS_BY_TYPE,
 } from '../predictiveAnalytics.js';
 import { getDueEvents } from '../expenseSync.js';
@@ -23,8 +25,8 @@ describe('AurumFlow Cash-Flow Engine & Retained Cash Specifications', () => {
     assert.equal(result.retainedCashPerDay, 1500, 'Retained cash must be exactly ₹1,500/day');
   });
 
-  // Test 2: Expected vs Received separation
-  it('Requirement 2: Expected receivables (Khata) are never merged into received cash in hand', () => {
+  // Test 2: Expected vs Received separation (Requirement 2)
+  it('Requirement 2: Expected receivables (Khata) are never merged into free cash or received cash', () => {
     const openingCash = 40000;
     const todaySales = 8000;
     const eKhataCustomers = [
@@ -40,13 +42,15 @@ describe('AurumFlow Cash-Flow Engine & Retained Cash Specifications', () => {
       eKhataCustomersList: eKhataCustomers,
     });
 
-    // Received cash is 40,000 opening + 8,000 today sales = 48,000
-    assert.equal(result.receivedCashInHand, 48000, 'Received cash in hand must be exactly ₹48,000');
+    // free_cash = opening (40,000) + retained (8000*0.25 - 500 = 1500) = 41,500
+    assert.equal(result.freeCashToday, 41500, 'Free cash today must be exactly ₹41,500');
+    // Till / bank total = 40,000 + 8,000 = 48,000 (informational only)
+    assert.equal(result.tillBankTotal, 48000, 'Till/bank total must be ₹48,000 (informational only)');
     assert.equal(result.expectedReceivables, 10000, 'Expected receivables must be exactly ₹10,000');
 
-    // Crucial check: expected receivables are NOT added into receivedCashInHand
-    assert.notEqual(result.receivedCashInHand, 58000, 'Expected receivables must NEVER be added to received cash in hand');
-    assert.equal(result.receivedCashInHand, 48000);
+    // Crucial check: expected receivables are NOT added into freeCashToday or receivedCashInHand
+    assert.notEqual(result.receivedCashInHand, 51500, 'Expected receivables must NEVER be added to cash in hand');
+    assert.notEqual(result.freeCashToday, 51500);
   });
 
   // Test 3: No double counting of rent/EMI
@@ -92,7 +96,7 @@ describe('AurumFlow Cash-Flow Engine & Retained Cash Specifications', () => {
 
     const result = calculateTimelineCashflow({
       openingReceivedCash: 40000,
-      todayReceivedSales: 8000, // total in-hand = 48,000
+      todayReceivedSales: 8000,
       grossMarginPct: 25,
       dailyRunningCost: 500,    // retained = 1,500/day
       safetyBuffer: 1500,       // 3 * 500
@@ -101,7 +105,8 @@ describe('AurumFlow Cash-Flow Engine & Retained Cash Specifications', () => {
       startDate: new Date('2026-10-25'),
     });
 
-    assert.equal(result.receivedCashInHand, 48000);
+    assert.equal(result.freeCashToday, 41500);
+    assert.equal(result.tillBankTotal, 48000);
     assert.equal(result.retainedCashPerDay, 1500);
 
     const day15Data = result.timeline[14]; // 0-indexed for day 15
@@ -553,4 +558,154 @@ describe('60-Day Timeline Due Markers & Vertical Step Specifications', () => {
     assert.equal(day10.dayDuesTotal, 10000, 'Pending EMI is ₹10,000');
   });
 });
+
+describe('User Explicit Verification Tests (Unified Cash Engine)', () => {
+  // Test 1: (opening ₹40,000, sales ₹19,973, margin 20%, running ₹500):
+  // - free cash today = ₹43,495; expected-mode start = ₹41,100
+  it('Test 1: Opening ₹40,000, sales ₹19,973, margin 20%, running ₹500 -> free cash today = ₹43,495; expected-mode start = ₹41,100', () => {
+    const result = calculateTimelineCashflow({
+      openingReceivedCash: 40000,
+      todayReceivedSales: 19973,
+      grossMarginPct: 20,
+      dailyRunningCost: 500,
+      ownerTargetDailySales: 8000,
+      salesHistory: [], // falls back to owner target ₹8,000
+    });
+
+    assert.equal(result.freeCashToday, 43495, 'Free cash today must be exactly ₹43,495 (40000 + round(19973*0.20) - 500)');
+    assert.equal(result.expectedModeStart, 41100, 'Expected-mode start must be exactly ₹41,100 (40000 + round(8000*0.20) - 500)');
+  });
+
+  // Test 2: ₹1,000 udhar sale then payment: −₹800 on sale day, +₹1,000 on payment, net +₹200
+  it('Test 2: ₹1,000 udhar sale then payment: -₹800 on sale day, +₹1,000 on payment, net +₹200', () => {
+    // On sale day: udhar sale ₹1,000, cash received ₹0, running cost ₹0 for isolation
+    const saleDay = calculateRetainedCashPerDay({
+      cashUpiReceived: 0,
+      grossSales: 1000,
+      grossMarginPct: 20,
+      dailyRunningCost: 0,
+    });
+    // retained = cash(0) - gross(1000)*(1 - 0.20) - running(0) = -800
+    assert.equal(saleDay.retainedCashPerDay, -800, 'Sale day retained cash must deduct stock cost: -₹800');
+
+    // On payment day: customer pays ₹1,000, gross sales ₹0 (already counted), running cost ₹0
+    const paymentDay = calculateRetainedCashPerDay({
+      cashUpiReceived: 1000,
+      grossSales: 0,
+      grossMarginPct: 20,
+      dailyRunningCost: 0,
+    });
+    // retained = cash(1000) - gross(0)*(1 - 0.20) - running(0) = +1000
+    assert.equal(paymentDay.retainedCashPerDay, 1000, 'Payment day adds collection in full: +₹1,000');
+
+    const netRetained = saleDay.retainedCashPerDay + paymentDay.retainedCashPerDay;
+    assert.equal(netRetained, 200, 'Net retained cash must be exactly +₹200 (profit on ₹1,000 at 20%)');
+  });
+
+  // Test 3: Reality and Expected charts differ only by ₹2,395 after today
+  it('Test 3: Reality and Expected charts differ only by ₹2,395 after today (every day d=1..60)', () => {
+    const result = calculateTimelineCashflow({
+      openingReceivedCash: 40000,
+      todayReceivedSales: 19973,
+      grossMarginPct: 20,
+      dailyRunningCost: 500,
+      ownerTargetDailySales: 8000,
+      horizonDays: 60,
+    });
+
+    const initialDiff = result.freeCashToday - result.expectedModeStart;
+    assert.equal(initialDiff, 2395, 'Start difference must be ₹2,395');
+
+    // Verify for every day in the 60-day timeline:
+    assert.equal(result.timeline.length, 60, 'Timeline must have 60 days');
+    result.timeline.forEach((point) => {
+      const diff = point.realityBalance - point.expectedBalance;
+      assert.equal(
+        diff,
+        2395,
+        `Day ${point.day} reality (${point.realityBalance}) and expected (${point.expectedBalance}) must differ by exactly ₹2,395`
+      );
+    });
+  });
+
+  // Test 4: With rent 10k + EMI 10k + salary 7k + 3k other monthly, no 60-day balance exceeds ₹41,100 + 59×2,380 − 60,000
+  it('Test 4: With rent 10k + EMI 10k + salary 7k + 3k other monthly, no 60-day balance exceeds ₹41,100 + 59×2,380 − 60,000', () => {
+    const fixedExpenses = [
+      { id: 'fix-1', title: 'Store Rent', amount: 10000, dueDay: 5, category: 'Rent', status: 'Pending' },
+      { id: 'fix-2', title: 'Machinery EMI', amount: 10000, dueDay: 10, category: 'EMI', status: 'Pending' },
+      { id: 'fix-3', title: 'Staff Salary', amount: 7000, dueDay: 7, category: 'Salaries', status: 'Pending' },
+      { id: 'fix-4', title: 'Other Monthly', amount: 3000, dueDay: 20, category: 'Other', status: 'Pending' },
+    ];
+
+    const result = calculateTimelineCashflow({
+      openingReceivedCash: 40000,
+      todayReceivedSales: 19973,
+      grossMarginPct: 20,
+      dailyRunningCost: 500,
+      ownerTargetDailySales: 8000,
+      fixedExpensesList: fixedExpenses,
+      horizonDays: 60,
+      startDate: new Date('2026-10-25'),
+    });
+
+    // Upper bound: 41,100 + 59 * 2,380 - 60,000 = 121,520
+    const theoreticalMax = 41100 + (59 * 2380) - 60000;
+
+    result.timeline.forEach((point) => {
+      assert.ok(
+        point.expectedBalance <= theoreticalMax,
+        `Day ${point.day} expected balance (${point.expectedBalance}) must not exceed theoretical upper bound ${theoreticalMax}`
+      );
+    });
+  });
+
+  // Test 5: Khata receipts never precede their due date
+  it('Test 5: Khata receipts never precede their due date', () => {
+    const today = new Date('2026-10-25');
+
+    // 1. Future due date with 0 delay: exact due date
+    assert.equal(
+      calculateExpectedKhataDate('2026-11-10', 0, today),
+      '2026-11-10',
+      'Future due date must not precede due date'
+    );
+
+    // 2. Future due date with negative delay: must never precede due date
+    assert.equal(
+      calculateExpectedKhataDate('2026-11-10', -3, today),
+      '2026-11-10',
+      'Negative delay must never precede due date'
+    );
+
+    // 3. Future due date with positive delay: due_date + delay
+    assert.equal(
+      calculateExpectedKhataDate('2026-11-10', 5, today),
+      '2026-11-15',
+      'Positive delay shifts expected date forward'
+    );
+
+    // 4. Past due date (overdue): max(due_date + delay, today) >= today
+    assert.equal(
+      calculateExpectedKhataDate('2026-10-15', 2, today),
+      '2026-10-25',
+      'Overdue receipt is scheduled today or later, never before due date'
+    );
+
+    // 5. In timeline receivables, future due customer c-1 is on day 16, never before day 16
+    const customers = [
+      { id: 'c-1', name: 'Alok', totalAmount: 5000, dueDate: '2026-11-10', avgDelayDays: 0 },
+    ];
+    const { recvByDay } = buildTimelineReceivables({
+      eKhataCustomersList: customers,
+      horizonDays: 60,
+      startDate: today,
+    });
+
+    for (let d = 1; d < 16; d++) {
+      assert.equal(recvByDay[d] || 0, 0, `Day ${d} must not precede due date (Nov 10 / Day 16)`);
+    }
+    assert.equal(recvByDay[16], 5000, 'Nov 10 receipt must be on Day 16');
+  });
+});
+
 

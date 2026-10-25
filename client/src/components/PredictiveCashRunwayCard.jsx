@@ -40,6 +40,19 @@ import {
 } from '../services/contextAdjuster';
 import calendarData from '../data/calendar.js';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
+import { useAuth } from '../context/AuthContext';
+
+export function normalizeBusinessType(typeStr) {
+  if (!typeStr) return 'kirana';
+  const s = typeStr.toLowerCase();
+  if (s.includes('sweet') || s.includes('bake') || s.includes('mithai') || s.includes('cake')) return 'sweets';
+  if (s.includes('hard') || s.includes('paint') || s.includes('electr') || s.includes('tool')) return 'hardware';
+  if (s.includes('book') || s.includes('station') || s.includes('print')) return 'stationery';
+  if (s.includes('cloth') || s.includes('garment') || s.includes('apparel') || s.includes('fashion') || s.includes('textile')) return 'garments';
+  if (s.includes('pharm') || s.includes('medic') || s.includes('chemist') || s.includes('drug')) return 'pharmacy';
+  if (s.includes('cafe') || s.includes('restaurant') || s.includes('food') || s.includes('hotel')) return 'cafe';
+  return 'kirana';
+}
 
 const BUSINESS_TYPE_OPTIONS = [
   { id: 'kirana', label: 'Retail Kirana & Provisions', margin: 20 },
@@ -51,6 +64,9 @@ const BUSINESS_TYPE_OPTIONS = [
 ];
 
 export default function PredictiveCashRunwayCard() {
+  const { user } = useAuth();
+  const [profileSyncKey, setProfileSyncKey] = useState(0);
+
   const [todayIncome, setTodayIncome] = useState(() => {
     const saved = localStorage.getItem('aurum_today_income');
     return saved ? JSON.parse(saved) : [];
@@ -73,10 +89,40 @@ export default function PredictiveCashRunwayCard() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState(cashflowSettings);
 
-  // Business Type & Location
-  const [businessType, setBusinessType] = useState(() => {
-    return localStorage.getItem('aurum_business_type') || 'kirana';
+  // Expected vs Reality toggle mode ('expected' | 'reality')
+  const [timelineMode, setTimelineMode] = useState(() => {
+    return localStorage.getItem('aurum_timeline_mode') || 'expected';
   });
+
+  const handleToggleTimelineMode = (mode) => {
+    setTimelineMode(mode);
+    localStorage.setItem('aurum_timeline_mode', mode);
+    window.dispatchEvent(new Event('aurum_timeline_mode_updated'));
+  };
+
+  // Derive registered business label from user profile entered during signup
+  const registeredBusinessLabel = useMemo(() => {
+    if (user?.businessType) return user.businessType;
+    try {
+      const u = JSON.parse(localStorage.getItem('aurum_auth_user') || 'null');
+      if (u?.businessType) return u.businessType;
+      const p = JSON.parse(localStorage.getItem('aurum_profile_info') || 'null');
+      if (p?.businessType) return p.businessType;
+    } catch (e) {}
+    const direct = localStorage.getItem('aurum_business_type');
+    if (direct && direct !== 'kirana') return direct;
+    return 'Retail Store';
+  }, [user, profileSyncKey]);
+
+  // Normalized business model for domain rules & multipliers
+  const [businessType, setBusinessType] = useState(() => {
+    return normalizeBusinessType(registeredBusinessLabel);
+  });
+
+  useEffect(() => {
+    const normalized = normalizeBusinessType(registeredBusinessLabel);
+    setBusinessType(normalized);
+  }, [registeredBusinessLabel]);
 
   const [profileLocation, setProfileLocation] = useState(() => {
     try {
@@ -103,6 +149,7 @@ export default function PredictiveCashRunwayCard() {
   const [isAdjusterLoading, setIsAdjusterLoading] = useState(false);
   const [adjusterUnavailable, setAdjusterUnavailable] = useState(false);
   const [hoveredDayIndex, setHoveredDayIndex] = useState(null);
+  const [hoveredHistoryDay, setHoveredHistoryDay] = useState(null); // 'yesterday' | 'today' | null
 
   // Load / fetch adjustments whenever businessType, city, or refresh happens
   useEffect(() => {
@@ -187,13 +234,16 @@ export default function PredictiveCashRunwayCard() {
         if (savedToggle !== null) setIsFestivalAdjustmentOn(savedToggle === 'true');
 
         const savedType = localStorage.getItem('aurum_business_type');
-        if (savedType) setBusinessType(savedType);
+        if (savedType) setBusinessType(normalizeBusinessType(savedType));
+        setProfileSyncKey((k) => k + 1);
 
         const p = JSON.parse(localStorage.getItem('aurum_profile_info') || '{}');
         setProfileLocation({
           city: p.city || 'Bengaluru',
           state: p.state || 'Karnataka',
         });
+        const savedMode = localStorage.getItem('aurum_timeline_mode');
+        if (savedMode) setTimelineMode(savedMode);
       } catch (e) {}
     };
 
@@ -204,6 +254,7 @@ export default function PredictiveCashRunwayCard() {
     window.addEventListener('aurum_cashflow_settings_updated', refreshData);
     window.addEventListener('aurum_festival_toggle_updated', refreshData);
     window.addEventListener('aurum_business_type_updated', refreshData);
+    window.addEventListener('aurum_timeline_mode_updated', refreshData);
     window.addEventListener('storage', refreshData);
 
     return () => {
@@ -214,6 +265,7 @@ export default function PredictiveCashRunwayCard() {
       window.removeEventListener('aurum_cashflow_settings_updated', refreshData);
       window.removeEventListener('aurum_festival_toggle_updated', refreshData);
       window.removeEventListener('aurum_business_type_updated', refreshData);
+      window.removeEventListener('aurum_timeline_mode_updated', refreshData);
       window.removeEventListener('storage', refreshData);
     };
   }, []);
@@ -260,10 +312,22 @@ export default function PredictiveCashRunwayCard() {
   const timelinePoints = analytics.timeline || [];
   const chartHeight = 260;
   const chartWidth = 960;
-  const paddingLeft = 58;
+  const paddingLeft = 76;
   const paddingRight = 24;
   const paddingTop = 20;
   const paddingBottom = 42;
+
+  // Stored opening cash and today's reality balance (free_cash = opening + sum(retained))
+  const yesterdayBalance = Number(cashflowSettings.openingCash || 40000);
+  const todayRealityBalance = analytics.freeCashToday || 43495;
+
+  // Determine if today's gross profit has been entered by the user
+  const hasEnteredTodayGrossProfit = useMemo(() => {
+    const flag = localStorage.getItem('aurum_today_gross_profit_entered');
+    if (flag === 'true' && todayIncome && todayIncome.length > 0) return true;
+    if (flag === 'false') return false;
+    return Boolean(todayIncome && todayIncome.length > 0 && (analytics.actualTodaySales || 0) > 0);
+  }, [todayIncome, analytics.actualTodaySales]);
 
   const minVal = useMemo(() => {
     if (timelinePoints.length === 0) return 0;
@@ -272,25 +336,38 @@ export default function PredictiveCashRunwayCard() {
         Math.min(
           d.balance,
           d.balanceAfterDues ?? d.balance,
-          d.balanceLowAfterDues ?? d.balanceLow ?? d.balance
+          d.balanceLowAfterDues ?? d.balanceLow ?? d.balance,
+          d.expectedBalance ?? d.balance,
+          d.expectedBalanceAfterDues ?? d.balance
         )
       ),
-      analytics.safetyBuffer || 1500
+      analytics.safetyBuffer || 1500,
+      yesterdayBalance,
+      todayRealityBalance
     );
     if (lowest < 0) {
       return Math.floor((lowest - 2000) / 5000) * 5000;
     }
     return 0;
-  }, [timelinePoints, analytics.safetyBuffer]);
+  }, [timelinePoints, analytics.safetyBuffer, yesterdayBalance, todayRealityBalance]);
 
   const maxVal = useMemo(() => {
     if (timelinePoints.length === 0) return 100000;
     const highest = Math.max(
-      ...timelinePoints.map((d) => Math.max(d.balance, d.balanceHigh || d.balance)),
-      analytics.receivedCashInHand || 40000
+      ...timelinePoints.map((d) =>
+        Math.max(
+          d.balance,
+          d.balanceHigh || d.balance,
+          d.expectedBalance || d.balance
+        )
+      ),
+      analytics.receivedCashInHand || 40000,
+      analytics.expectedCashInHand || 40000,
+      yesterdayBalance,
+      todayRealityBalance
     );
     return highest + 10000;
-  }, [timelinePoints, analytics.receivedCashInHand]);
+  }, [timelinePoints, analytics.receivedCashInHand, analytics.expectedCashInHand, yesterdayBalance, todayRealityBalance]);
 
   const getX = (index) =>
     paddingLeft + (index / Math.max(1, timelinePoints.length - 1)) * (chartWidth - paddingLeft - paddingRight);
@@ -318,29 +395,39 @@ export default function PredictiveCashRunwayCard() {
 
   const zeroLineY = getY(0);
 
-  // Base Forecast line path with vertical step drop on each due date
-  const basePath = useMemo(() => {
+  // Reality Cash Balance line path: STRICTLY ONLY UNTIL TODAY (Yesterday -> Today)
+  // Stops cleanly at Today; NEVER extends into the 60-day future (+1d .. +59d)
+  const xYesterday = 26;
+  const xToday = getX(0);
+
+  const realityPath = useMemo(() => {
+    if (!hasEnteredTodayGrossProfit) return '';
+    const yYesterday = getY(yesterdayBalance);
+    const yToday = getY(todayRealityBalance);
+    return `M ${xYesterday} ${yYesterday} L ${xToday} ${yToday}`;
+  }, [hasEnteredTodayGrossProfit, yesterdayBalance, todayRealityBalance, minVal, maxVal]);
+
+  // Expected Pure Forecast line path (statistical baseline model)
+  const expectedPath = useMemo(() => {
     if (timelinePoints.length === 0) return '';
     const commands = [];
     timelinePoints.forEach((p, i) => {
       const x = getX(i);
+      const val = p.expectedBalance ?? p.balance;
+      const valBefore = p.expectedBalanceBeforeDues ?? p.balanceBeforeDues ?? val;
+      const valAfter = p.expectedBalanceAfterDues ?? p.balanceAfterDues ?? val;
       if (i === 0) {
-        commands.push(`M ${x} ${getY(p.balanceBeforeDues ?? p.balance)}`);
+        commands.push(`M ${x} ${getY(valBefore)}`);
       }
       if (p.hasDues) {
-        // Vertical step on that date: from balance before dues to balance after dues
-        const yBefore = getY(p.balanceBeforeDues);
-        const yAfter = getY(p.balanceAfterDues);
-        const yEnd = getY(p.balance);
-        if (i !== 0) {
-          commands.push(`L ${x} ${yBefore}`);
-        }
+        const yBefore = getY(valBefore);
+        const yAfter = getY(valAfter);
+        const yEnd = getY(val);
+        if (i !== 0) commands.push(`L ${x} ${yBefore}`);
         commands.push(`L ${x} ${yAfter}`);
-        if (yEnd !== yAfter) {
-          commands.push(`L ${x} ${yEnd}`);
-        }
+        if (yEnd !== yAfter) commands.push(`L ${x} ${yEnd}`);
       } else {
-        commands.push(`L ${x} ${getY(p.balance)}`);
+        commands.push(`L ${x} ${getY(val)}`);
       }
     });
     return commands.join(' ');
@@ -467,44 +554,160 @@ export default function PredictiveCashRunwayCard() {
         </div>
       </div>
 
+      {/* EXPECTED VS REALITY MODE TOGGLE BAR */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-2xl bg-neutral-900 text-white gap-3 border border-neutral-800 relative z-10 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex p-1 rounded-xl bg-neutral-800 border border-neutral-700">
+            <button
+              type="button"
+              onClick={() => handleToggleTimelineMode('expected')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                timelineMode === 'expected'
+                  ? 'bg-amber-400 text-black shadow-md font-black'
+                  : 'text-neutral-300 hover:text-white hover:bg-neutral-700/50'
+              }`}
+            >
+              <span>🎯 Expected (Forecast)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggleTimelineMode('reality')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                timelineMode === 'reality'
+                  ? 'bg-emerald-400 text-black shadow-md font-black'
+                  : 'text-neutral-300 hover:text-white hover:bg-neutral-700/50'
+              }`}
+            >
+              <span>⚡ Reality (Until Today)</span>
+            </button>
+          </div>
+          <div className="text-xs text-neutral-300">
+            {timelineMode === 'expected' ? (
+              <span>Pure statistical forecast target (₹{analytics.expectedTodaySales?.toLocaleString()}/d)</span>
+            ) : hasEnteredTodayGrossProfit ? (
+              <span className="text-emerald-300 font-semibold">
+                Actual entered gross profit (₹{analytics.actualGrossProfit?.toLocaleString()}) calculated until today
+              </span>
+            ) : (
+              <span className="text-amber-300 font-medium">
+                Awaiting today's sales/gross profit entry in Income section
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Real-time Variance Badge */}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-neutral-400 font-medium">Sales Variance:</span>
+          <span
+            className={`px-2.5 py-1 rounded-lg font-bold font-mono text-[11px] border flex items-center gap-1 ${
+              (timelineMode === 'reality' && !hasEnteredTodayGrossProfit)
+                ? 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                : analytics.salesVariance >= 0
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+            }`}
+          >
+            {timelineMode === 'reality' && !hasEnteredTodayGrossProfit ? (
+              <span>Pending Entry</span>
+            ) : (
+              <>
+                <span>{analytics.salesVariance >= 0 ? '+' : ''}₹{analytics.salesVariance.toLocaleString()}</span>
+                <span className="text-[10px] opacity-80">vs Target</span>
+              </>
+            )}
+          </span>
+        </div>
+      </div>
+
+      {/* Reality Mode Context Banner: Informs whether today's gross profit has been entered */}
+      {timelineMode === 'reality' && (
+        <div className="relative z-10">
+          {!hasEnteredTodayGrossProfit ? (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Today's Gross Profit Pending:</strong> Reality calculates actual cash flow only until today once today's sales are logged.
+                </span>
+              </div>
+              <a
+                href="/income"
+                className="px-3.5 py-1.5 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-all text-center shrink-0 shadow-xs"
+              >
+                + Add Today's Sales
+              </a>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  <strong>Reality Active (Until Today):</strong> Today's Realized Gross Profit is <strong>₹{analytics.actualGrossProfit.toLocaleString()}</strong> ({analytics.grossMarginPct}% margin on ₹{analytics.actualTodaySales.toLocaleString()} sales), yielding <strong>+₹{analytics.actualRetainedCash.toLocaleString()} /day</strong> retained cash.
+                </span>
+              </div>
+              <span className="font-mono text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 font-bold shrink-0">
+                Verified Today's Actuals
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 4 Financial Metric Cards: RETAINED CASH, RECEIVED CASH, EXPECTED KHATA, TIMELINE DUES */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
-        {/* Metric 1: Daily Retained Cash (Replaces Gross Inflow Velocity) */}
+        {/* Metric 1: Daily Retained Cash (Adapts to Expected vs Reality) */}
         <div className="p-4 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 space-y-1 relative group">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-[10px] uppercase font-bold tracking-wider">
-              Daily Retained Cash
+              {timelineMode === 'reality' ? 'Daily Retained Cash (Until Today)' : 'Daily Retained Cash (Expected)'}
             </span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
+            <ArrowUpRight className={`w-3.5 h-3.5 ${timelineMode === 'reality' && hasEnteredTodayGrossProfit ? 'text-emerald-600' : 'text-amber-600'}`} />
           </div>
-          <div className="text-xl font-black text-emerald-600 font-['Outfit']">
-            {analytics.retainedCashPerDay >= 0 ? '+' : ''}₹{analytics.retainedCashPerDay.toLocaleString()}
-            <span className="text-xs font-normal text-neutral-500"> /day</span>
+          <div className={`text-xl font-black font-['Outfit'] ${timelineMode === 'reality' ? (hasEnteredTodayGrossProfit ? 'text-emerald-600' : 'text-neutral-500') : 'text-amber-600'}`}>
+            {timelineMode === 'reality' && !hasEnteredTodayGrossProfit
+              ? 'Pending Entry'
+              : `${(timelineMode === 'reality' ? analytics.actualRetainedCash : analytics.expectedRetainedCash) >= 0 ? '+' : ''}₹${(timelineMode === 'reality' ? analytics.actualRetainedCash : analytics.expectedRetainedCash).toLocaleString()}`}
+            {(timelineMode === 'expected' || hasEnteredTodayGrossProfit) && (
+              <span className="text-xs font-normal text-neutral-500"> /day</span>
+            )}
           </div>
           <span className="text-[10px] text-neutral-500 block truncate">
-            Gross sales: ₹{analytics.grossSales.toLocaleString()} · Margin: {analytics.grossMarginPct}%
+            {timelineMode === 'reality'
+              ? hasEnteredTodayGrossProfit
+                ? `Gross Profit: ₹${analytics.actualGrossProfit.toLocaleString()} (sales ₹${analytics.actualTodaySales.toLocaleString()})`
+                : 'Enter today\'s sales to calculate gross profit'
+              : `Expected sales: ₹${analytics.expectedTodaySales.toLocaleString()} · Margin: ${analytics.grossMarginPct}%`}
           </span>
           <span className="text-[9px] text-neutral-400 block">
-            After ₹{analytics.dailyRunningCost}/d running costs
+            {timelineMode === 'reality'
+              ? hasEnteredTodayGrossProfit
+                ? `After ₹${analytics.dailyRunningCost}/d running costs`
+                : 'Reality requires today\'s gross profit'
+              : 'Target baseline projection'}
           </span>
         </div>
 
-        {/* Metric 2: Received Cash in Hand (Certain) */}
+        {/* Metric 2: Free Cash Reserves (Requirement 2: replaces Received cash = opening + sales) */}
         <div className="p-4 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 space-y-1">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-[10px] uppercase font-bold tracking-wider">
-              Received Cash (Certain)
+              {timelineMode === 'reality' ? 'Free Cash Reserves (Reality)' : 'Free Cash Reserves (Expected Start)'}
             </span>
             <Wallet className="w-3.5 h-3.5 text-black" />
           </div>
           <div className="text-xl font-black text-black font-['Outfit']">
-            ₹{analytics.receivedCashInHand.toLocaleString()}
+            ₹{(timelineMode === 'reality' ? (hasEnteredTodayGrossProfit ? (analytics.freeCashToday || 43495) : yesterdayBalance) : (analytics.expectedModeStart || 41100)).toLocaleString()}
           </div>
           <span className="text-[10px] text-neutral-500 block">
-            Opening cash + today's sales
+            {timelineMode === 'reality'
+              ? hasEnteredTodayGrossProfit
+                ? `Opening (₹${yesterdayBalance.toLocaleString()}) + Σ retained (+₹${(analytics.actualRetainedCash || 0).toLocaleString()})`
+                : `Opening cash only (₹${yesterdayBalance.toLocaleString()})`
+              : `Opening (₹${yesterdayBalance.toLocaleString()}) + expected retained (+₹${(analytics.expectedRetainedCash || 0).toLocaleString()})`}
           </span>
-          <span className="text-[9px] text-emerald-700 block font-semibold">
-            100% in hand today
+          <span className="text-[9px] text-neutral-500 block border-t border-neutral-200/60 pt-1 mt-1">
+            <strong>Till / Bank:</strong> ₹{(analytics.tillBankTotal ?? (yesterdayBalance + (analytics.actualTodaySales || 0))).toLocaleString()} <span className="text-neutral-400 font-normal">(informational only)</span>
           </span>
         </div>
 
@@ -589,76 +792,81 @@ export default function PredictiveCashRunwayCard() {
           </div>
         </div>
 
-        {/* Right: Business Type Selector (Acceptance test: kirana -> sweets) */}
+        {/* Right: Registered Shop Model (Auto-fetched from user signup profile) */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-bold text-neutral-400 flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5 text-amber-400" />
-            <span>Shop Model:</span>
-          </span>
-          <div className="inline-flex rounded-xl bg-neutral-800 p-1 border border-neutral-700">
-            {BUSINESS_TYPE_OPTIONS.slice(0, 4).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => handleChangeBusinessType(opt.id)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                  businessType === opt.id
-                    ? 'bg-amber-400 text-black shadow-xs font-black'
-                    : 'text-neutral-300 hover:text-white hover:bg-neutral-700/60'
-                }`}
-              >
-                {opt.label.split(' ')[0]}
-              </button>
-            ))}
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-neutral-800 text-white border border-neutral-700 text-xs shadow-xs">
+            <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="text-neutral-400 text-[11px] font-medium">Shop Model:</span>
+            <span className="font-bold text-amber-300 font-['Outfit'] tracking-wide">
+              {registeredBusinessLabel}
+            </span>
           </div>
-          <span className="text-[10px] text-neutral-400 flex items-center gap-1">
-            <MapPin className="w-3 h-3 text-amber-400" />
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-neutral-800 text-neutral-300 border border-neutral-700 text-[11px] font-medium shadow-xs">
+            <MapPin className="w-3 h-3 text-amber-400 shrink-0" />
             <span>{profileLocation.city}</span>
-          </span>
+          </div>
         </div>
       </div>
 
       {/* 60-DAY INTERACTIVE TIMELINE CHART WITH SHADED FESTIVAL BANDS & LOW-HIGH CORRIDOR */}
       <div className="p-5 rounded-2xl bg-neutral-50/70 border border-neutral-200/90 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full ${timelineMode === 'reality' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
               <h3 className="text-sm font-bold text-black font-['Outfit']">
                 60-Day Cash Balance Timeline & Event Windows
               </h3>
-              <span className="text-[10px] text-amber-800 font-bold bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
-                {isFestivalAdjustmentOn ? 'Corridor: Low ↔ Base ↔ High' : 'Baseline Mode'}
-              </span>
             </div>
             <p className="text-[11px] text-neutral-500 mt-0.5">
-              Shaded bands mark festive/seasonal demand windows. The light golden corridor reflects confidence bounds.
+              {timelineMode === 'reality'
+                ? hasEnteredTodayGrossProfit
+                  ? 'Reality (solid emerald) is calculated only until today from entered sales & gross profit; dashed amber line shows expected 60-day forecast.'
+                  : 'Awaiting today\'s gross profit entry. Log today\'s sales in Income section to calculate reality.'
+                : 'Showing pure statistical forecast baseline trajectory against dated obligations.'}
             </p>
           </div>
 
           {/* Chart Legend */}
           <div className="flex flex-wrap items-center gap-3 text-[11px]">
-            <div className="flex items-center space-x-1.5">
-              <span className="w-3 h-1 bg-amber-500 rounded-full"></span>
-              <span className="font-bold text-neutral-700">Base Forecast</span>
-            </div>
-            {isFestivalAdjustmentOn && (
-              <div className="flex items-center space-x-1.5">
-                <span className="w-3 h-2 bg-amber-200/60 border border-amber-400/50 rounded-xs"></span>
-                <span className="text-neutral-600">Low-High Range</span>
-              </div>
+            {timelineMode === 'reality' ? (
+              <>
+                <div className="flex items-center space-x-1.5">
+                  <span className="w-3.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                  <span className="font-bold text-emerald-800">Reality (Until Today)</span>
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <span className="w-3 h-0.5 border-t-2 border-dashed border-amber-500"></span>
+                  <span className="font-bold text-amber-700">Expected Forecast (+60d)</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center space-x-1.5">
+                  <span className="w-3 h-1 bg-amber-500 rounded-full"></span>
+                  <span className="font-bold text-neutral-700">Expected Forecast</span>
+                </div>
+                {isFestivalAdjustmentOn && (
+                  <div className="flex items-center space-x-1.5">
+                    <span className="w-3 h-2 bg-amber-200/60 border border-amber-400/50 rounded-xs"></span>
+                    <span className="text-neutral-600">Low-High Range</span>
+                  </div>
+                )}
+              </>
             )}
             <div className="flex items-center space-x-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-yellow-500"></span>
-              <span className="text-neutral-700 font-semibold">Due (Safe &ge; Buffer)</span>
+              <span className="text-neutral-700 font-semibold">Due (&ge; Buffer)</span>
             </div>
             <div className="flex items-center space-x-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 border border-rose-600"></span>
-              <span className="text-rose-700 font-bold">Due (Breach &lt; Buffer)</span>
+              <span className="text-rose-700 font-bold">Due (&lt; Buffer)</span>
             </div>
             <div className="flex items-center space-x-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-emerald-600"></span>
-              <span className="text-emerald-700 font-semibold">Expected Khata</span>
+              <span className={`w-2.5 h-2.5 rounded-full ${timelineMode === 'reality' ? 'bg-sky-500 border border-sky-600' : 'bg-emerald-500 border border-emerald-600'}`}></span>
+              <span className={`${timelineMode === 'reality' ? 'text-sky-700' : 'text-emerald-700'} font-semibold`}>
+                {timelineMode === 'reality' ? 'Expected Khata' : 'Khata'}
+              </span>
             </div>
             <div className="flex items-center space-x-1.5">
               <span className="w-3 h-0.5 border-t border-dashed border-rose-500"></span>
@@ -813,15 +1021,117 @@ export default function PredictiveCashRunwayCard() {
               </g>
             )}
 
-            {/* Low-High Confidence Area Light Band */}
-            {isFestivalAdjustmentOn && confidenceAreaPath && (
+            {/* Low-High Confidence Area Light Band (Shown in Expected mode with festivals) */}
+            {isFestivalAdjustmentOn && timelineMode === 'expected' && confidenceAreaPath && (
               <path d={confidenceAreaPath} fill="url(#corridorGradient)" />
             )}
 
-            {/* Main Base Line */}
-            {basePath && (
+            {/* In Reality mode: Render Expected Forecast (+60 Days Forward) as a Dashed Golden Line */}
+            {timelineMode === 'reality' && expectedPath && (
               <path
-                d={basePath}
+                d={expectedPath}
+                fill="none"
+                stroke="#f59e0b"
+                strokeWidth="1.8"
+                strokeDasharray="5 4"
+                strokeLinecap="round"
+                opacity="0.85"
+              />
+            )}
+
+            {/* In Reality mode: Shaded Reality Zone background (Until Today) */}
+            {timelineMode === 'reality' && hasEnteredTodayGrossProfit && (
+              <g>
+                <rect
+                  x={xYesterday - 6}
+                  y={paddingTop}
+                  width={xToday - xYesterday + 12}
+                  height={chartHeight - paddingTop - paddingBottom}
+                  fill="#10b981"
+                  opacity="0.06"
+                  rx="4"
+                />
+                {/* Vertical Boundary Separator at Today */}
+                <line
+                  x1={xToday}
+                  y1={paddingTop}
+                  x2={xToday}
+                  y2={chartHeight - paddingBottom}
+                  stroke="#10b981"
+                  strokeWidth="1.5"
+                  strokeDasharray="3 3"
+                  opacity="0.6"
+                />
+                <text
+                  x={xToday}
+                  y={paddingTop - 4}
+                  textAnchor="middle"
+                  fontSize="8.5"
+                  fontWeight="800"
+                  fill="#059669"
+                  fontFamily="sans-serif"
+                >
+                  TODAY (REALITY BOUNDARY)
+                </text>
+              </g>
+            )}
+
+            {/* Reality Line: ONLY UNTIL TODAY (Yesterday -> Today). NEVER penetrates into the future! */}
+            {timelineMode === 'reality' && realityPath && (
+              <g>
+                <path
+                  d={realityPath}
+                  fill="none"
+                  stroke="#10b981"
+                  strokeWidth="3.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {/* Yesterday Node */}
+                <g
+                  onMouseEnter={() => setHoveredHistoryDay('yesterday')}
+                  onMouseLeave={() => setHoveredHistoryDay(null)}
+                  className="cursor-pointer"
+                >
+                  <circle
+                    cx={xYesterday}
+                    cy={getY(yesterdayBalance)}
+                    r="5"
+                    fill="#10b981"
+                    stroke="#ffffff"
+                    strokeWidth="1.5"
+                  />
+                </g>
+                {/* Today Reality Node (with glowing pulse ring) */}
+                <g
+                  onMouseEnter={() => setHoveredHistoryDay('today')}
+                  onMouseLeave={() => setHoveredHistoryDay(null)}
+                  className="cursor-pointer"
+                >
+                  <circle
+                    cx={xToday}
+                    cy={getY(todayRealityBalance)}
+                    r="12"
+                    fill="#10b981"
+                    opacity="0.25"
+                    className="animate-pulse"
+                  />
+                  <circle
+                    cx={xToday}
+                    cy={getY(todayRealityBalance)}
+                    r="6.5"
+                    fill="#10b981"
+                    stroke="#ffffff"
+                    strokeWidth="2"
+                  />
+                </g>
+              </g>
+            )}
+
+            {/* In Expected mode: Solid Amber Forecast Line across all 60 days */}
+            {timelineMode === 'expected' && expectedPath && (
+              <path
+                d={expectedPath}
                 fill="none"
                 stroke="#d97706"
                 strokeWidth="2.5"
@@ -840,11 +1150,48 @@ export default function PredictiveCashRunwayCard() {
               strokeWidth="1.5"
             />
 
+            {/* Yesterday tick mark when in Reality mode */}
+            {timelineMode === 'reality' && (
+              <g key="x-tick-yesterday">
+                <line
+                  x1={xYesterday}
+                  y1={chartHeight - paddingBottom}
+                  x2={xYesterday}
+                  y2={chartHeight - paddingBottom + 5}
+                  stroke="#10b981"
+                  strokeWidth="1.5"
+                />
+                <text
+                  x={xYesterday}
+                  y={chartHeight - paddingBottom + 16}
+                  textAnchor="middle"
+                  fontSize="9"
+                  fontWeight="700"
+                  fill="#059669"
+                  fontFamily="sans-serif"
+                >
+                  Yesterday
+                </text>
+                <text
+                  x={xYesterday}
+                  y={chartHeight - paddingBottom + 27}
+                  textAnchor="middle"
+                  fontSize="8"
+                  fontWeight="500"
+                  fill="#10b981"
+                  fontFamily="sans-serif"
+                >
+                  Actual
+                </text>
+              </g>
+            )}
+
             {/* X-axis Day & Date Tick Marks & Labels */}
             {[0, 15, 30, 45, 59].map((dayIdx) => {
               if (dayIdx >= timelinePoints.length) return null;
               const p = timelinePoints[dayIdx];
               const x = getX(dayIdx);
+              const isToday = dayIdx === 0;
               return (
                 <g key={`x-tick-${dayIdx}`}>
                   <line
@@ -852,7 +1199,7 @@ export default function PredictiveCashRunwayCard() {
                     y1={chartHeight - paddingBottom}
                     x2={x}
                     y2={chartHeight - paddingBottom + 5}
-                    stroke="#9ca3af"
+                    stroke={isToday && timelineMode === 'reality' ? '#10b981' : '#9ca3af'}
                     strokeWidth="1.5"
                   />
                   <text
@@ -861,10 +1208,10 @@ export default function PredictiveCashRunwayCard() {
                     textAnchor="middle"
                     fontSize="10"
                     fontWeight="700"
-                    fill="#374151"
+                    fill={isToday && timelineMode === 'reality' ? '#059669' : '#374151'}
                     fontFamily="sans-serif"
                   >
-                    {dayIdx === 0 ? 'Today' : `+${dayIdx}d`}
+                    {isToday ? (timelineMode === 'reality' ? 'Today (Reality)' : 'Today') : `+${dayIdx}d`}
                   </text>
                   <text
                     x={x}
@@ -885,9 +1232,16 @@ export default function PredictiveCashRunwayCard() {
             {timelinePoints.map((p, i) => {
               if (!p.hasDues) return null;
               const x = getX(i);
-              const yBefore = getY(p.balanceBeforeDues);
-              const yAfter = getY(p.balanceAfterDues);
-              const isBreach = p.balanceAfterDues < analytics.safetyBuffer;
+              // In Reality mode, upcoming dates are on the Expected baseline path
+              const curBefore = timelineMode === 'reality'
+                ? (p.expectedBalanceBeforeDues ?? p.balanceBeforeDues)
+                : (isFestivalAdjustmentOn ? p.balanceBeforeDues : (p.expectedBalanceBeforeDues ?? p.balanceBeforeDues));
+              const curAfter = timelineMode === 'reality'
+                ? (p.expectedBalanceAfterDues ?? p.balanceAfterDues)
+                : (isFestivalAdjustmentOn ? p.balanceAfterDues : (p.expectedBalanceAfterDues ?? p.balanceAfterDues));
+              const yBefore = getY(curBefore);
+              const yAfter = getY(curAfter);
+              const isBreach = curAfter < analytics.safetyBuffer;
               const strokeColor = isBreach ? '#ef4444' : '#eab308';
               return (
                 <g key={`step-vert-${i}`}>
@@ -917,21 +1271,28 @@ export default function PredictiveCashRunwayCard() {
             {/* Interactive Data Point Handles and Colored Markers */}
             {timelinePoints.map((p, i) => {
               const cx = getX(i);
-              // On due date, place marker at the balance AFTER deduction; else at p.balance
-              const cy = p.hasDues ? getY(p.balanceAfterDues) : getY(p.balance);
+              // In Reality mode, upcoming dates follow the Expected forecast baseline
+              const curBalance = timelineMode === 'reality'
+                ? (p.expectedBalance ?? p.balance)
+                : (isFestivalAdjustmentOn ? p.balance : (p.expectedBalance ?? p.balance));
+              const curBalanceAfterDues = timelineMode === 'reality'
+                ? (p.expectedBalanceAfterDues ?? p.balanceAfterDues)
+                : (isFestivalAdjustmentOn ? p.balanceAfterDues : (p.expectedBalanceAfterDues ?? p.balanceAfterDues));
+              // On due date, place marker at the balance AFTER deduction; else at curBalance
+              const cy = p.hasDues ? getY(curBalanceAfterDues) : getY(curBalance);
               const isHovered = hoveredDayIndex === i;
-              const hasFestival = p.activeEvents && p.activeEvents.length > 0;
 
               let isMarker = false;
               let markerFill = null;
 
               if (p.hasDues) {
                 isMarker = true;
-                markerFill = p.balanceAfterDues < analytics.safetyBuffer ? '#ef4444' : '#eab308';
+                markerFill = curBalanceAfterDues < analytics.safetyBuffer ? '#ef4444' : '#eab308';
               } else if (p.hasKhata) {
                 isMarker = true;
-                markerFill = '#10b981';
-              } else if (isHovered || (hasFestival && isFestivalAdjustmentOn)) {
+                // In Reality mode, upcoming Khata is a future expectation (sky blue), NEVER green
+                markerFill = timelineMode === 'reality' ? '#0ea5e9' : '#10b981';
+              } else if (isHovered) {
                 isMarker = true;
                 markerFill = '#f59e0b';
               }
@@ -958,7 +1319,7 @@ export default function PredictiveCashRunwayCard() {
                   {isMarker && (
                     <g>
                       {/* Aura halo for critical points */}
-                      {p.hasDues && p.balanceAfterDues < analytics.safetyBuffer && (
+                      {p.hasDues && curBalanceAfterDues < analytics.safetyBuffer && (
                         <circle
                           cx={cx}
                           cy={cy}
@@ -968,7 +1329,7 @@ export default function PredictiveCashRunwayCard() {
                           className="animate-pulse"
                         />
                       )}
-                      {p.hasDues && p.balanceAfterDues >= analytics.safetyBuffer && (
+                      {p.hasDues && curBalanceAfterDues >= analytics.safetyBuffer && (
                         <circle
                           cx={cx}
                           cy={cy}
@@ -982,7 +1343,7 @@ export default function PredictiveCashRunwayCard() {
                           cx={cx}
                           cy={cy}
                           r={isHovered ? 8 : 6.5}
-                          fill="#10b981"
+                          fill={timelineMode === 'reality' ? '#0ea5e9' : '#10b981'}
                           opacity="0.25"
                         />
                       )}
@@ -1003,6 +1364,40 @@ export default function PredictiveCashRunwayCard() {
             })}
           </svg>
 
+          {/* Interactive Tooltip Card on Hover for History Points (Yesterday / Today) */}
+          {hoveredHistoryDay && (
+            <div className="mt-3 p-4 bg-neutral-900 text-white rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs border border-emerald-500/40 shadow-xl animate-in fade-in">
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-emerald-400 text-sm">
+                    {hoveredHistoryDay === 'today' ? '⚡ Today (Reality Verified)' : '⚡ Yesterday (Historical Actual)'}
+                  </span>
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                    Actual Reality Zone
+                  </span>
+                </div>
+                {hoveredHistoryDay === 'today' ? (
+                  <div className="text-[11px] text-neutral-300 space-y-0.5">
+                    <div>Realized Gross Profit: <strong className="text-emerald-400 font-mono">₹{analytics.actualGrossProfit.toLocaleString()}</strong> ({analytics.grossMarginPct}% margin on ₹{analytics.actualTodaySales.toLocaleString()} sales)</div>
+                    <div>Today's Retained Cash: <strong className="text-emerald-400 font-mono">+{analytics.actualRetainedCash.toLocaleString()} /day</strong> (after ₹{analytics.dailyRunningCost}/d running cost)</div>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-neutral-300">
+                    Opening liquid cash before today's trading: <strong className="text-white font-mono">₹{yesterdayBalance.toLocaleString()}</strong>
+                  </div>
+                )}
+              </div>
+              <div className="text-left md:text-right shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-neutral-800 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">
+                  Verified Cash Balance
+                </span>
+                <span className="font-extrabold font-mono text-xl text-emerald-400">
+                  ₹{(hoveredHistoryDay === 'today' ? todayRealityBalance : yesterdayBalance).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Interactive Tooltip Card on Hover */}
           {hoveredPoint && (
             <div className="mt-3 p-4 bg-neutral-900 text-white rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs border border-neutral-700 shadow-xl animate-in fade-in">
@@ -1016,14 +1411,14 @@ export default function PredictiveCashRunwayCard() {
                   {hoveredPoint.hasDues && (
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
-                        hoveredPoint.balanceAfterDues < analytics.safetyBuffer
+                        (timelineMode === 'reality' ? hoveredPoint.balanceAfterDues : hoveredPoint.expectedBalanceAfterDues) < analytics.safetyBuffer
                           ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                           : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
                       }`}
                     >
                       <span>●</span>
                       <span>
-                        {hoveredPoint.balanceAfterDues < analytics.safetyBuffer
+                        {(timelineMode === 'reality' ? hoveredPoint.balanceAfterDues : hoveredPoint.expectedBalanceAfterDues) < analytics.safetyBuffer
                           ? 'Buffer Breach'
                           : 'Buffer Safe'}
                       </span>
@@ -1068,16 +1463,21 @@ export default function PredictiveCashRunwayCard() {
 
                     <div className="pt-2 mt-1 border-t border-neutral-700/60 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                       <span className="text-neutral-400">
-                        Balance Step: <strong className="font-mono text-white">₹{hoveredPoint.balanceBeforeDues.toLocaleString()}</strong> &rarr; <strong className={`font-mono ${hoveredPoint.balanceAfterDues < analytics.safetyBuffer ? 'text-rose-400' : 'text-yellow-300'}`}>₹{hoveredPoint.balanceAfterDues.toLocaleString()}</strong>
+                        {timelineMode === 'reality' ? 'Forecast Step: ' : 'Expected Step: '}
+                        <strong className="font-mono text-white">
+                          ₹{(hoveredPoint.expectedBalanceBeforeDues ?? hoveredPoint.balanceBeforeDues).toLocaleString()}
+                        </strong> &rarr; <strong className={`font-mono ${(hoveredPoint.expectedBalanceAfterDues ?? hoveredPoint.balanceAfterDues) < analytics.safetyBuffer ? 'text-rose-400' : 'text-yellow-300'}`}>
+                          ₹{(hoveredPoint.expectedBalanceAfterDues ?? hoveredPoint.balanceAfterDues).toLocaleString()}
+                        </strong>
                       </span>
 
-                      {hoveredPoint.balanceAfterDues < analytics.safetyBuffer ? (
+                      {(hoveredPoint.expectedBalanceAfterDues ?? hoveredPoint.balanceAfterDues) < analytics.safetyBuffer ? (
                         <span className="bg-rose-500/30 text-rose-300 border border-rose-500/50 px-2 py-0.5 rounded font-black font-mono">
-                          Arrange ₹{(analytics.safetyBuffer - hoveredPoint.balanceAfterDues).toLocaleString()}
+                          Arrange ₹{(analytics.safetyBuffer - (hoveredPoint.expectedBalanceAfterDues ?? hoveredPoint.balanceAfterDues)).toLocaleString()}
                         </span>
                       ) : (
                         <span className="text-yellow-400/90 font-medium">
-                          Cushion: +₹{(hoveredPoint.balanceAfterDues - analytics.safetyBuffer).toLocaleString()} above buffer
+                          Cushion: +₹{((hoveredPoint.expectedBalanceAfterDues ?? hoveredPoint.balanceAfterDues) - analytics.safetyBuffer).toLocaleString()} above buffer
                         </span>
                       )}
                     </div>
@@ -1086,7 +1486,7 @@ export default function PredictiveCashRunwayCard() {
 
                 {/* Khata expected collection if present */}
                 {hoveredPoint.hasKhata && (
-                  <div className="text-[11px] text-emerald-400 flex items-center gap-1 font-mono">
+                  <div className={`text-[11px] ${timelineMode === 'reality' ? 'text-sky-400' : 'text-emerald-400'} flex items-center gap-1 font-mono`}>
                     <span>Expected Khata Collection:</span>
                     <strong>+₹{hoveredPoint.dayRecv.toLocaleString()}</strong>
                   </div>
@@ -1094,23 +1494,37 @@ export default function PredictiveCashRunwayCard() {
 
                 {/* Retained cash note */}
                 <div className="text-[11px] text-neutral-400 font-sans">
-                  Today's Retained Cash: <strong className="text-emerald-400 font-mono">{hoveredPoint.retainedBase >= 0 ? '+' : ''}₹{hoveredPoint.retainedBase.toLocaleString()}</strong> (from sales ₹{hoveredPoint.adjSalesBase.toLocaleString()} at ×{hoveredPoint.multBase})
+                  Day Retained Cash: <strong className="text-amber-300 font-mono">{(timelineMode === 'reality' ? hoveredPoint.expectedRetainedCash : hoveredPoint.retainedBase) >= 0 ? '+' : ''}₹{(timelineMode === 'reality' ? hoveredPoint.expectedRetainedCash : hoveredPoint.retainedBase).toLocaleString()}</strong> (forecast sales ₹{(timelineMode === 'reality' ? hoveredPoint.expectedSales : hoveredPoint.adjSalesBase).toLocaleString()})
                 </div>
               </div>
 
-              {/* Right Column: Final Projected End-of-Day Balance */}
-              <div className="text-left md:text-right shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-neutral-800">
-                <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">
-                  End-of-Day Balance
-                </span>
-                <span className="font-extrabold font-mono text-lg text-white">
-                  ₹{hoveredPoint.balance.toLocaleString()}
-                </span>
-                {isFestivalAdjustmentOn && (
-                  <span className="text-[10px] text-neutral-400 font-mono block">
-                    Range: ₹{(hoveredPoint.balanceLow || hoveredPoint.balance).toLocaleString()} - ₹{(hoveredPoint.balanceHigh || hoveredPoint.balance).toLocaleString()}
+              {/* Right Column: Comparison of Reality vs Expected */}
+              <div className="text-left md:text-right shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-neutral-800 space-y-1.5">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">
+                    {timelineMode === 'reality' ? '🎯 Forecast Balance' : '🎯 Expected Balance'}
                   </span>
+                  <span className="font-extrabold font-mono text-xl text-amber-400">
+                    ₹{(hoveredPoint.expectedBalance ?? hoveredPoint.balance).toLocaleString()}
+                  </span>
+                </div>
+                {timelineMode === 'reality' && (
+                  <p className="text-[10px] text-neutral-400 italic font-sans max-w-44">
+                    Upcoming date outside reality zone (projected statistical baseline).
+                  </p>
                 )}
+                <div className="pt-1.5 border-t border-neutral-800 text-[11px] text-neutral-300 font-mono space-y-1">
+                  <div className="flex items-center justify-between md:justify-end gap-3">
+                    <span className="text-neutral-400">{timelineMode === 'reality' ? 'Expected Ref:' : 'Reality Ref:'}</span>
+                    <strong className="text-neutral-200">₹{(timelineMode === 'reality' ? hoveredPoint.expectedBalance : hoveredPoint.balance).toLocaleString()}</strong>
+                  </div>
+                  <div className="flex items-center justify-between md:justify-end gap-3">
+                    <span className="text-neutral-400">Variance:</span>
+                    <strong className={hoveredPoint.variance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                      {hoveredPoint.variance >= 0 ? '+' : ''}₹{hoveredPoint.variance.toLocaleString()}
+                    </strong>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1130,8 +1544,8 @@ export default function PredictiveCashRunwayCard() {
               </h3>
               <p className="text-[11px] text-neutral-500">
                 AI Sales Context Analyst bounded adjustments for{' '}
-                <strong className="text-black font-bold capitalize">
-                  {BUSINESS_TYPE_OPTIONS.find((b) => b.id === businessType)?.label || businessType}
+                <strong className="text-black font-bold">
+                  {registeredBusinessLabel}
                 </strong>{' '}
                 in {profileLocation.city}. Code enforces all rupee math.
               </p>
@@ -1268,6 +1682,15 @@ export default function PredictiveCashRunwayCard() {
               </button>
             </div>
 
+            {/* Accounting Rule Callout (Requirement 9) */}
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-900 leading-relaxed">
+                <strong className="font-bold text-black block mb-0.5">SMB Working Capital Accounting Rule:</strong>
+                A cost may belong to <strong>running_cost</strong> (e.g. daily helper wages, electricity, packaging) OR <strong>fixed expenses</strong> (e.g. monthly store rent, loan EMI), <em>not both</em>. Do not double count!
+              </div>
+            </div>
+
             <form onSubmit={handleSaveSettings} className="space-y-5 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Input 1: Gross Margin % */}
@@ -1330,14 +1753,14 @@ export default function PredictiveCashRunwayCard() {
                     className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-11"
                   />
                   <span className="text-[11px] text-neutral-500 block">
-                    Helper wages, electricity, transport
+                    Daily helper, tea, electricity (non-rent operating costs)
                   </span>
                 </div>
 
                 {/* Input 3: Opening Cash */}
                 <div className="space-y-1.5 bg-neutral-50/80 p-3.5 rounded-2xl border border-neutral-200/80">
                   <label className="font-bold text-neutral-800 text-xs sm:text-sm block">
-                    Opening Received Cash (₹)
+                    Opening Cash in Hand (₹)
                   </label>
                   <input
                     type="number"
@@ -1349,11 +1772,48 @@ export default function PredictiveCashRunwayCard() {
                     className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-11"
                   />
                   <span className="text-[11px] text-neutral-500 block">
-                    Cash in hand + current account balance
+                    Cash in till + primary bank current balance
                   </span>
                 </div>
 
-                {/* Input 4: Safety Buffer */}
+                {/* Input 4: Opening Date (Requirement 2: Store opening_date) */}
+                <div className="space-y-1.5 bg-neutral-50/80 p-3.5 rounded-2xl border border-neutral-200/80">
+                  <label className="font-bold text-neutral-800 text-xs sm:text-sm block">
+                    Opening Date
+                  </label>
+                  <input
+                    type="date"
+                    value={settingsForm.openingDate || '2026-10-01'}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, openingDate: e.target.value })
+                    }
+                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-11"
+                  />
+                  <span className="text-[11px] text-neutral-500 block">
+                    Date from which free cash reserves are accumulated
+                  </span>
+                </div>
+
+                {/* Input 5: Owner Target Daily Sales (Requirement 4 fallback) */}
+                <div className="space-y-1.5 bg-neutral-50/80 p-3.5 rounded-2xl border border-neutral-200/80">
+                  <label className="font-bold text-neutral-800 text-xs sm:text-sm block">
+                    Owner Target Daily Sales (₹/day)
+                  </label>
+                  <input
+                    type="number"
+                    min="500"
+                    value={settingsForm.ownerTargetDailySales || 8000}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, ownerTargetDailySales: Number(e.target.value) })
+                    }
+                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-11"
+                  />
+                  <span className="text-[11px] text-neutral-500 block">
+                    Fallback statistical baseline when &lt; 3 complete days recorded
+                  </span>
+                </div>
+
+                {/* Input 6: Safety Buffer */}
                 <div className="space-y-1.5 bg-neutral-50/80 p-3.5 rounded-2xl border border-neutral-200/80">
                   <label className="font-bold text-neutral-800 text-xs sm:text-sm block">
                     Safety Buffer (₹)
@@ -1368,7 +1828,7 @@ export default function PredictiveCashRunwayCard() {
                     className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-11"
                   />
                   <span className="text-[11px] text-neutral-500 block">
-                    Defaults to 3 days of running costs
+                    Defaults to 3 days of running costs (₹{(Number(settingsForm.dailyRunningCost || 500) * 3).toLocaleString()})
                   </span>
                 </div>
               </div>
