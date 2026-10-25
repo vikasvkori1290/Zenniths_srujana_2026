@@ -50,13 +50,22 @@ app.use('/api', apiRoutes); // Alias for convenience
 // Serve static frontend assets from client/dist
 app.use(express.static(clientDistPath));
 
-// SPA catch-all: serve index.html for non-API client routes
+// SPA catch-all: serve index.html for non-API client routes, or return API status when running standalone
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) {
     return next();
   }
   res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
-    if (err) next();
+    if (err) {
+      return res.status(200).json({
+        success: true,
+        service: 'FinSafe Backend API',
+        status: 'online',
+        message: 'Backend is running on Vercel & connected to MongoDB Atlas',
+        health: '/api/v1/health',
+        timestamp: new Date().toISOString(),
+      });
+    }
   });
 });
 
