@@ -1222,7 +1222,7 @@ Thank you for your business! 🙏
             <button
               type="button"
               onClick={() => speechService.speakLedgerOverview(khataList, voiceLanguage)}
-              className="flex items-center space-x-2 px-3 py-2.5 rounded-2xl bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 font-bold text-xs transition-all shadow-xs cursor-pointer min-h-[44px]"
+              className="flex items-center space-x-2 px-3 py-2.5 rounded-2xl bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 font-bold text-xs transition-all shadow-xs cursor-pointer min-h-11"
               title="Listen to full ledger audio summary aloud"
             >
               <Volume2 className="w-4 h-4 text-amber-800 shrink-0" />
@@ -1252,7 +1252,7 @@ Thank you for your business! 🙏
                 setTempKeyInput(groqKey);
                 setIsGroqModalOpen(true);
               }}
-              className="p-3 min-w-[44px] min-h-[44px] rounded-2xl bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 text-neutral-700 hover:text-black transition-colors flex items-center justify-center cursor-pointer"
+              className="p-3 min-w-11 min-h-11 rounded-2xl bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 text-neutral-700 hover:text-black transition-colors flex items-center justify-center cursor-pointer"
               title="Groq Key Settings"
               aria-label="Groq Key Settings"
             >
@@ -1447,7 +1447,7 @@ Thank you for your business! 🙏
                 <button
                   type="button"
                   onClick={toggleListening}
-                  className={`relative w-9 h-9 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm min-w-[36px] min-h-[36px] ${
+                  className={`relative w-9 h-9 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm min-w-9 min-h-9 ${
                     isListening
                       ? 'bg-yellow-400 text-black scale-105 border-2 border-black'
                       : 'bg-black text-yellow-300 hover:bg-neutral-800 border border-yellow-400/80 hover:scale-105'
@@ -1470,7 +1470,7 @@ Thank you for your business! 🙏
                   }
                   value={manualText}
                   onChange={(e) => setManualText(e.target.value)}
-                  className={`w-full pl-3.5 pr-20 py-2.5 sm:py-2 rounded-xl bg-white border text-base sm:text-xs focus:border-yellow-400 outline-none text-black placeholder:text-neutral-400 shadow-sm min-h-[44px] sm:min-h-0 ${
+                  className={`w-full pl-3.5 pr-20 py-2.5 sm:py-2 rounded-xl bg-white border text-base sm:text-xs focus:border-yellow-400 outline-none text-black placeholder:text-neutral-400 shadow-sm min-h-11 sm:min-h-0 ${
                     isListening ? 'border-amber-400 bg-amber-50/30' : 'border-neutral-200'
                   }`}
                 />
@@ -1487,7 +1487,7 @@ Thank you for your business! 🙏
             <button
               type="submit"
               disabled={isProcessing}
-              className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400/80 cursor-pointer shadow-sm shrink-0 flex items-center justify-center space-x-1 min-h-[44px] w-full sm:w-auto"
+              className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400/80 cursor-pointer shadow-sm shrink-0 flex items-center justify-center space-x-1 min-h-11 w-full sm:w-auto"
             >
               {isProcessing ? (
                 <span>Executing Groq...</span>
@@ -1559,7 +1559,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('add 20rs to id number 1')}
-                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
               >
                 <Plus className="w-3 h-3 text-emerald-600" />
                 <span>"add 20rs to id number 1"</span>
@@ -1569,7 +1569,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('add 31 november to id number 2')}
-                className="px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
               >
                 <Calendar className="w-3 h-3 text-sky-600" />
                 <span>"add 31 november to id number 2"</span>
@@ -1579,7 +1579,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('add 20rs to nitish')}
-                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
               >
                 <Plus className="w-3 h-3 text-emerald-600" />
                 <span>"add 20rs to nitish"</span>
@@ -1589,7 +1589,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('remove 20rs from id number 1')}
-                className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
               >
                 <MinusCircle className="w-3 h-3 text-amber-600" />
                 <span>"remove 20rs from id number 1"</span>
@@ -1599,7 +1599,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('change name from nitish to vikas')}
-                className="px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-300 text-purple-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-300 text-purple-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
               >
                 <Edit3 className="w-3 h-3 text-purple-600" />
                 <span>"change name from nitish to vikas"</span>
@@ -1609,7 +1609,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('remove the complete number from nitish remove the person totally from the list')}
-                className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
               >
                 <XCircle className="w-3 h-3 text-rose-600" />
                 <span>"remove nitish totally from list"</span>
@@ -1619,7 +1619,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => handleQuickCommand('settle id 1')}
-                className="px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 border border-teal-300 text-teal-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-9"
               >
                 <CheckCircle2 className="w-3 h-3 text-teal-600" />
                 <span>"settle id 1"</span>
@@ -1648,7 +1648,7 @@ Thank you for your business! 🙏
                   placeholder="Search customer or due date..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 sm:py-1.5 rounded-xl bg-white border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                  className="w-full pl-8 pr-3 py-2 sm:py-1.5 rounded-xl bg-white border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                 />
               </div>
 
@@ -1656,7 +1656,7 @@ Thank you for your business! 🙏
               <button
                 type="button"
                 onClick={() => setIsAddCustomerModalOpen(true)}
-                className="gold-button-gradient px-3.5 py-2 sm:py-1.5 rounded-xl text-xs font-bold text-black border border-yellow-400 flex items-center justify-center space-x-1.5 shrink-0 shadow-xs cursor-pointer hover:scale-[1.02] transition-transform min-h-[44px] sm:min-h-0"
+                className="gold-button-gradient px-3.5 py-2 sm:py-1.5 rounded-xl text-xs font-bold text-black border border-yellow-400 flex items-center justify-center space-x-1.5 shrink-0 shadow-xs cursor-pointer hover:scale-[1.02] transition-transform min-h-11 sm:min-h-0"
                 title="Add New Customer Manually or Dictate via Voice"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -1745,7 +1745,7 @@ Thank you for your business! 🙏
                       <button
                         type="button"
                         onClick={() => speechService.speakCustomerSummary(customer, voiceLanguage)}
-                        className="min-h-[44px] px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold flex items-center space-x-1 transition-all shadow-2xs cursor-pointer"
+                        className="min-h-11 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold flex items-center space-x-1 transition-all shadow-2xs cursor-pointer"
                         title={`Listen to credit summary for ${customer.name}`}
                       >
                         <Volume2 className="w-3.5 h-3.5 text-amber-700" />
@@ -1754,7 +1754,7 @@ Thank you for your business! 🙏
 
                       <button
                         onClick={() => handleWhatsAppNotify(customer)}
-                        className="min-h-[44px] px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center space-x-1.5 transition-all shadow-2xs cursor-pointer"
+                        className="min-h-11 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center space-x-1.5 transition-all shadow-2xs cursor-pointer"
                         title={`Fetch WhatsApp application for ${customer.name}`}
                       >
                         <WhatsAppIcon className="w-3.5 h-3.5 text-emerald-600" />
@@ -1769,7 +1769,7 @@ Thank you for your business! 🙏
                           setNewTxAmount('');
                           setNewTxNote('');
                         }}
-                        className="min-h-[44px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs"
+                        className="min-h-11 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs"
                         style={{
                           backgroundColor: '#3D2E18',
                           color: '#F9DEBF',
@@ -1784,7 +1784,7 @@ Thank you for your business! 🙏
                     <div className="flex items-center space-x-1">
                       <button
                         onClick={() => setSelectedCustomerHistory(customer)}
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 hover:text-black transition-colors cursor-pointer"
+                        className="min-w-11 min-h-11 flex items-center justify-center rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 hover:text-black transition-colors cursor-pointer"
                         title="View Audit Logs"
                         aria-label="View Audit Logs"
                       >
@@ -1794,7 +1794,7 @@ Thank you for your business! 🙏
                       {customer.totalAmount > 0 && (
                         <button
                           onClick={() => handleSettle(customer.id)}
-                          className="min-h-[44px] px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center space-x-1 cursor-pointer"
+                          className="min-h-11 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center space-x-1 cursor-pointer"
                           title="Mark as fully settled"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1804,7 +1804,7 @@ Thank you for your business! 🙏
 
                       <button
                         onClick={() => handleDelete(customer.id, customer.name)}
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl hover:bg-rose-50 text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer"
+                        className="min-w-11 min-h-11 flex items-center justify-center rounded-xl hover:bg-rose-50 text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer"
                         title="Delete customer"
                         aria-label="Delete customer"
                       >
@@ -2022,7 +2022,7 @@ Thank you for your business! 🙏
                 </div>
                 <button
                   onClick={() => setIsGroqModalOpen(false)}
-                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black cursor-pointer"
+                  className="p-2 min-w-11 min-h-11 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black cursor-pointer"
                   aria-label="Close modal"
                 >
                   ✕
@@ -2049,7 +2049,7 @@ Thank you for your business! 🙏
                       href="https://console.groq.com/keys"
                       target="_blank"
                       rel="noreferrer"
-                      className="text-amber-600 hover:underline flex items-center space-x-0.5 text-[11px] font-semibold min-h-[44px] sm:min-h-0 items-center inline-flex"
+                      className="text-amber-600 hover:underline inline-flex items-center space-x-0.5 text-[11px] font-semibold min-h-11 sm:min-h-0"
                     >
                       <span>Get Free Key</span>
                       <ExternalLink className="w-3 h-3" />
@@ -2060,7 +2060,7 @@ Thank you for your business! 🙏
                     placeholder="gsk_..."
                     value={tempKeyInput}
                     onChange={(e) => setTempKeyInput(e.target.value)}
-                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono text-base sm:text-xs focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                   />
                   <p className="text-[10px] text-neutral-500 mt-1">
                     Groq provides a 100% free tier with 30 requests/min and near-instant (&lt;200ms) execution speed.
@@ -2081,13 +2081,13 @@ Thank you for your business! 🙏
               <div className="pt-2 border-t border-neutral-200 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
                 <button
                   onClick={() => setIsGroqModalOpen(false)}
-                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-neutral-100 text-neutral-700 text-xs font-semibold hover:bg-neutral-200 min-h-[44px] flex items-center justify-center cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-neutral-100 text-neutral-700 text-xs font-semibold hover:bg-neutral-200 min-h-11 flex items-center justify-center cursor-pointer"
                 >
                   Close
                 </button>
                 <button
                   onClick={handleSaveGroqKey}
-                  className="w-full sm:w-auto gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-black text-xs font-bold border border-yellow-400 shadow-sm min-h-[44px] flex items-center justify-center cursor-pointer"
+                  className="w-full sm:w-auto gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-black text-xs font-bold border border-yellow-400 shadow-sm min-h-11 flex items-center justify-center cursor-pointer"
                 >
                   Save
                 </button>
@@ -2119,7 +2119,7 @@ Thank you for your business! 🙏
                 </div>
                 <button
                   onClick={() => setSelectedCustomerHistory(null)}
-                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black cursor-pointer"
+                  className="p-2 min-w-11 min-h-11 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black cursor-pointer"
                   aria-label="Close modal"
                 >
                   ✕
@@ -2151,7 +2151,7 @@ Thank you for your business! 🙏
               <div className="pt-2 border-t border-neutral-200 flex justify-end">
                 <button
                   onClick={() => setSelectedCustomerHistory(null)}
-                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-black text-white text-xs font-bold hover:bg-neutral-800 min-h-[44px] flex items-center justify-center cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-black text-white text-xs font-bold hover:bg-neutral-800 min-h-11 flex items-center justify-center cursor-pointer"
                 >
                   Close
                 </button>
@@ -2191,7 +2191,7 @@ Thank you for your business! 🙏
                 <button
                   type="button"
                   onClick={() => setEditingCustomer(null)}
-                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
+                  className="p-2 min-w-11 min-h-11 flex items-center justify-center rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
                   style={{ color: '#8A91A0' }}
                   aria-label="Close modal"
                 >
@@ -2204,7 +2204,7 @@ Thank you for your business! 🙏
                 <button
                   type="button"
                   onClick={() => setEditTab('TXN')}
-                  className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-[44px] sm:min-h-0"
+                  className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-11 sm:min-h-0"
                   style={{
                     backgroundColor: editTab === 'TXN' ? '#3D2E18' : 'transparent',
                     color: editTab === 'TXN' ? '#F9DEBF' : '#8A91A0',
@@ -2216,7 +2216,7 @@ Thank you for your business! 🙏
                 <button
                   type="button"
                   onClick={() => setEditTab('DETAILS')}
-                  className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-[44px] sm:min-h-0"
+                  className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-11 sm:min-h-0"
                   style={{
                     backgroundColor: editTab === 'DETAILS' ? '#3D2E18' : 'transparent',
                     color: editTab === 'DETAILS' ? '#F9DEBF' : '#8A91A0',
@@ -2242,7 +2242,7 @@ Thank you for your business! 🙏
                       Current Due Balance
                     </span>
                     <span className="text-lg font-black font-mono" style={{ color: '#3D2E18' }}>
-                      ₹{Number(editingCustomer.totalAmount || 0).toLocaleString()}
+                      {formatRupee(editingCustomer.balance || 0)}
                     </span>
                   </div>
 
@@ -2251,7 +2251,7 @@ Thank you for your business! 🙏
                     <button
                       type="button"
                       onClick={() => setNewTxType('ADD')}
-                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-[44px]"
+                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-11"
                       style={{
                         backgroundColor: newTxType === 'ADD' ? '#3D2E18' : 'transparent',
                         color: newTxType === 'ADD' ? '#F9DEBF' : '#8A91A0',
@@ -2263,7 +2263,7 @@ Thank you for your business! 🙏
                     <button
                       type="button"
                       onClick={() => setNewTxType('PAY')}
-                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-[44px]"
+                      className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs min-h-11"
                       style={{
                         backgroundColor: newTxType === 'PAY' ? '#3D2E18' : 'transparent',
                         color: newTxType === 'PAY' ? '#F9DEBF' : '#8A91A0',
@@ -2291,7 +2291,7 @@ Thank you for your business! 🙏
                         placeholder="0"
                         value={newTxAmount}
                         onChange={(e) => setNewTxAmount(e.target.value)}
-                        className="w-full pl-8 pr-3 py-2.5 rounded-xl text-base font-mono font-bold outline-none border transition-all min-h-[44px]"
+                        className="w-full pl-8 pr-3 py-2.5 rounded-xl text-base font-mono font-bold outline-none border transition-all min-h-11"
                         style={{
                           borderColor: '#3D2E18',
                           color: '#3D2E18',
@@ -2311,7 +2311,7 @@ Thank you for your business! 🙏
                           key={amt}
                           type="button"
                           onClick={() => setNewTxAmount(String(amt))}
-                          className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer min-h-[36px]"
+                          className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer min-h-9"
                           style={{
                             backgroundColor: Number(newTxAmount) === amt ? '#3D2E18' : '#F9DEBF',
                             color: Number(newTxAmount) === amt ? '#F9DEBF' : '#3D2E18',
@@ -2325,7 +2325,7 @@ Thank you for your business! 🙏
                         <button
                           type="button"
                           onClick={() => setNewTxAmount(String(editingCustomer.totalAmount))}
-                          className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer min-h-[36px]"
+                          className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer min-h-9"
                           style={{
                             backgroundColor: Number(newTxAmount) === editingCustomer.totalAmount ? '#3D2E18' : '#F9DEBF',
                             color: Number(newTxAmount) === editingCustomer.totalAmount ? '#F9DEBF' : '#3D2E18',
@@ -2348,7 +2348,7 @@ Thank you for your business! 🙏
                       placeholder={newTxType === 'ADD' ? 'e.g. Groceries credit, supplies' : 'e.g. Cash received / UPI'}
                       value={newTxNote}
                       onChange={(e) => setNewTxNote(e.target.value)}
-                      className="w-full px-3 py-2.5 sm:py-2 rounded-xl text-base sm:text-xs outline-none border transition-all min-h-[44px] sm:min-h-0"
+                      className="w-full px-3 py-2.5 sm:py-2 rounded-xl text-base sm:text-xs outline-none border transition-all min-h-11 sm:min-h-0"
                       style={{
                         borderColor: '#8A91A0',
                         color: '#3D2E18',
@@ -2381,14 +2381,14 @@ Thank you for your business! 🙏
                     <button
                       type="button"
                       onClick={() => setEditingCustomer(null)}
-                      className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[44px] flex items-center justify-center"
+                      className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-11 flex items-center justify-center"
                       style={{ color: '#8A91A0' }}
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer hover:opacity-90 flex items-center justify-center space-x-1.5 min-h-[44px]"
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer hover:opacity-90 flex items-center justify-center space-x-1.5 min-h-11"
                       style={{
                         backgroundColor: '#3D2E18',
                         color: '#F9DEBF',
@@ -2413,7 +2413,7 @@ Thank you for your business! 🙏
                       required
                       value={editingCustomer.name}
                       onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
-                      className="w-full px-3 py-2.5 sm:py-2 rounded-xl text-black font-semibold text-base sm:text-xs outline-none border transition-all min-h-[44px] sm:min-h-0"
+                      className="w-full px-3 py-2.5 sm:py-2 rounded-xl text-black font-semibold text-base sm:text-xs outline-none border transition-all min-h-11 sm:min-h-0"
                       style={{ borderColor: '#3D2E18' }}
                       placeholder="Customer Name"
                     />
@@ -2430,7 +2430,7 @@ Thank you for your business! 🙏
                         required
                         value={editingCustomer.phone === 'Not Added' ? '' : editingCustomer.phone}
                         onChange={(e) => setEditingCustomer({ ...editingCustomer, phone: e.target.value })}
-                        className="w-full pl-8 pr-3 py-2.5 sm:py-2 rounded-xl text-black font-mono text-base sm:text-xs outline-none border transition-all min-h-[44px] sm:min-h-0"
+                        className="w-full pl-8 pr-3 py-2.5 sm:py-2 rounded-xl text-black font-mono text-base sm:text-xs outline-none border transition-all min-h-11 sm:min-h-0"
                         style={{ borderColor: '#3D2E18' }}
                         placeholder="e.g. +91 98765 43210 or 9876543210"
                       />
@@ -2448,13 +2448,13 @@ Thank you for your business! 🙏
                       type="text"
                       value={editingCustomer.dueDate || ''}
                       onChange={(e) => setEditingCustomer({ ...editingCustomer, dueDate: e.target.value })}
-                      className="w-full px-3 py-2.5 sm:py-2 rounded-xl text-black text-base sm:text-xs outline-none border transition-all min-h-[44px] sm:min-h-0"
+                      className="w-full px-3 py-2.5 sm:py-2 rounded-xl text-black text-base sm:text-xs outline-none border transition-all min-h-11 sm:min-h-0"
                       style={{ borderColor: '#8A91A0' }}
                       placeholder="e.g. 30 November"
                     />
                   </div>
 
-                  <div className="pt-3 border-t flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2" style={{ borderColor: '#F9DEBF' }}>
+                  <div className="pt-3 border-t flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2" style={{ borderColor: '#F9DEBF' }}>
                     {editingCustomer.phone && editingCustomer.phone !== 'Not Added' && (
                       <button
                         type="button"
@@ -2462,7 +2462,7 @@ Thank you for your business! 🙏
                           sendWhatsAppMessage(editingCustomer);
                           setEditingCustomer(null);
                         }}
-                        className="w-full sm:w-auto px-3 py-2.5 sm:py-1.5 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1 cursor-pointer transition-colors min-h-[44px] sm:min-h-0"
+                        className="w-full sm:w-auto px-3 py-2.5 sm:py-1.5 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1 cursor-pointer transition-colors min-h-11 sm:min-h-0"
                         style={{
                           backgroundColor: '#F9DEBF',
                           borderColor: '#3D2E18',
@@ -2479,14 +2479,14 @@ Thank you for your business! 🙏
                       <button
                         type="button"
                         onClick={() => setEditingCustomer(null)}
-                        className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[44px] flex items-center justify-center"
+                        className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-11 flex items-center justify-center"
                         style={{ color: '#8A91A0' }}
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all hover:opacity-90 min-h-[44px] flex items-center justify-center"
+                        className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all hover:opacity-90 min-h-11 flex items-center justify-center"
                         style={{
                           backgroundColor: '#3D2E18',
                           color: '#F9DEBF',
@@ -2525,7 +2525,7 @@ Thank you for your business! 🙏
                 </div>
                 <button
                   onClick={() => setIsAddCustomerModalOpen(false)}
-                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black cursor-pointer"
+                  className="p-2 min-w-11 min-h-11 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-black cursor-pointer"
                   aria-label="Close modal"
                 >
                   ✕
@@ -2547,7 +2547,7 @@ Thank you for your business! 🙏
                 <button
                   type="button"
                   onClick={handleDictateNewCustomer}
-                  className={`p-2.5 rounded-xl border transition-all cursor-pointer shadow-xs shrink-0 flex items-center justify-center space-x-1 min-h-[44px] w-full sm:w-auto ${
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer shadow-xs shrink-0 flex items-center justify-center space-x-1 min-h-11 w-full sm:w-auto ${
                     isDictatingCustomer
                       ? 'bg-rose-500 text-white border-rose-600 animate-pulse'
                       : 'bg-yellow-300 hover:bg-yellow-400 text-black border-yellow-400'
@@ -2572,7 +2572,7 @@ Thank you for your business! 🙏
                     onChange={(e) =>
                       setNewCustomerForm({ ...newCustomerForm, name: e.target.value })
                     }
-                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-semibold text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-semibold text-base sm:text-xs focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                   />
                 </div>
 
@@ -2590,7 +2590,7 @@ Thank you for your business! 🙏
                       onChange={(e) =>
                         setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })
                       }
-                      className="w-full pl-8 pr-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                      className="w-full pl-8 pr-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono text-base sm:text-xs focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                     />
                   </div>
                 </div>
@@ -2607,7 +2607,7 @@ Thank you for your business! 🙏
                           key={amt}
                           type="button"
                           onClick={() => setNewCustomerForm({ ...newCustomerForm, amount: String(amt) })}
-                          className="px-2 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-[10px] font-mono text-neutral-700 cursor-pointer min-h-[32px] sm:min-h-0"
+                          className="px-2 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-[10px] font-mono text-neutral-700 cursor-pointer min-h-8 sm:min-h-0"
                         >
                           ₹{amt}
                         </button>
@@ -2622,7 +2622,7 @@ Thank you for your business! 🙏
                     onChange={(e) =>
                       setNewCustomerForm({ ...newCustomerForm, amount: e.target.value })
                     }
-                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono font-bold text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black font-mono font-bold text-base sm:text-xs focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                   />
                 </div>
 
@@ -2638,7 +2638,7 @@ Thank you for your business! 🙏
                           key={dt}
                           type="button"
                           onClick={() => setNewCustomerForm({ ...newCustomerForm, dueDate: dt })}
-                          className="px-2 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-[10px] text-neutral-700 cursor-pointer min-h-[32px] sm:min-h-0"
+                          className="px-2 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-[10px] text-neutral-700 cursor-pointer min-h-8 sm:min-h-0"
                         >
                           {dt}
                         </button>
@@ -2652,7 +2652,7 @@ Thank you for your business! 🙏
                     onChange={(e) =>
                       setNewCustomerForm({ ...newCustomerForm, dueDate: e.target.value })
                     }
-                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black text-base sm:text-xs focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                   />
                 </div>
 
@@ -2667,7 +2667,7 @@ Thank you for your business! 🙏
                     onChange={(e) =>
                       setNewCustomerForm({ ...newCustomerForm, note: e.target.value })
                     }
-                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black text-base sm:text-xs focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-black text-base sm:text-xs focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                   />
                 </div>
 
@@ -2695,13 +2695,13 @@ Thank you for your business! 🙏
                   <button
                     type="button"
                     onClick={() => setIsAddCustomerModalOpen(false)}
-                    className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-neutral-100 text-neutral-700 text-xs font-semibold hover:bg-neutral-200 cursor-pointer min-h-[44px] flex items-center justify-center"
+                    className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-neutral-100 text-neutral-700 text-xs font-semibold hover:bg-neutral-200 cursor-pointer min-h-11 flex items-center justify-center"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="w-full sm:w-auto gold-button-gradient px-5 py-2.5 sm:py-2 rounded-xl text-black text-xs font-bold border border-yellow-400 shadow-sm cursor-pointer min-h-[44px] flex items-center justify-center"
+                    className="w-full sm:w-auto gold-button-gradient px-5 py-2.5 sm:py-2 rounded-xl text-black text-xs font-bold border border-yellow-400 shadow-sm cursor-pointer min-h-11 flex items-center justify-center"
                   >
                     Create Customer
                   </button>

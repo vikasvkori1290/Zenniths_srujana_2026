@@ -1,41 +1,10 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { TrendingUp, ArrowLeft, ShieldCheck, Sparkles, Zap, Info } from 'lucide-react';
 import PredictiveCashRunwayCard from '../components/PredictiveCashRunwayCard';
 
 export default function RunwayPage() {
   return (
     <div className="w-full bg-white text-neutral-900 pb-16 font-['Plus_Jakarta_Sans']">
-      {/* Top Banner / Breadcrumb */}
-      <div className="border-b border-neutral-200/80 bg-neutral-50/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center space-x-2 text-xs text-neutral-500">
-            <Link to="/" className="font-semibold text-neutral-700 hover:text-black transition-colors">
-              Home
-            </Link>
-            <span>/</span>
-            <span className="text-black font-bold">Predictive Cash Runway</span>
-            <span className="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full text-[10px] border border-amber-300">
-              AI Liquidity Radar
-            </span>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Link
-              to="/upcoming-expenses"
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs"
-            >
-              Upcoming Payables &rarr;
-            </Link>
-            <Link
-              to="/receivables"
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs"
-            >
-              Udhar Receivables &rarr;
-            </Link>
-          </div>
-        </div>
-      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Page Hero Header */}

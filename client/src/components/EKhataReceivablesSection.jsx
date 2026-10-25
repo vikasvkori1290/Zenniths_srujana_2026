@@ -406,7 +406,7 @@ export default function EKhataReceivablesSection({ setActivePage }) {
             {setActivePage && (
               <button
                 onClick={() => setActivePage('ekhata')}
-                className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer hover:scale-[1.02] min-h-[44px] w-full sm:w-auto"
+                className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer hover:scale-[1.02] min-h-11 w-full sm:w-auto"
               >
                 <span>Open eKhata Page</span>
                 <ArrowRight className="w-4 h-4 stroke-[2.5]" />
@@ -420,7 +420,7 @@ export default function EKhataReceivablesSection({ setActivePage }) {
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs">
             <button
               onClick={() => setFilterType('ALL')}
-              className={`px-3 py-2 sm:py-1 rounded-xl font-bold transition-all cursor-pointer text-xs min-h-[40px] sm:min-h-0 ${
+              className={`px-3 py-2 sm:py-1 rounded-xl font-bold transition-all cursor-pointer text-xs min-h-10 sm:min-h-0 ${
                 filterType === 'ALL'
                   ? 'bg-black text-yellow-300 border border-black shadow-xs'
                   : 'bg-neutral-100 text-neutral-600 hover:text-black hover:bg-neutral-200 border border-neutral-200'
@@ -430,7 +430,7 @@ export default function EKhataReceivablesSection({ setActivePage }) {
             </button>
             <button
               onClick={() => setFilterType('DUE_SOON')}
-              className={`px-3 py-2 sm:py-1 rounded-xl font-bold transition-all cursor-pointer text-xs min-h-[40px] sm:min-h-0 ${
+              className={`px-3 py-2 sm:py-1 rounded-xl font-bold transition-all cursor-pointer text-xs min-h-10 sm:min-h-0 ${
                 filterType === 'DUE_SOON'
                   ? 'bg-black text-yellow-300 border border-black shadow-xs'
                   : 'bg-neutral-100 text-neutral-600 hover:text-black hover:bg-neutral-200 border border-neutral-200'
@@ -440,7 +440,7 @@ export default function EKhataReceivablesSection({ setActivePage }) {
             </button>
             <button
               onClick={() => setFilterType('UNDATED')}
-              className={`px-3 py-2 sm:py-1 rounded-xl font-bold transition-all cursor-pointer text-xs min-h-[40px] sm:min-h-0 ${
+              className={`px-3 py-2 sm:py-1 rounded-xl font-bold transition-all cursor-pointer text-xs min-h-10 sm:min-h-0 ${
                 filterType === 'UNDATED'
                   ? 'bg-black text-yellow-300 border border-black shadow-xs'
                   : 'bg-neutral-100 text-neutral-600 hover:text-black hover:bg-neutral-200 border border-neutral-200'
@@ -542,7 +542,7 @@ export default function EKhataReceivablesSection({ setActivePage }) {
                   <div className="pt-2 border-t border-neutral-200/60">
                     <button
                       onClick={() => handleOpenSettle(cust)}
-                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-2xs"
+                      className="w-full min-h-11 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-2xs"
                     >
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                       <span>Mark Payment Received</span>
@@ -685,7 +685,7 @@ export default function EKhataReceivablesSection({ setActivePage }) {
 
             <button
               onClick={() => setSettleModal({ isOpen: false, customer: null, amountToReceive: '' })}
-              className="absolute top-4 sm:top-5 right-4 sm:top-5 text-neutral-400 hover:text-black transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-neutral-100"
+              className="absolute top-4 sm:top-5 right-4 sm:right-5 text-neutral-400 hover:text-black transition-colors cursor-pointer min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-neutral-100"
               aria-label="Close modal"
             >
               <X className="w-5 h-5" />
@@ -737,7 +737,7 @@ export default function EKhataReceivablesSection({ setActivePage }) {
                     onChange={(e) =>
                       setSettleModal({ ...settleModal, amountToReceive: e.target.value })
                     }
-                    className="w-full pl-7 pr-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black font-bold focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                    className="w-full pl-7 pr-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black font-bold focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                   />
                 </div>
                 <span className="text-[10px] text-neutral-400 mt-1 block">
@@ -751,13 +751,13 @@ export default function EKhataReceivablesSection({ setActivePage }) {
                   onClick={() =>
                     setSettleModal({ isOpen: false, customer: null, amountToReceive: '' })
                   }
-                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-neutral-600 hover:text-black hover:bg-neutral-100 border border-neutral-200 transition-colors cursor-pointer min-h-[44px] flex items-center justify-center"
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-neutral-600 hover:text-black hover:bg-neutral-100 border border-neutral-200 transition-colors cursor-pointer min-h-11 flex items-center justify-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="w-full sm:w-auto gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer hover:scale-[1.02] transition-all flex items-center justify-center space-x-1 min-h-[44px]"
+                  className="w-full sm:w-auto gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer hover:scale-[1.02] transition-all flex items-center justify-center space-x-1 min-h-11"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Confirm Receipt</span>

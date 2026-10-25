@@ -346,14 +346,6 @@ export default function PredictionPage() {
       <div className="border-b border-neutral-200/80 bg-neutral-50/70">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center space-x-2 text-xs text-neutral-500 mb-1">
-              <span className="text-black font-extrabold">Prediction</span>
-              <span>/</span>
-              <span className="text-neutral-700 font-semibold">NVIDIA Nemotron AI</span>
-              <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full text-[10px] border border-emerald-300">
-                Llama-3.1 Nemotron 70B
-              </span>
-            </div>
             <h1 className="text-2xl sm:text-3xl font-black text-black tracking-tight font-['Outfit'] flex items-center gap-2.5">
               <span>NVIDIA Nemotron AI CFO</span>
               <span className="inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-xl bg-black text-yellow-300 border border-yellow-400">
@@ -370,7 +362,7 @@ export default function PredictionPage() {
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full sm:w-auto">
             <button
               onClick={() => setIsKeyDrawerOpen(!isKeyDrawerOpen)}
-              className="px-3.5 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-black transition-all flex items-center justify-center space-x-2 shadow-2xs cursor-pointer min-h-[44px] flex-1 sm:flex-initial"
+              className="px-3.5 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-black transition-all flex items-center justify-center space-x-2 shadow-2xs cursor-pointer min-h-11 flex-1 sm:flex-initial"
             >
               <Key className="w-3.5 h-3.5 text-amber-500" />
               <span>{nvidiaApiKey ? 'NVIDIA Key Configured' : 'API Key Settings'}</span>
@@ -380,7 +372,7 @@ export default function PredictionPage() {
             <button
               onClick={handleRunPrediction}
               disabled={isLoading}
-              className="px-4 py-2.5 sm:py-2 rounded-xl text-xs font-black bg-black hover:bg-neutral-800 text-yellow-300 border-2 border-yellow-400 flex items-center justify-center space-x-2 transition-all shadow-md cursor-pointer disabled:opacity-50 min-h-[44px] flex-1 sm:flex-initial"
+              className="px-4 py-2.5 sm:py-2 rounded-xl text-xs font-black bg-black hover:bg-neutral-800 text-yellow-300 border-2 border-yellow-400 flex items-center justify-center space-x-2 transition-all shadow-md cursor-pointer disabled:opacity-50 min-h-11 flex-1 sm:flex-initial"
             >
               {isLoading ? (
                 <>
@@ -427,11 +419,11 @@ export default function PredictionPage() {
                 placeholder="nvapi-xxxxxxxxxxxxxxxx"
                 value={nvidiaApiKey}
                 onChange={(e) => handleSaveApiKey(e.target.value)}
-                className="bg-white border border-amber-300 rounded-xl px-3 py-2 sm:py-1.5 text-base sm:text-xs text-black placeholder:text-neutral-400 font-mono w-full md:w-64 focus:outline-hidden focus:ring-2 focus:ring-yellow-400 min-h-[44px] sm:min-h-0"
+                className="bg-white border border-amber-300 rounded-xl px-3 py-2 sm:py-1.5 text-base sm:text-xs text-black placeholder:text-neutral-400 font-mono w-full md:w-64 focus:outline-hidden focus:ring-2 focus:ring-yellow-400 min-h-11 sm:min-h-0"
               />
               <button
                 onClick={() => setIsKeyDrawerOpen(false)}
-                className="px-4 py-2 sm:py-1.5 rounded-xl text-xs font-bold bg-amber-900 text-white hover:bg-black transition-all min-h-[44px] flex items-center justify-center cursor-pointer"
+                className="px-4 py-2 sm:py-1.5 rounded-xl text-xs font-bold bg-amber-900 text-white hover:bg-black transition-all min-h-11 flex items-center justify-center cursor-pointer"
               >
                 Done
               </button>
@@ -467,7 +459,7 @@ export default function PredictionPage() {
                 id="business-type-select"
                 value={selectedBusinessType}
                 onChange={(e) => setSelectedBusinessType(e.target.value)}
-                className="bg-white border border-neutral-300 rounded-xl px-3 py-2.5 sm:py-2 text-base sm:text-xs font-extrabold text-black focus:outline-hidden focus:ring-2 focus:ring-yellow-400 shadow-2xs min-h-[44px] sm:min-h-0 w-full sm:w-auto"
+                className="bg-white border border-neutral-300 rounded-xl px-3 py-2.5 sm:py-2 text-base sm:text-xs font-extrabold text-black focus:outline-hidden focus:ring-2 focus:ring-yellow-400 shadow-2xs min-h-11 sm:min-h-0 w-full sm:w-auto"
               >
                 {BUSINESS_TYPE_PRESETS.map((b) => (
                   <option key={b.id} value={b.name}>
@@ -604,7 +596,7 @@ export default function PredictionPage() {
                 <div className="flex flex-wrap items-center gap-2 bg-neutral-800/90 p-1.5 rounded-2xl border border-neutral-700 shadow-inner w-full sm:w-auto">
                   <button
                     onClick={handleToggleSpeech}
-                    className={`flex-1 sm:flex-none px-3.5 py-2.5 sm:py-1.5 min-h-[44px] rounded-xl text-xs font-black flex items-center justify-center space-x-2 transition-all cursor-pointer ${
+                    className={`flex-1 sm:flex-none px-3.5 py-2.5 sm:py-1.5 min-h-11 rounded-xl text-xs font-black flex items-center justify-center space-x-2 transition-all cursor-pointer ${
                       isSpeaking && !isPaused
                         ? 'bg-yellow-400 text-black shadow-md'
                         : 'bg-neutral-700 hover:bg-neutral-600 text-white'
@@ -627,7 +619,7 @@ export default function PredictionPage() {
                     <button
                       onClick={stopSpeech}
                       title="Stop audio"
-                      className="p-2.5 sm:p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-neutral-700 hover:bg-rose-900/60 text-white transition-all cursor-pointer"
+                      className="p-2.5 sm:p-1.5 min-w-11 min-h-11 flex items-center justify-center rounded-xl bg-neutral-700 hover:bg-rose-900/60 text-white transition-all cursor-pointer"
                     >
                       <Square className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-rose-400" />
                     </button>
@@ -862,7 +854,7 @@ export default function PredictionPage() {
               <button
                 onClick={handleRunPrediction}
                 disabled={isLoading}
-                className="w-full sm:w-auto px-7 py-3.5 min-h-[48px] justify-center rounded-2xl text-sm font-black bg-black hover:bg-neutral-800 text-yellow-300 border-2 border-yellow-400 flex items-center space-x-3 transition-all shadow-lg hover:scale-102 cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-7 py-3.5 min-h-12 justify-center rounded-2xl text-sm font-black bg-black hover:bg-neutral-800 text-yellow-300 border-2 border-yellow-400 flex items-center space-x-3 transition-all shadow-lg hover:scale-102 cursor-pointer disabled:opacity-50"
               >
                 <Zap className="w-5 h-5 text-yellow-300 fill-yellow-300" />
                 <span>Predict using LLM</span>

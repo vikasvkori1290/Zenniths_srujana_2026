@@ -286,7 +286,7 @@ export default function UpcomingExpensesSection() {
             </div>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer hover:scale-[1.02] min-h-[44px] w-full sm:w-auto"
+              className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer hover:scale-[1.02] min-h-11 w-full sm:w-auto"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>+ Schedule Upcoming Expense</span>
@@ -301,7 +301,7 @@ export default function UpcomingExpensesSection() {
               <button
                 key={lvl}
                 onClick={() => setUrgencyFilter(lvl)}
-                className={`px-3 py-2 sm:py-1 rounded-xl font-bold transition-all cursor-pointer text-[11px] min-h-[38px] sm:min-h-0 shrink-0 ${
+                className={`px-3 py-2 sm:py-1 rounded-xl font-bold transition-all cursor-pointer text-[11px] min-h-9.5 sm:min-h-0 shrink-0 ${
                   urgencyFilter === lvl
                     ? 'bg-black text-yellow-300 border border-black shadow-xs'
                     : 'bg-neutral-100 text-neutral-600 hover:text-black hover:bg-neutral-200 border border-neutral-200'
@@ -422,7 +422,7 @@ export default function UpcomingExpensesSection() {
                     {item.isFixedMonthly ? (
                       <button
                         onClick={() => handleToggleFixed(item.fixedId, item.title, item.dueDate)}
-                        className="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1.5 shadow-2xs"
+                        className="min-h-11 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1.5 shadow-2xs"
                       >
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         <span>Mark Paid</span>
@@ -431,7 +431,7 @@ export default function UpcomingExpensesSection() {
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => handleMarkPayablePaid(item.id, item.title)}
-                          className="min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs"
+                          className="min-h-11 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer inline-flex items-center space-x-1 shadow-2xs"
                           title="Mark payable as paid"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -439,7 +439,7 @@ export default function UpcomingExpensesSection() {
                         </button>
                         <button
                           onClick={() => handleDeleteExpense(item.id, item.title)}
-                          className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer border border-rose-200"
+                          className="min-w-11 min-h-11 flex items-center justify-center rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer border border-rose-200"
                           title="Remove expense"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -618,7 +618,7 @@ export default function UpcomingExpensesSection() {
 
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 sm:top-5 right-4 sm:top-5 text-neutral-400 hover:text-black transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-neutral-100"
+              className="absolute top-4 sm:top-5 right-4 sm:right-5 text-neutral-400 hover:text-black transition-colors cursor-pointer min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-neutral-100"
               aria-label="Close modal"
             >
               <X className="w-5 h-5" />
@@ -649,7 +649,7 @@ export default function UpcomingExpensesSection() {
                   placeholder="e.g., Raw Material Batch #43, Transport Bill"
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                  className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                 />
               </div>
 
@@ -662,7 +662,7 @@ export default function UpcomingExpensesSection() {
                   placeholder="e.g., Apex Distributors India"
                   value={form.payee}
                   onChange={(e) => setForm({ ...form, payee: e.target.value })}
-                  className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                  className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                 />
               </div>
 
@@ -678,7 +678,7 @@ export default function UpcomingExpensesSection() {
                     placeholder="e.g., 5000"
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black font-bold focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black font-bold focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                   />
                 </div>
 
@@ -691,7 +691,7 @@ export default function UpcomingExpensesSection() {
                     required
                     value={form.dueDate}
                     onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                   />
                 </div>
               </div>
@@ -704,7 +704,7 @@ export default function UpcomingExpensesSection() {
                   <select
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                   >
                     <option value="Supplier Dues">Supplier Dues</option>
                     <option value="Taxes & Compliance">Taxes & Compliance</option>
@@ -723,7 +723,7 @@ export default function UpcomingExpensesSection() {
                   <select
                     value={form.urgency}
                     onChange={(e) => setForm({ ...form, urgency: e.target.value })}
-                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-[44px] sm:min-h-0"
+                    className="w-full px-3 py-2.5 sm:py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 outline-none min-h-11 sm:min-h-0"
                   >
                     <option value="Urgent">Urgent (&le; 2 Days)</option>
                     <option value="High">High (&le; 7 Days)</option>
@@ -737,13 +737,13 @@ export default function UpcomingExpensesSection() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-neutral-600 hover:text-black hover:bg-neutral-100 border border-neutral-200 transition-colors cursor-pointer min-h-[44px] flex items-center justify-center"
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-neutral-600 hover:text-black hover:bg-neutral-100 border border-neutral-200 transition-colors cursor-pointer min-h-11 flex items-center justify-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="w-full sm:w-auto gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer hover:scale-[1.02] transition-all min-h-[44px] flex items-center justify-center"
+                  className="w-full sm:w-auto gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer hover:scale-[1.02] transition-all min-h-11 flex items-center justify-center"
                 >
                   Confirm Schedule
                 </button>

@@ -584,39 +584,6 @@ export default function ProfileDashboard({ setActivePage }) {
         </div>
       )}
 
-      {/* Top Banner / Breadcrumb */}
-      <div className="border-b border-neutral-200/80 bg-neutral-50/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center space-x-2 text-xs text-neutral-500">
-            <span className="font-semibold text-neutral-800">Home</span>
-            <span>/</span>
-            <span className="text-black font-bold">Profile Dashboard</span>
-            <span className="bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded-full text-[10px] border border-yellow-300">
-              Merchant Financial Overview
-            </span>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setActivePage('ekhata')}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all flex items-center space-x-1.5 shadow-xs"
-            >
-              <span>Switch to eKhata</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => {
-                setProfileForm(profile);
-                setModalType('profile');
-              }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-black bg-yellow-300 hover:bg-yellow-400 border border-yellow-400 transition-all flex items-center space-x-1.5 shadow-xs"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>Edit Profile</span>
-            </button>
-          </div>
-        </div>
-      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* ========================================================= */}

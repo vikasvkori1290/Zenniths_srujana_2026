@@ -280,42 +280,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Top Banner / Breadcrumb */}
-      <div className="border-b border-neutral-200/80 bg-neutral-50/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center space-x-2 text-xs text-neutral-500 overflow-x-auto no-scrollbar whitespace-nowrap py-1">
-            <Link to="/" className="font-semibold text-neutral-700 hover:text-black transition-colors shrink-0">
-              Home
-            </Link>
-            <span className="shrink-0">/</span>
-            <span className="text-black font-bold shrink-0">Profile & Financial Overview</span>
-            <span className="bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded-full text-[10px] border border-yellow-300 shrink-0">
-              Executive Overview & Settings
-            </span>
-          </div>
-
-          <div className="flex items-center space-x-2 shrink-0">
-            <button
-              onClick={() => {
-                setProfileForm(profile);
-                setIsEditProfileOpen(true);
-              }}
-              className="flex-1 sm:flex-none px-3.5 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold text-black bg-yellow-300 hover:bg-yellow-400 border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>Edit Profile</span>
-            </button>
-            <button
-              onClick={handleLogout}
-              className="flex-1 sm:flex-none px-3.5 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Sign Out</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8 sm:space-y-10">
         {/* ========================================================= */}
         {/* 1. USER PROFILE HEADER CARD                               */}
@@ -356,7 +320,7 @@ export default function ProfilePage() {
                       setTempUpi(profile.upiId || 'vikas.kori@okhdfcbank');
                       setIsUpiModalOpen(true);
                     }}
-                    className="flex items-center space-x-1.5 font-semibold px-2.5 py-1.5 sm:py-1 min-h-[44px] sm:min-h-0 rounded-lg border font-mono transition-colors cursor-pointer group shadow-2xs max-w-full"
+                    className="flex items-center space-x-1.5 font-semibold px-2.5 py-1.5 sm:py-1 min-h-11 sm:min-h-0 rounded-lg border font-mono transition-colors cursor-pointer group shadow-2xs max-w-full"
                     style={{
                       backgroundColor: '#F9DEBF',
                       borderColor: '#3D2E18',
@@ -378,14 +342,31 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="flex items-center space-x-3 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  setProfileForm(profile);
+                  setIsEditProfileOpen(true);
+                }}
+                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-black bg-yellow-300 hover:bg-yellow-400 border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer min-h-11"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Edit Profile</span>
+              </button>
               <Link
                 to="/ekhata"
-                className="w-full sm:w-auto justify-center min-h-[44px] gold-button-gradient px-4 py-2.5 rounded-xl text-xs font-black text-black border border-yellow-400 transition-all flex items-center space-x-1.5 shadow-sm"
+                className="justify-center min-h-11 gold-button-gradient px-4 py-2.5 rounded-xl text-xs font-black text-black border border-yellow-400 transition-all flex items-center space-x-1.5 shadow-sm"
               >
                 <BookOpen className="w-4 h-4" />
                 <span>Open eKhata</span>
               </Link>
+              <button
+                onClick={handleLogout}
+                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer min-h-11"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </button>
             </div>
           </div>
         </div>
@@ -587,7 +568,7 @@ export default function ProfilePage() {
                 setProfileForm(profile);
                 setIsEditProfileOpen(true);
               }}
-              className="self-start sm:self-auto min-h-[44px] sm:min-h-0 py-2 sm:py-0 flex items-center text-xs font-bold text-amber-600 hover:underline cursor-pointer"
+              className="self-start sm:self-auto min-h-11 sm:min-h-0 py-2 sm:py-0 flex items-center text-xs font-bold text-amber-600 hover:underline cursor-pointer"
             >
               Modify Details
             </button>
@@ -634,7 +615,7 @@ export default function ProfilePage() {
               <h3 className="text-base font-black text-black font-['Outfit']">Edit Merchant Profile</h3>
               <button
                 onClick={() => setIsEditProfileOpen(false)}
-                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-400 hover:text-black rounded-lg cursor-pointer"
+                className="min-w-11 min-h-11 flex items-center justify-center text-neutral-400 hover:text-black rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -648,7 +629,7 @@ export default function ProfilePage() {
                   required
                   value={profileForm.name}
                   onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
+                  className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
                 />
               </div>
 
@@ -659,7 +640,7 @@ export default function ProfilePage() {
                   required
                   value={profileForm.businessName}
                   onChange={(e) => setProfileForm({ ...profileForm, businessName: e.target.value })}
-                  className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
+                  className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
                 />
               </div>
 
@@ -670,7 +651,7 @@ export default function ProfilePage() {
                     type="text"
                     value={profileForm.phone}
                     onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                    className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
+                    className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
                   />
                 </div>
 
@@ -680,7 +661,7 @@ export default function ProfilePage() {
                     type="email"
                     value={profileForm.email}
                     onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                    className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
+                    className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
                   />
                 </div>
               </div>
@@ -693,7 +674,7 @@ export default function ProfilePage() {
                   step="500"
                   value={profileForm.dailyGoal || 20000}
                   onChange={(e) => setProfileForm({ ...profileForm, dailyGoal: Number(e.target.value) })}
-                  className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-mono font-bold"
+                  className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-mono font-bold"
                 />
               </div>
 
@@ -701,13 +682,13 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setIsEditProfileOpen(false)}
-                  className="px-4 py-2.5 min-h-[44px] rounded-xl text-neutral-600 hover:text-black font-semibold flex items-center justify-center cursor-pointer"
+                  className="px-4 py-2.5 min-h-11 rounded-xl text-neutral-600 hover:text-black font-semibold flex items-center justify-center cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="gold-button-gradient px-5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm flex items-center justify-center cursor-pointer"
+                  className="gold-button-gradient px-5 py-2.5 min-h-11 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm flex items-center justify-center cursor-pointer"
                 >
                   Save Changes
                 </button>
@@ -736,7 +717,7 @@ export default function ProfilePage() {
               <h3 className="text-base font-black text-black font-['Outfit']">Edit Merchant UPI ID</h3>
               <button
                 onClick={() => setIsUpiModalOpen(false)}
-                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-400 hover:text-black rounded-lg cursor-pointer"
+                className="min-w-11 min-h-11 flex items-center justify-center text-neutral-400 hover:text-black rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -751,7 +732,7 @@ export default function ProfilePage() {
                   placeholder="e.g. yourname@okaxis"
                   value={tempUpi}
                   onChange={(e) => setTempUpi(e.target.value)}
-                  className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-mono"
+                  className="w-full px-3.5 py-2.5 min-h-11 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-mono"
                 />
               </div>
 
@@ -759,13 +740,13 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setIsUpiModalOpen(false)}
-                  className="px-4 py-2.5 min-h-[44px] rounded-xl text-neutral-600 hover:text-black font-semibold flex items-center justify-center cursor-pointer"
+                  className="px-4 py-2.5 min-h-11 rounded-xl text-neutral-600 hover:text-black font-semibold flex items-center justify-center cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="gold-button-gradient px-5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm flex items-center justify-center cursor-pointer"
+                  className="gold-button-gradient px-5 py-2.5 min-h-11 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm flex items-center justify-center cursor-pointer"
                 >
                   Save UPI ID
                 </button>

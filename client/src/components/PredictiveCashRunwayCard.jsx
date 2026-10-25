@@ -1261,7 +1261,7 @@ export default function PredictiveCashRunwayCard() {
               <button
                 type="button"
                 onClick={() => setIsSettingsOpen(false)}
-                className="min-h-[44px] min-w-[44px] rounded-xl text-neutral-400 hover:text-black flex items-center justify-center cursor-pointer p-1"
+                className="min-h-11 min-w-11 rounded-xl text-neutral-400 hover:text-black flex items-center justify-center cursor-pointer p-1"
                 aria-label="Close settings"
               >
                 <X className="w-5 h-5" />
@@ -1283,27 +1283,27 @@ export default function PredictiveCashRunwayCard() {
                     onChange={(e) =>
                       setSettingsForm({ ...settingsForm, grossMarginPct: Number(e.target.value) })
                     }
-                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-[44px]"
+                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-11"
                   />
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     <button
                       type="button"
                       onClick={() => handleApplyPresetMargin(20)}
-                      className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-white border border-neutral-200 hover:border-black min-h-[36px] flex items-center"
+                      className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-white border border-neutral-200 hover:border-black min-h-9 flex items-center"
                     >
                       Kirana (20%)
                     </button>
                     <button
                       type="button"
                       onClick={() => handleApplyPresetMargin(35)}
-                      className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-white border border-neutral-200 hover:border-black min-h-[36px] flex items-center"
+                      className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-white border border-neutral-200 hover:border-black min-h-9 flex items-center"
                     >
                       Sweets (35%)
                     </button>
                     <button
                       type="button"
                       onClick={() => handleApplyPresetMargin(25)}
-                      className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-white border border-neutral-200 hover:border-black min-h-[36px] flex items-center"
+                      className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-white border border-neutral-200 hover:border-black min-h-9 flex items-center"
                     >
                       Standard (25%)
                     </button>
@@ -1327,7 +1327,7 @@ export default function PredictiveCashRunwayCard() {
                         safetyBuffer: cost * 3,
                       });
                     }}
-                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-[44px]"
+                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-11"
                   />
                   <span className="text-[11px] text-neutral-500 block">
                     Helper wages, electricity, transport
@@ -1346,7 +1346,7 @@ export default function PredictiveCashRunwayCard() {
                     onChange={(e) =>
                       setSettingsForm({ ...settingsForm, openingCash: Number(e.target.value) })
                     }
-                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-[44px]"
+                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-11"
                   />
                   <span className="text-[11px] text-neutral-500 block">
                     Cash in hand + current account balance
@@ -1365,7 +1365,7 @@ export default function PredictiveCashRunwayCard() {
                     onChange={(e) =>
                       setSettingsForm({ ...settingsForm, safetyBuffer: Number(e.target.value) })
                     }
-                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-[44px]"
+                    className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-black font-bold text-base sm:text-xs focus:ring-2 focus:ring-yellow-400 min-h-11"
                   />
                   <span className="text-[11px] text-neutral-500 block">
                     Defaults to 3 days of running costs
@@ -1378,13 +1378,13 @@ export default function PredictiveCashRunwayCard() {
                 <button
                   type="button"
                   onClick={() => setIsSettingsOpen(false)}
-                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold text-neutral-600 hover:text-black border border-neutral-200 hover:bg-neutral-100 flex items-center justify-center cursor-pointer"
+                  className="w-full sm:w-auto min-h-11 px-4 py-2 rounded-xl text-xs font-bold text-neutral-600 hover:text-black border border-neutral-200 hover:bg-neutral-100 flex items-center justify-center cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="w-full sm:w-auto min-h-[44px] px-5 py-2 rounded-xl text-xs font-black bg-black text-yellow-300 hover:bg-neutral-800 transition-all shadow-md flex items-center justify-center cursor-pointer"
+                  className="w-full sm:w-auto min-h-11 px-5 py-2 rounded-xl text-xs font-black bg-black text-yellow-300 hover:bg-neutral-800 transition-all shadow-md flex items-center justify-center cursor-pointer"
                 >
                   Save & Recompute Timeline
                 </button>
