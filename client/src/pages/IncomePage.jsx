@@ -15,6 +15,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useBodyScrollLock } from '../services/useBodyScrollLock';
 
 export default function IncomePage() {
   const { user } = useAuth();
@@ -61,6 +62,9 @@ export default function IncomePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [filterMode, setFilterMode] = useState('ALL');
+
+  // Lock background scroll when Add Income modal is open
+  useBodyScrollLock(isModalOpen);
 
   const [form, setForm] = useState({
     source: '',
@@ -146,16 +150,16 @@ export default function IncomePage() {
             </span>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 text-xs overflow-x-auto pb-1 sm:pb-0 max-w-full scrollbar-none">
             <Link
-              to="/receivables"
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs"
+              to="/"
+              className="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs whitespace-nowrap flex items-center shrink-0"
             >
-              Collect Receivables &rarr;
+              &larr; Home Overview
             </Link>
             <Link
               to="/fixed-expenses"
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs"
+              className="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs whitespace-nowrap flex items-center shrink-0"
             >
               Fixed Expenses &rarr;
             </Link>
@@ -165,10 +169,10 @@ export default function IncomePage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Page Hero Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-neutral-200/80 gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-200/80 gap-4">
           <div>
             <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20 shrink-0">
                 <TrendingUp className="w-5 h-5 stroke-[2.5]" />
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-black font-['Outfit'] tracking-tight">
@@ -180,16 +184,16 @@ export default function IncomePage() {
             </p>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <div className="text-right hidden sm:block">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
+            <div className="text-left sm:text-right">
               <span className="text-[10px] uppercase font-bold text-neutral-400 block">Total Today</span>
-              <span className="text-2xl font-black text-emerald-600 font-['Outfit']">
+              <span className="text-xl sm:text-2xl font-black text-emerald-600 font-['Outfit']">
                 ₹{totalTodayIncome.toLocaleString()}
               </span>
             </div>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="gold-button-gradient px-4 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 flex items-center space-x-1.5 shadow-sm cursor-pointer"
+              className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400 flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer min-h-[44px] w-full sm:w-auto"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>+ Add Today's Income</span>
@@ -198,9 +202,9 @@ export default function IncomePage() {
         </div>
 
         {/* Progress towards Daily Target */}
-        <div className="bg-neutral-50 rounded-3xl p-6 border border-neutral-200/90 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-1">
-            <div className="flex items-center space-x-2">
+        <div className="bg-neutral-50 rounded-3xl p-5 sm:p-6 border border-neutral-200/90 flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-bold text-black">Daily Income Target:</span>
               <span className="text-sm font-extrabold text-neutral-900">
                 ₹{dailyTarget.toLocaleString()}
@@ -248,14 +252,14 @@ export default function IncomePage() {
         </div>
 
         {/* Filter bar */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="text-xs font-bold text-neutral-500">Filter Mode:</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center space-x-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+            <span className="text-xs font-bold text-neutral-500 shrink-0">Filter Mode:</span>
             {['ALL', 'UPI', 'CASH', 'BANK TRANSFER'].map((mode) => (
               <button
                 key={mode}
                 onClick={() => setFilterMode(mode)}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-2 sm:py-1 rounded-xl text-xs font-bold transition-all cursor-pointer min-h-[36px] sm:min-h-0 shrink-0 ${
                   filterMode === mode
                     ? 'bg-black text-yellow-300 border border-black shadow-xs'
                     : 'bg-white text-neutral-600 border border-neutral-200 hover:border-neutral-300'
@@ -271,7 +275,7 @@ export default function IncomePage() {
         </div>
 
         {/* Entries Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {filteredEntries.map((item) => (
             <div
               key={item.id}
@@ -302,8 +306,9 @@ export default function IncomePage() {
                 </span>
                 <button
                   onClick={() => handleDelete(item.id)}
-                  className="p-1 rounded-md text-neutral-300 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-neutral-400 sm:text-neutral-300 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 cursor-pointer"
                   title="Delete entry"
+                  aria-label="Delete entry"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -325,10 +330,13 @@ export default function IncomePage() {
         )}
       </div>
 
-      {/* Add Income Modal */}
+      {/* Add Income Modal (Responsive Bottom Sheet on Mobile) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md border border-neutral-200 shadow-2xl animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 w-full max-w-md border border-neutral-200 shadow-2xl max-h-[90dvh] overflow-y-auto">
+            {/* Mobile Drag Handle */}
+            <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-3" />
+
             <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
@@ -338,7 +346,8 @@ export default function IncomePage() {
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-neutral-400 hover:text-black p-1 rounded-lg"
+                className="text-neutral-400 hover:text-black p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-neutral-100 cursor-pointer"
+                aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -346,19 +355,19 @@ export default function IncomePage() {
 
             <form onSubmit={handleAddIncome} className="mt-4 space-y-4 text-xs font-semibold">
               <div>
-                <label className="block text-neutral-600 mb-1">Source / Description</label>
+                <label className="block text-neutral-600 mb-1">Source / Description *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Counter Cash Sales, Client Order #40"
                   value={form.source}
                   onChange={(e) => setForm({ ...form, source: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs min-h-[44px] sm:min-h-0"
                 />
               </div>
 
               <div>
-                <label className="block text-neutral-600 mb-1">Amount (₹)</label>
+                <label className="block text-neutral-600 mb-1">Amount (₹) *</label>
                 <input
                   type="number"
                   required
@@ -366,17 +375,17 @@ export default function IncomePage() {
                   placeholder="e.g. 5000"
                   value={form.amount}
                   onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs font-mono font-bold"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-mono font-bold min-h-[44px] sm:min-h-0"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-neutral-600 mb-1">Payment Mode</label>
                   <select
                     value={form.mode}
                     onChange={(e) => setForm({ ...form, mode: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs min-h-[44px] sm:min-h-0"
                   >
                     <option value="UPI">UPI (QR / PhonePe)</option>
                     <option value="Cash">Cash (In-store)</option>
@@ -389,7 +398,7 @@ export default function IncomePage() {
                   <select
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs min-h-[44px] sm:min-h-0"
                   >
                     <option value="In-Store Retail">In-Store Retail</option>
                     <option value="Digital Collections">Digital Collections</option>
@@ -399,17 +408,17 @@ export default function IncomePage() {
                 </div>
               </div>
 
-              <div className="pt-3 flex items-center justify-end space-x-3">
+              <div className="pt-3 flex flex-col-reverse sm:flex-row items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-neutral-600 hover:text-black"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-neutral-600 hover:text-black border border-neutral-200 min-h-[44px] flex items-center justify-center cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="gold-button-gradient px-5 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer"
+                  className="w-full sm:w-auto gold-button-gradient px-5 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer min-h-[44px] flex items-center justify-center"
                 >
                   Save Entry
                 </button>

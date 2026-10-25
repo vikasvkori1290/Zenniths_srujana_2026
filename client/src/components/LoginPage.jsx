@@ -61,14 +61,14 @@ export default function LoginPage({ onLoginSuccess }) {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center p-4 font-['Plus_Jakarta_Sans']">
-      <div className="w-full max-w-md bg-white rounded-3xl border border-neutral-200/90 shadow-2xl p-6 sm:p-8 space-y-6 relative overflow-hidden">
+    <div className="min-h-[85dvh] flex items-center justify-center p-3 sm:p-4 font-['Plus_Jakarta_Sans']">
+      <div className="w-full max-w-md bg-white rounded-3xl border border-neutral-200/90 shadow-2xl p-4 sm:p-8 space-y-5 sm:space-y-6 relative overflow-hidden">
         {/* Subtle decorative glow */}
         <div className="absolute -top-16 -right-16 w-36 h-36 bg-amber-300/20 rounded-full blur-2xl pointer-events-none"></div>
 
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center space-x-2.5 px-3 py-1.5 rounded-2xl bg-amber-50 border border-amber-300/60 mb-2">
+          <div className="inline-flex items-center space-x-2.5 px-3 py-1.5 rounded-2xl bg-amber-50 border border-amber-300/60 mb-1 sm:mb-2">
             <div className="w-6 h-6 rounded-lg bg-linear-to-br from-yellow-300 via-amber-400 to-amber-500 flex items-center justify-center shadow-xs">
               <TrendingUp className="w-3.5 h-3.5 text-black stroke-[2.5]" />
             </div>
@@ -80,7 +80,7 @@ export default function LoginPage({ onLoginSuccess }) {
             </span>
           </div>
 
-          <h1 className="text-2xl font-black text-black font-['Outfit'] tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-black text-black font-['Outfit'] tracking-tight">
             {activeTab === 'login' ? 'Merchant Portal Sign In' : 'Register New Merchant'}
           </h1>
           <p className="text-xs text-neutral-500">
@@ -91,10 +91,10 @@ export default function LoginPage({ onLoginSuccess }) {
         </div>
 
         {/* 1-Click Instant Demo Login Banner */}
-        <div className="p-3.5 rounded-2xl bg-linear-to-r from-amber-50 via-yellow-50 to-amber-100/70 border border-amber-300 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-7 h-7 rounded-xl bg-black text-yellow-300 flex items-center justify-center shadow-xs">
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-linear-to-r from-amber-50 via-yellow-50 to-amber-100/70 border border-amber-300 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-2">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-xl bg-black text-yellow-300 flex items-center justify-center shrink-0 shadow-xs">
                 <Zap className="w-4 h-4 fill-yellow-300" />
               </div>
               <div>
@@ -106,10 +106,10 @@ export default function LoginPage({ onLoginSuccess }) {
               type="button"
               onClick={handleQuickDemo}
               disabled={loading}
-              className="gold-button-gradient px-3 py-1.5 rounded-xl text-xs font-black text-black border border-yellow-400 shadow-xs hover:scale-105 transition-transform cursor-pointer flex items-center space-x-1"
+              className="gold-button-gradient w-full sm:w-auto px-4 py-2.5 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-black text-black border border-yellow-400 shadow-xs hover:scale-102 transition-transform cursor-pointer flex items-center justify-center space-x-1.5"
             >
               <span>Instant Enter</span>
-              <ArrowRight className="w-3 h-3 stroke-[2.5]" />
+              <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
             </button>
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function LoginPage({ onLoginSuccess }) {
               setActiveTab('login');
               setAuthError(null);
             }}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`flex-1 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
               activeTab === 'login'
                 ? 'bg-white text-black shadow-xs'
                 : 'text-neutral-500 hover:text-black'
@@ -136,7 +136,7 @@ export default function LoginPage({ onLoginSuccess }) {
               setActiveTab('register');
               setAuthError(null);
             }}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`flex-1 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
               activeTab === 'register'
                 ? 'bg-white text-black shadow-xs'
                 : 'text-neutral-500 hover:text-black'
@@ -162,14 +162,14 @@ export default function LoginPage({ onLoginSuccess }) {
                 Merchant Email
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                <Mail className="w-4 h-4 text-neutral-400 absolute left-3 top-3.5 sm:top-3" />
                 <input
                   type="email"
                   required
                   placeholder="demo@aurumflow.com or your email"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                  className="w-full pl-9 pr-3 py-2.5 min-h-[44px] rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
                 />
               </div>
             </div>
@@ -179,19 +179,19 @@ export default function LoginPage({ onLoginSuccess }) {
                 Password
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                <Lock className="w-4 h-4 text-neutral-400 absolute left-3 top-3.5 sm:top-3" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   placeholder="Enter your password"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                  className="w-full pl-9 pr-11 py-2.5 min-h-[44px] rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center absolute right-0 top-0 text-neutral-400 hover:text-neutral-700 cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -201,7 +201,7 @@ export default function LoginPage({ onLoginSuccess }) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-black hover:bg-neutral-800 text-yellow-300 font-bold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+              className="w-full py-3 sm:py-2.5 min-h-[48px] rounded-xl bg-black hover:bg-neutral-800 text-yellow-300 font-bold text-sm sm:text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5"
             >
               <span>{loading ? 'Authenticating...' : 'Sign In to Dashboard'}</span>
               <ArrowRight className="w-4 h-4" />
@@ -215,32 +215,32 @@ export default function LoginPage({ onLoginSuccess }) {
                 Merchant Full Name *
               </label>
               <div className="relative">
-                <User className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
+                <User className="w-4 h-4 text-neutral-400 absolute left-3 top-3.5 sm:top-2.5" />
                 <input
                   type="text"
                   required
                   placeholder="e.g., Rajesh Patel"
                   value={registerData.name}
                   onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                  className="w-full pl-9 pr-3 py-2.5 sm:py-2 min-h-[44px] rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
                 <label className="text-xs font-bold text-neutral-700 block mb-1">
                   Business Name *
                 </label>
                 <div className="relative">
-                  <Building2 className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
+                  <Building2 className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-3.5 sm:top-2.5" />
                   <input
                     type="text"
                     required
                     placeholder="e.g. Patel Stores"
                     value={registerData.businessName}
                     onChange={(e) => setRegisterData({ ...registerData, businessName: e.target.value })}
-                    className="w-full pl-8 pr-2.5 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                    className="w-full pl-8 pr-2.5 py-2.5 sm:py-2 min-h-[44px] rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
                   />
                 </div>
               </div>
@@ -252,7 +252,7 @@ export default function LoginPage({ onLoginSuccess }) {
                 <select
                   value={registerData.businessType}
                   onChange={(e) => setRegisterData({ ...registerData, businessType: e.target.value })}
-                  className="w-full px-2.5 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-black focus:border-yellow-400 focus:bg-white outline-none font-medium"
+                  className="w-full px-2.5 py-2.5 sm:py-2 min-h-[44px] rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none font-medium"
                 >
                   <option value="Retail">Retail Store</option>
                   <option value="Wholesale">Wholesale Trading</option>
@@ -269,14 +269,14 @@ export default function LoginPage({ onLoginSuccess }) {
                 Email Address *
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
+                <Mail className="w-4 h-4 text-neutral-400 absolute left-3 top-3.5 sm:top-2.5" />
                 <input
                   type="email"
                   required
                   placeholder="you@business.com"
                   value={registerData.email}
                   onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                  className="w-full pl-9 pr-3 py-2.5 sm:py-2 min-h-[44px] rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
                 />
               </div>
             </div>
@@ -286,7 +286,7 @@ export default function LoginPage({ onLoginSuccess }) {
                 Password (min 6 chars) *
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
+                <Lock className="w-4 h-4 text-neutral-400 absolute left-3 top-3.5 sm:top-2.5" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
@@ -294,12 +294,12 @@ export default function LoginPage({ onLoginSuccess }) {
                   placeholder="Create a password"
                   value={registerData.password}
                   onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
-                  className="w-full pl-9 pr-9 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
+                  className="w-full pl-9 pr-11 py-2.5 sm:py-2 min-h-[44px] rounded-xl bg-neutral-50 border border-neutral-200 text-base sm:text-xs text-black focus:border-yellow-400 focus:bg-white outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center absolute right-0 top-0 text-neutral-400 hover:text-neutral-700 cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
@@ -309,7 +309,7 @@ export default function LoginPage({ onLoginSuccess }) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-black hover:bg-neutral-800 text-yellow-300 font-bold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5 mt-2"
+              className="w-full py-3 sm:py-2.5 min-h-[48px] rounded-xl bg-black hover:bg-neutral-800 text-yellow-300 font-bold text-sm sm:text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5 mt-2"
             >
               <span>{loading ? 'Creating Account...' : 'Complete Merchant Registration'}</span>
               <CheckCircle2 className="w-4 h-4" />

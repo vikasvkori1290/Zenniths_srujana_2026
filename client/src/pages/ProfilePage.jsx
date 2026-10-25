@@ -23,6 +23,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { getFixedExpensesDueWithin15Days } from '../services/expenseSync';
 import { calculatePredictiveCashRunway } from '../services/predictiveAnalytics';
+import { useBodyScrollLock } from '../services/useBodyScrollLock';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
@@ -103,6 +104,9 @@ export default function ProfilePage() {
   const [tempUpi, setTempUpi] = useState(profile.upiId || 'vikas.kori@okhdfcbank');
   const [profileForm, setProfileForm] = useState(profile);
   const [toastMessage, setToastMessage] = useState(null);
+
+  // Lock background scroll when either modal is open
+  useBodyScrollLock(isEditProfileOpen || isUpiModalOpen);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -271,32 +275,32 @@ export default function ProfilePage() {
 
       {/* Top Banner / Breadcrumb */}
       <div className="border-b border-neutral-200/80 bg-neutral-50/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center space-x-2 text-xs text-neutral-500">
-            <Link to="/" className="font-semibold text-neutral-700 hover:text-black transition-colors">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center space-x-2 text-xs text-neutral-500 overflow-x-auto no-scrollbar whitespace-nowrap py-1">
+            <Link to="/" className="font-semibold text-neutral-700 hover:text-black transition-colors shrink-0">
               Home
             </Link>
-            <span>/</span>
-            <span className="text-black font-bold">Profile & Financial Overview</span>
-            <span className="bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded-full text-[10px] border border-yellow-300">
+            <span className="shrink-0">/</span>
+            <span className="text-black font-bold shrink-0">Profile & Financial Overview</span>
+            <span className="bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded-full text-[10px] border border-yellow-300 shrink-0">
               Executive Overview & Settings
             </span>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 shrink-0">
             <button
               onClick={() => {
                 setProfileForm(profile);
                 setIsEditProfileOpen(true);
               }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-black bg-yellow-300 hover:bg-yellow-400 border border-yellow-400 transition-all flex items-center space-x-1.5 shadow-2xs cursor-pointer"
+              className="flex-1 sm:flex-none px-3.5 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold text-black bg-yellow-300 hover:bg-yellow-400 border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
             >
               <Edit3 className="w-3.5 h-3.5" />
               <span>Edit Profile</span>
             </button>
             <button
               onClick={handleLogout}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all flex items-center space-x-1.5 shadow-2xs cursor-pointer"
+              className="flex-1 sm:flex-none px-3.5 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Sign Out</span>
@@ -305,39 +309,39 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8 sm:space-y-10">
         {/* ========================================================= */}
         {/* 1. USER PROFILE HEADER CARD                               */}
         {/* ========================================================= */}
-        <div className="glass-panel-gold rounded-3xl p-6 sm:p-8 border border-yellow-400/40 shadow-sm relative overflow-hidden">
+        <div className="glass-panel-gold rounded-3xl p-5 sm:p-8 border border-yellow-400/40 shadow-sm relative overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-            <div className="flex items-center space-x-5">
-              <div className="w-20 h-20 rounded-2xl bg-black text-yellow-300 font-black text-2xl flex items-center justify-center border-2 border-yellow-400 shadow-md">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl bg-black text-yellow-300 font-black text-xl sm:text-2xl flex items-center justify-center border-2 border-yellow-400 shadow-md">
                 {profile.initials || 'VK'}
               </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <h1 className="text-2xl font-black text-black font-['Outfit'] tracking-tight">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-xl sm:text-2xl font-black text-black font-['Outfit'] tracking-tight">
                     {profile.name}
                   </h1>
                   <span className="px-2 py-0.5 rounded-md bg-black text-yellow-300 text-[10px] font-bold tracking-wider uppercase">
                     PRO
                   </span>
                 </div>
-                <p className="text-sm font-semibold text-neutral-700 mt-0.5 flex items-center space-x-2">
-                  <Building2 className="w-4 h-4 text-amber-600" />
+                <p className="text-xs sm:text-sm font-semibold text-neutral-700 mt-0.5 flex flex-wrap items-center gap-1 sm:gap-2">
+                  <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>{profile.businessName}</span>
                   <span className="text-neutral-400">•</span>
                   <span className="text-neutral-500">{profile.role}</span>
                 </p>
-                <div className="flex flex-wrap items-center gap-3 mt-3 text-xs text-neutral-600">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-3 text-xs text-neutral-600">
                   <span className="flex items-center space-x-1">
-                    <Phone className="w-3.5 h-3.5 text-neutral-400" />
+                    <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
                     <span>{profile.phone}</span>
                   </span>
                   <span className="flex items-center space-x-1">
-                    <Mail className="w-3.5 h-3.5 text-neutral-400" />
-                    <span>{profile.email}</span>
+                    <Mail className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                    <span className="break-all">{profile.email}</span>
                   </span>
                   <button
                     type="button"
@@ -345,7 +349,7 @@ export default function ProfilePage() {
                       setTempUpi(profile.upiId || 'vikas.kori@okhdfcbank');
                       setIsUpiModalOpen(true);
                     }}
-                    className="flex items-center space-x-1.5 font-semibold px-2.5 py-1 rounded-lg border font-mono transition-colors cursor-pointer group shadow-2xs"
+                    className="flex items-center space-x-1.5 font-semibold px-2.5 py-1.5 sm:py-1 min-h-[44px] sm:min-h-0 rounded-lg border font-mono transition-colors cursor-pointer group shadow-2xs max-w-full"
                     style={{
                       backgroundColor: '#F9DEBF',
                       borderColor: '#3D2E18',
@@ -353,24 +357,24 @@ export default function ProfilePage() {
                     }}
                     title="Click to edit Merchant UPI ID"
                   >
-                    <CreditCard className="w-3.5 h-3.5" style={{ color: '#3D2E18' }} />
-                    <span>UPI: {profile.upiId || 'vikas.kori@okhdfcbank'}</span>
-                    <span className="text-[10px] font-sans underline font-bold ml-1 opacity-70 group-hover:opacity-100">
+                    <CreditCard className="w-3.5 h-3.5 shrink-0" style={{ color: '#3D2E18' }} />
+                    <span className="truncate">UPI: {profile.upiId || 'vikas.kori@okhdfcbank'}</span>
+                    <span className="text-[10px] font-sans underline font-bold ml-1 opacity-70 group-hover:opacity-100 shrink-0">
                       Edit
                     </span>
                   </button>
                   <span className="flex items-center space-x-1 text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                     <span>KYC Verified</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 w-full sm:w-auto">
               <Link
                 to="/ekhata"
-                className="gold-button-gradient px-4 py-2.5 rounded-xl text-xs font-black text-black border border-yellow-400 transition-all flex items-center space-x-1.5 shadow-sm"
+                className="w-full sm:w-auto justify-center min-h-[44px] gold-button-gradient px-4 py-2.5 rounded-xl text-xs font-black text-black border border-yellow-400 transition-all flex items-center space-x-1.5 shadow-sm"
               >
                 <BookOpen className="w-4 h-4" />
                 <span>Open eKhata</span>
@@ -383,7 +387,7 @@ export default function ProfilePage() {
         {/* 2. EXECUTIVE OVERVIEW: 4 KEY FINANCIAL METRICS           */}
         {/* ========================================================= */}
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div>
               <h2 className="text-lg font-black text-black font-['Outfit'] tracking-tight">
                 Executive Cash Flow Overview
@@ -392,7 +396,7 @@ export default function ProfilePage() {
                 High-level operational liquidity radar and commitment summary.
               </p>
             </div>
-            <div className="flex items-center space-x-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+            <div className="self-start sm:self-auto flex items-center space-x-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               <span>MongoDB Atlas & Groq AI Active</span>
             </div>
@@ -566,7 +570,7 @@ export default function ProfilePage() {
         {/* 4. BUSINESS SETTINGS & GSTIN VERIFICATION                */}
         {/* ========================================================= */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-neutral-200/90 shadow-sm space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-neutral-100">
             <div>
               <h2 className="text-lg font-black text-black font-['Outfit']">Business Settings & Verification</h2>
               <p className="text-xs text-neutral-500">Essential tax, banking, and daily goal preferences.</p>
@@ -576,7 +580,7 @@ export default function ProfilePage() {
                 setProfileForm(profile);
                 setIsEditProfileOpen(true);
               }}
-              className="text-xs font-bold text-amber-600 hover:underline cursor-pointer"
+              className="self-start sm:self-auto min-h-[44px] sm:min-h-0 py-2 sm:py-0 flex items-center text-xs font-bold text-amber-600 hover:underline cursor-pointer"
             >
               Modify Details
             </button>
@@ -606,13 +610,24 @@ export default function ProfilePage() {
 
       {/* Edit Profile Modal */}
       {isEditProfileOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md border border-neutral-200 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsEditProfileOpen(false);
+          }}
+        >
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain border border-neutral-200 shadow-2xl animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Mobile drag handle */}
+            <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-3" />
+
+            <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-neutral-100">
               <h3 className="text-base font-black text-black font-['Outfit']">Edit Merchant Profile</h3>
               <button
                 onClick={() => setIsEditProfileOpen(false)}
-                className="text-neutral-400 hover:text-black p-1 rounded-lg"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-400 hover:text-black rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -626,7 +641,7 @@ export default function ProfilePage() {
                   required
                   value={profileForm.name}
                   onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                  className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
                 />
               </div>
 
@@ -637,18 +652,18 @@ export default function ProfilePage() {
                   required
                   value={profileForm.businessName}
                   onChange={(e) => setProfileForm({ ...profileForm, businessName: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                  className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-neutral-600 mb-1">Phone Number</label>
                   <input
                     type="text"
                     value={profileForm.phone}
                     onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                    className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
                   />
                 </div>
 
@@ -658,7 +673,7 @@ export default function ProfilePage() {
                     type="email"
                     value={profileForm.email}
                     onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs"
+                    className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs"
                   />
                 </div>
               </div>
@@ -671,21 +686,21 @@ export default function ProfilePage() {
                   step="500"
                   value={profileForm.dailyGoal || 20000}
                   onChange={(e) => setProfileForm({ ...profileForm, dailyGoal: Number(e.target.value) })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs font-mono font-bold"
+                  className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-mono font-bold"
                 />
               </div>
 
-              <div className="pt-3 flex items-center justify-end space-x-3">
+              <div className="pt-3 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:space-x-3">
                 <button
                   type="button"
                   onClick={() => setIsEditProfileOpen(false)}
-                  className="px-4 py-2 rounded-xl text-neutral-600 hover:text-black"
+                  className="px-4 py-2.5 min-h-[44px] rounded-xl text-neutral-600 hover:text-black font-semibold flex items-center justify-center cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="gold-button-gradient px-5 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer"
+                  className="gold-button-gradient px-5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm flex items-center justify-center cursor-pointer"
                 >
                   Save Changes
                 </button>
@@ -697,13 +712,24 @@ export default function ProfilePage() {
 
       {/* Edit UPI Modal */}
       {isUpiModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm border border-neutral-200 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsUpiModalOpen(false);
+          }}
+        >
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 w-full max-w-sm max-h-[90dvh] overflow-y-auto overscroll-contain border border-neutral-200 shadow-2xl animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Mobile drag handle */}
+            <div className="sm:hidden w-12 h-1.5 bg-neutral-300 rounded-full mx-auto mb-3" />
+
+            <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-neutral-100">
               <h3 className="text-base font-black text-black font-['Outfit']">Edit Merchant UPI ID</h3>
               <button
                 onClick={() => setIsUpiModalOpen(false)}
-                className="text-neutral-400 hover:text-black p-1 rounded-lg"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-400 hover:text-black rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -718,21 +744,21 @@ export default function ProfilePage() {
                   placeholder="e.g. yourname@okaxis"
                   value={tempUpi}
                   onChange={(e) => setTempUpi(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-xs font-mono"
+                  className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl border border-neutral-300 focus:outline-hidden focus:border-amber-400 text-base sm:text-xs font-mono"
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end space-x-3">
+              <div className="pt-2 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:space-x-3">
                 <button
                   type="button"
                   onClick={() => setIsUpiModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-neutral-600 hover:text-black"
+                  className="px-4 py-2.5 min-h-[44px] rounded-xl text-neutral-600 hover:text-black font-semibold flex items-center justify-center cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="gold-button-gradient px-5 py-2.5 rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm cursor-pointer"
+                  className="gold-button-gradient px-5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold text-black border border-yellow-400 shadow-sm flex items-center justify-center cursor-pointer"
                 >
                   Save UPI ID
                 </button>

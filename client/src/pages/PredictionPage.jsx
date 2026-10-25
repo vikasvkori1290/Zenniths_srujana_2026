@@ -332,10 +332,10 @@ export default function PredictionPage() {
           </div>
 
           {/* Quick Actions & Settings */}
-          <div className="flex items-center space-x-2.5">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full sm:w-auto">
             <button
               onClick={() => setIsKeyDrawerOpen(!isKeyDrawerOpen)}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-black transition-all flex items-center space-x-2 shadow-2xs cursor-pointer"
+              className="px-3.5 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-black transition-all flex items-center justify-center space-x-2 shadow-2xs cursor-pointer min-h-[44px] flex-1 sm:flex-initial"
             >
               <Key className="w-3.5 h-3.5 text-amber-500" />
               <span>{nvidiaApiKey ? 'NVIDIA Key Configured' : 'API Key Settings'}</span>
@@ -345,12 +345,12 @@ export default function PredictionPage() {
             <button
               onClick={handleRunPrediction}
               disabled={isLoading}
-              className="px-4 py-2 rounded-xl text-xs font-black bg-black hover:bg-neutral-800 text-yellow-300 border-2 border-yellow-400 flex items-center space-x-2 transition-all shadow-md cursor-pointer disabled:opacity-50"
+              className="px-4 py-2.5 sm:py-2 rounded-xl text-xs font-black bg-black hover:bg-neutral-800 text-yellow-300 border-2 border-yellow-400 flex items-center justify-center space-x-2 transition-all shadow-md cursor-pointer disabled:opacity-50 min-h-[44px] flex-1 sm:flex-initial"
             >
               {isLoading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-yellow-300" />
-                  <span>Analyzing with Nemotron...</span>
+                  <span>Analyzing...</span>
                 </>
               ) : (
                 <>
@@ -362,7 +362,6 @@ export default function PredictionPage() {
           </div>
         </div>
       </div>
-
 
       {/* API Key Drawer Modal */}
       {isKeyDrawerOpen && (
@@ -387,17 +386,17 @@ export default function PredictionPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
               <input
                 type="password"
                 placeholder="nvapi-xxxxxxxxxxxxxxxx"
                 value={nvidiaApiKey}
                 onChange={(e) => handleSaveApiKey(e.target.value)}
-                className="bg-white border border-amber-300 rounded-xl px-3 py-1.5 text-xs text-black placeholder:text-neutral-400 font-mono w-full md:w-64 focus:outline-hidden focus:ring-2 focus:ring-yellow-400"
+                className="bg-white border border-amber-300 rounded-xl px-3 py-2 sm:py-1.5 text-base sm:text-xs text-black placeholder:text-neutral-400 font-mono w-full md:w-64 focus:outline-hidden focus:ring-2 focus:ring-yellow-400 min-h-[44px] sm:min-h-0"
               />
               <button
                 onClick={() => setIsKeyDrawerOpen(false)}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-900 text-white hover:bg-black transition-all"
+                className="px-4 py-2 sm:py-1.5 rounded-xl text-xs font-bold bg-amber-900 text-white hover:bg-black transition-all min-h-[44px] flex items-center justify-center cursor-pointer"
               >
                 Done
               </button>
@@ -409,14 +408,14 @@ export default function PredictionPage() {
       {/* Main Grid Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* 2. Top Telemetry Card: Business Profile & Live Operational Inputs */}
-        <section className="bg-neutral-50/80 rounded-3xl p-6 sm:p-7 border border-neutral-200/90 shadow-2xs space-y-5">
+        <section className="bg-neutral-50/80 rounded-3xl p-5 sm:p-7 border border-neutral-200/90 shadow-2xs space-y-5">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-neutral-200">
             <div>
               <span className="text-[10px] uppercase tracking-wider font-extrabold text-neutral-400 block mb-1">
                 Active Telemetry Context
               </span>
-              <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-amber-500" />
+              <div className="flex flex-wrap items-center gap-2">
+                <Building2 className="w-5 h-5 text-amber-500 shrink-0" />
                 <h2 className="text-lg font-black text-black font-['Outfit']">
                   {profile.storeName || 'Merchant Business Store'}
                 </h2>
@@ -427,13 +426,13 @@ export default function PredictionPage() {
             </div>
 
             {/* Business Type Selector */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full lg:w-auto">
               <label htmlFor="business-type-select" className="text-xs font-bold text-neutral-600 whitespace-nowrap">Business Type:</label>
               <select
                 id="business-type-select"
                 value={selectedBusinessType}
                 onChange={(e) => setSelectedBusinessType(e.target.value)}
-                className="bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs font-extrabold text-black focus:outline-hidden focus:ring-2 focus:ring-yellow-400 shadow-2xs"
+                className="bg-white border border-neutral-300 rounded-xl px-3 py-2.5 sm:py-2 text-base sm:text-xs font-extrabold text-black focus:outline-hidden focus:ring-2 focus:ring-yellow-400 shadow-2xs min-h-[44px] sm:min-h-0 w-full sm:w-auto"
               >
                 {BUSINESS_TYPE_PRESETS.map((b) => (
                   <option key={b.id} value={b.name}>
@@ -445,7 +444,7 @@ export default function PredictionPage() {
           </div>
 
           {/* 4 Telemetry Metrics Pill Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             {/* Metric 1: Daily Retained Cash (After Restock & Running Costs) */}
             <div className="bg-white rounded-2xl p-4 border border-neutral-200/80 shadow-2xs">
               <div className="flex items-center justify-between text-neutral-500 mb-1">
@@ -547,12 +546,12 @@ export default function PredictionPage() {
 
               {/* Talk Card Top Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-5">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-2xl bg-yellow-400 flex items-center justify-center text-black shadow-md font-black">
+                <div className="flex items-start sm:items-center space-x-3">
+                  <div className="w-10 h-10 rounded-2xl bg-yellow-400 shrink-0 flex items-center justify-center text-black shadow-md font-black">
                     <Sparkles className="w-5 h-5 text-black" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-lg sm:text-xl font-black text-white font-['Outfit'] tracking-tight">
                         Nemotron CFO Direct Talk
                       </h2>
@@ -567,10 +566,10 @@ export default function PredictionPage() {
                 </div>
 
                 {/* Speech Synthesis Audio Player Controls */}
-                <div className="flex items-center space-x-2 bg-neutral-800/90 p-1.5 rounded-2xl border border-neutral-700 shadow-inner">
+                <div className="flex flex-wrap items-center gap-2 bg-neutral-800/90 p-1.5 rounded-2xl border border-neutral-700 shadow-inner w-full sm:w-auto">
                   <button
                     onClick={handleToggleSpeech}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center space-x-2 transition-all cursor-pointer ${
+                    className={`flex-1 sm:flex-none px-3.5 py-2.5 sm:py-1.5 min-h-[44px] rounded-xl text-xs font-black flex items-center justify-center space-x-2 transition-all cursor-pointer ${
                       isSpeaking && !isPaused
                         ? 'bg-yellow-400 text-black shadow-md'
                         : 'bg-neutral-700 hover:bg-neutral-600 text-white'
@@ -578,12 +577,12 @@ export default function PredictionPage() {
                   >
                     {isSpeaking && !isPaused ? (
                       <>
-                        <Pause className="w-3.5 h-3.5" />
+                        <Pause className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                         <span>Pause Talk</span>
                       </>
                     ) : (
                       <>
-                        <Play className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
+                        <Play className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-yellow-400 fill-yellow-400" />
                         <span>{isPaused ? 'Resume Talk' : '🔊 Listen to Talk'}</span>
                       </>
                     )}
@@ -593,9 +592,9 @@ export default function PredictionPage() {
                     <button
                       onClick={stopSpeech}
                       title="Stop audio"
-                      className="p-1.5 rounded-xl bg-neutral-700 hover:bg-rose-900/60 text-white transition-all cursor-pointer"
+                      className="p-2.5 sm:p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-neutral-700 hover:bg-rose-900/60 text-white transition-all cursor-pointer"
                     >
-                      <Square className="w-3.5 h-3.5 text-rose-400" />
+                      <Square className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-rose-400" />
                     </button>
                   )}
 
@@ -740,7 +739,7 @@ export default function PredictionPage() {
 
             {/* 4C. Tactical Action Plan Grid */}
             <div className="bg-white rounded-3xl p-6 sm:p-7 border border-neutral-200 shadow-2xs space-y-5">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-base font-black text-black font-['Outfit']">
                     Prioritized Tactical Action Plan
@@ -749,7 +748,7 @@ export default function PredictionPage() {
                     High-impact steps recommended by Nemotron to maximize cash surplus and avoid bottleneck dates.
                   </p>
                 </div>
-                <span className="text-xs font-black text-neutral-700 bg-neutral-100 px-3 py-1 rounded-xl border border-neutral-200">
+                <span className="self-start sm:self-auto text-xs font-black text-neutral-700 bg-neutral-100 px-3 py-1.5 rounded-xl border border-neutral-200">
                   {predictionData.actionPlan?.length || 0} Recommended Actions
                 </span>
               </div>
@@ -828,7 +827,7 @@ export default function PredictionPage() {
               <button
                 onClick={handleRunPrediction}
                 disabled={isLoading}
-                className="px-7 py-3.5 rounded-2xl text-sm font-black bg-black hover:bg-neutral-800 text-yellow-300 border-2 border-yellow-400 flex items-center space-x-3 transition-all shadow-lg hover:scale-102 cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-7 py-3.5 min-h-[48px] justify-center rounded-2xl text-sm font-black bg-black hover:bg-neutral-800 text-yellow-300 border-2 border-yellow-400 flex items-center space-x-3 transition-all shadow-lg hover:scale-102 cursor-pointer disabled:opacity-50"
               >
                 <Zap className="w-5 h-5 text-yellow-300 fill-yellow-300" />
                 <span>Predict using LLM</span>

@@ -20,16 +20,16 @@ export default function EKhataLedgerPage() {
             </span>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 text-xs overflow-x-auto pb-1 sm:pb-0 max-w-full scrollbar-none">
             <Link
-              to="/receivables"
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs"
+              to="/"
+              className="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs whitespace-nowrap flex items-center shrink-0"
             >
-              Udhar Receivables &rarr;
+              &larr; Home Overview
             </Link>
             <Link
               to="/income"
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs"
+              className="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs whitespace-nowrap flex items-center shrink-0"
             >
               Today's Income &rarr;
             </Link>
