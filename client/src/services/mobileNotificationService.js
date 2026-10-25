@@ -255,6 +255,19 @@ export async function evaluateAndNotifyTomorrowBills({
   const shortfall = Math.max(0, Math.round((totalDue + Number(safetyBuffer)) - Number(currentCash)));
   const isSufficient = shortfall <= 0;
 
+  // Avoid spamming redundant AI network calls on every screen mount if obligations have not changed
+  const existingAlert = getStoredTomorrowBillAlert();
+  if (
+    !forceNotification &&
+    existingAlert &&
+    existingAlert.totalDueTomorrow === totalDue &&
+    existingAlert.shortfall === shortfall &&
+    Math.abs(Number(existingAlert.currentCash || 0) - Number(currentCash)) < 100 &&
+    existingAlert.hasDueTomorrow === true
+  ) {
+    return existingAlert;
+  }
+
   // Prepare top pending customer credit accounts for LLM recommendations
   const pendingDebtors = ekhata
     .filter((c) => Number(c.totalAmount || c.balance || 0) > 0)

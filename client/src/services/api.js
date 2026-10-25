@@ -291,10 +291,16 @@ export async function syncProfileToDb(profileData) {
   }
 }
 
+let _lastDbLoadTime = 0;
+
 /**
  * Load user's data from MongoDB Atlas into application state and clear hardcoded defaults
  */
-export async function loadUserDataFromDb() {
+export async function loadUserDataFromDb(force = false) {
+  if (!force && Date.now() - _lastDbLoadTime < 30000) {
+    return null; // Prevent UI freeze from redundant back-to-back summary loads
+  }
+  _lastDbLoadTime = Date.now();
   const summaryRes = await getFinanceSummary();
   if (summaryRes && summaryRes.success && summaryRes.data) {
     const { ekhata, fixedExpenses, upcomingExpenses, dailyIncome, cashflowSettings, userProfile } = summaryRes.data;
