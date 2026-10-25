@@ -14,6 +14,8 @@ dist/
 dist-ssr/
 build/
 */dist/
+*.apk
+local.properties
 
 # Logs
 *.log

@@ -5,6 +5,8 @@ import {
   deduplicateDailyIncomeRecords,
 } from './expenseSync';
 
+export const PROD_BACKEND_URL = 'https://zenniths-srujana-2026.vercel.app/api/v1';
+
 export const API_BASE = (() => {
   let url = import.meta.env.VITE_API_URL;
   if (!url && typeof window !== 'undefined') {
@@ -19,16 +21,27 @@ export const API_BASE = (() => {
   }
 
   if (typeof window !== 'undefined') {
-    // If running in Capacitor/native mobile container without local proxy
+    // If running in Capacitor/native mobile container
     const isCapacitor =
       window.location.protocol === 'capacitor:' ||
       window.location.protocol === 'file:' ||
+      (window.location.hostname === 'localhost' && window.location.port === '') ||
       (window.Capacitor?.isNativePlatform && window.Capacitor.isNativePlatform());
 
     if (isCapacitor) {
-      return 'http://172.22.2.130:5000/api/v1';
+      return PROD_BACKEND_URL;
+    }
+
+    // If running in web browser on a production domain (e.g. Netlify)
+    const isLocalhost =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1';
+
+    if (!isLocalhost) {
+      return PROD_BACKEND_URL;
     }
   }
+
   return '/api/v1';
 })();
 
