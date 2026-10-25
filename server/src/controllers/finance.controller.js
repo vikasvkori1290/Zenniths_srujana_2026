@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import EKhataCustomer from '../models/ekhata.model.js';
 import { FixedExpense, UpcomingExpense } from '../models/expense.model.js';
 import DailyIncome from '../models/dailyIncome.model.js';
@@ -49,7 +50,7 @@ export const getFinanceSummary = async (req, res) => {
       FixedExpense.find({ userId }).sort({ dueDay: 1 }),
       UpcomingExpense.find({ userId }).sort({ dueDate: 1 }),
       DailyIncome.find({ userId }).sort({ date: -1, createdAt: -1 }).limit(100),
-      User.findById(userId).select('-password'),
+      mongoose.isValidObjectId(userId) ? User.findById(userId).select('-password') : null,
     ]);
 
     // Deduplicate fixed expenses returned from DB

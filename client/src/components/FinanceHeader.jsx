@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   TrendingUp,
@@ -20,19 +20,57 @@ import { useAuth } from '../context/AuthContext';
 
 export default function FinanceHeader() {
   const { user, isAuthenticated, logout } = useAuth();
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const initials = user?.name
-    ? user.name
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase()
-    : 'VK';
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  if (location.pathname === '/login') {
+    return null;
+  }
+
+  const [profileName, setProfileName] = useState(() => {
+    try {
+      const p = JSON.parse(localStorage.getItem('aurum_profile_info') || '{}');
+      return p.name || '';
+    } catch (e) {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    const handleProfileSync = () => {
+      try {
+        const p = JSON.parse(localStorage.getItem('aurum_profile_info') || '{}');
+        if (p.name) setProfileName(p.name);
+      } catch (e) {}
+    };
+    window.addEventListener('storage', handleProfileSync);
+    window.addEventListener('aurum_profile_updated', handleProfileSync);
+    return () => {
+      window.removeEventListener('storage', handleProfileSync);
+      window.removeEventListener('aurum_profile_updated', handleProfileSync);
+    };
+  }, []);
+
+  const currentDisplayName = user?.name || profileName || 'Merchant';
+
+  const getAvatarLetter = (name) => {
+    if (!name || typeof name !== 'string') return 'M';
+    const clean = name.trim();
+    if (!clean) return 'M';
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) {
+      return parts[0].charAt(0).toUpperCase();
+    }
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  };
+
+  const initials = getAvatarLetter(currentDisplayName);
 
   const handleLogout = () => {
     logout();
@@ -45,7 +83,6 @@ export default function FinanceHeader() {
     { name: 'Home', path: '/' },
     { name: 'Income', path: '/income' },
     { name: 'Fixed Expenses', path: '/fixed-expenses' },
-    { name: 'Simulator', path: '/simulator', isSimulator: true },
     { name: 'Prediction', path: '/prediction', isAi: true },
   ];
 
@@ -84,12 +121,6 @@ export default function FinanceHeader() {
                         ? 'bg-emerald-600 text-white border border-emerald-700 shadow-md ring-2 ring-emerald-400/40'
                         : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300'
                     }`
-                  : link.isSimulator
-                  ? `px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1.5 transition-all shadow-2xs ${
-                      isActive
-                        ? 'bg-indigo-600 text-white border border-indigo-700 shadow-md ring-2 ring-indigo-400/40'
-                        : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200'
-                    }`
                   : `px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
                       isActive
                         ? 'bg-neutral-100 text-black border border-neutral-300 shadow-2xs'
@@ -98,16 +129,10 @@ export default function FinanceHeader() {
               }
             >
               {link.isAi && <Sparkles className="w-3.5 h-3.5 text-emerald-600" />}
-              {link.isSimulator && <Sliders className="w-3.5 h-3.5 text-indigo-600" />}
               <span>{link.name}</span>
               {link.isAi && (
                 <span className="text-[9px] font-black bg-emerald-200/80 text-emerald-900 px-1.5 py-0.2 rounded-md">
                   NVIDIA
-                </span>
-              )}
-              {link.isSimulator && (
-                <span className="text-[9px] font-black bg-indigo-200/80 text-indigo-900 px-1.5 py-0.2 rounded-md">
-                  SIM
                 </span>
               )}
             </NavLink>
@@ -133,55 +158,21 @@ export default function FinanceHeader() {
 
         {/* Right Info / User context */}
         <div className="flex items-center space-x-3 text-xs">
-          <div className="hidden xl:flex items-center space-x-1.5 text-neutral-500 text-[11px]">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Voice Ledger Active</span>
-          </div>
-
           {isAuthenticated ? (
-            /* User Avatar & Dropdown */
-            <div className="relative">
-              <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                title={`${user?.name || 'Merchant'} • ${user?.businessName || 'Store'}`}
-                className={`min-h-[44px] min-w-[44px] px-2.5 rounded-xl font-black text-xs flex items-center justify-center space-x-1.5 transition-all cursor-pointer shadow-xs ${
-                  location.pathname === '/profile' || isDropdownOpen
-                    ? 'bg-black text-yellow-300 ring-2 ring-yellow-400 shadow-md'
-                    : 'bg-black text-yellow-300 border-2 border-yellow-400 hover:scale-102'
-                }`}
-              >
-                <span>{initials}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-yellow-400" />
-              </button>
-
-              {/* Dropdown Menu */}
-              {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-neutral-200 shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2">
-                  <div className="px-3.5 py-2 border-b border-neutral-100">
-                    <span className="font-bold text-xs text-black block truncate">
-                      {user?.name || 'Merchant'}
-                    </span>
-                    <span className="text-[10px] text-neutral-400 block truncate">
-                      {user?.businessName || 'FinSafe Store'}
-                    </span>
-                    <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">
-                      {user?.businessType || 'Retail'}
-                    </span>
-                  </div>
-
-                  <div className="py-1 px-1">
-                    <button
-                      onClick={handleLogout}
-                      className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center space-x-2 cursor-pointer transition-colors"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Log Out</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-            </div>
+            /* Direct Profile Link without dropdown */
+            <NavLink
+              to="/profile"
+              title={`${user?.name || 'Merchant'} • Profile`}
+              className={({ isActive }) =>
+                `min-h-[44px] min-w-[44px] px-3 rounded-xl font-black text-xs flex items-center justify-center transition-all cursor-pointer shadow-xs ${
+                  isActive
+                    ? 'bg-black text-yellow-300 ring-2 ring-yellow-400 shadow-md scale-102'
+                    : 'bg-black text-yellow-300 border-2 border-yellow-400 hover:scale-105'
+                }`
+              }
+            >
+              <span>{initials}</span>
+            </NavLink>
           ) : (
             /* Sign In Button */
             <Link
@@ -243,19 +234,6 @@ export default function FinanceHeader() {
             className="min-h-[44px] flex items-center px-4 py-2.5 rounded-xl text-xs font-bold text-neutral-600 hover:text-black hover:bg-neutral-50"
           >
             Profile & Overview
-          </NavLink>
-          <NavLink
-            to="/simulator"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="min-h-[44px] flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-black bg-indigo-50 text-indigo-900 border border-indigo-200"
-          >
-            <span className="flex items-center space-x-2">
-              <Sliders className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Scenario Simulator</span>
-            </span>
-            <span className="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-md">
-              NEW
-            </span>
           </NavLink>
           <NavLink
             to="/ekhata"

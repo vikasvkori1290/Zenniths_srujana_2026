@@ -13,8 +13,7 @@ const transactionSchema = new mongoose.Schema(
 const ekhataCustomerSchema = new mongoose.Schema(
   {
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      type: mongoose.Schema.Types.Mixed,
       required: false,
     },
     idNumber: {

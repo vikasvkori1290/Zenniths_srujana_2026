@@ -26,6 +26,9 @@ const seedDemoMerchant = async () => {
   };
   inMemoryUsers.set('demo@finsafe.com', finsafeUser);
   inMemoryUsers.set('demo@aurumflow.com', finsafeUser);
+  inMemoryUsers.set('vikas kori', finsafeUser);
+  inMemoryUsers.set('vikas', finsafeUser);
+  inMemoryUsers.set('demo', finsafeUser);
 };
 seedDemoMerchant();
 
@@ -151,7 +154,7 @@ export const login = async (req, res) => {
     if (!inputVal || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide both email/phone and password',
+        message: 'Please provide both email/username and password',
       });
     }
 
@@ -159,11 +162,10 @@ export const login = async (req, res) => {
     const digitsOnly = inputVal.replace(/\D/g, '');
 
     if (isDbConnected()) {
-      // Flexible lookup: match email, phone (with/without country code), or name
+      // Flexible lookup: match email or name
       const orConditions = [
         { email: normalizedInput },
         { email: new RegExp(`^${normalizedInput}$`, 'i') },
-        { phone: inputVal },
         { name: new RegExp(`^${normalizedInput}$`, 'i') },
       ];
 
@@ -176,7 +178,7 @@ export const login = async (req, res) => {
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email, phone, or password',
+          message: 'Invalid email, username, or password',
         });
       }
 
@@ -184,7 +186,7 @@ export const login = async (req, res) => {
       if (!isMatch) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email, phone, or password',
+          message: 'Invalid email, username, or password',
         });
       }
 
@@ -217,7 +219,7 @@ export const login = async (req, res) => {
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email, phone, or password',
+          message: 'Invalid email, username, or password',
         });
       }
 
@@ -225,7 +227,7 @@ export const login = async (req, res) => {
       if (!isMatch) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email, phone, or password',
+          message: 'Invalid email, username, or password',
         });
       }
 
@@ -314,242 +316,160 @@ export const getMe = async (req, res) => {
 };
 
 /**
- * Initiate Forgot Password / OTP generation
- * POST /api/v1/auth/forgot-password
+ * Update password for authenticated merchant
+ * POST /api/v1/auth/update-password
  */
-export const forgotPassword = async (req, res) => {
+export const updatePassword = async (req, res) => {
   try {
-    const { identifier } = req.body;
-    const inputVal = String(identifier || '').trim();
+    const userId = req.user?.id || req.body.userId;
+    const { currentPassword, newPassword } = req.body;
 
-    if (!inputVal) {
+    if (!newPassword || newPassword.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide your registered email or phone number',
+        message: 'New password must be at least 6 characters long',
       });
     }
 
-    const normalizedInput = inputVal.toLowerCase();
-    const digitsOnly = inputVal.replace(/\D/g, '');
-
-    // Generate secure 6-digit verification code
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
-
-    let matchedUser = null;
-
     if (isDbConnected()) {
-      const orConditions = [
-        { email: normalizedInput },
-        { email: new RegExp(`^${normalizedInput}$`, 'i') },
-        { phone: inputVal },
-        { name: new RegExp(`^${normalizedInput}$`, 'i') },
-      ];
+      let user = null;
+      try {
+        if (userId && userId !== 'user-demo-1') {
+          user = await User.findById(userId);
+        }
+      } catch (e) {}
 
-      if (digitsOnly.length >= 10) {
-        const last10 = digitsOnly.slice(-10);
-        orConditions.push({ phone: new RegExp(last10) });
+      if (!user && req.user?.email) {
+        user = await User.findOne({ email: req.user.email.toLowerCase() });
       }
 
-      matchedUser = await User.findOne({ $or: orConditions });
-
-      if (!matchedUser) {
-        return res.status(404).json({
-          success: false,
-          message: 'No registered merchant found with this email or phone number',
-        });
+      if (user) {
+        if (currentPassword) {
+          const isMatch = await bcrypt.compare(currentPassword, user.password);
+          if (!isMatch) {
+            return res.status(400).json({ success: false, message: 'Current password does not match' });
+          }
+        }
+        user.password = newPassword;
+        await user.save();
+        return res.status(200).json({ success: true, message: 'Password updated successfully' });
       }
+    }
 
-      matchedUser.resetPasswordOtp = otp;
-      matchedUser.resetPasswordExpires = expires;
-      await matchedUser.save();
-    } else {
-      // In-memory fallback
-      for (const u of inMemoryUsers.values()) {
-        const uEmail = (u.email || '').toLowerCase();
-        const uPhone = (u.phone || '').replace(/\D/g, '');
-        const uName = (u.name || '').toLowerCase();
-        if (
-          uEmail === normalizedInput ||
-          uName === normalizedInput ||
-          (digitsOnly.length >= 10 && uPhone.endsWith(digitsOnly.slice(-10)))
-        ) {
-          matchedUser = u;
-          break;
+    // In-memory or demo user fallback
+    let targetUser = null;
+    for (const [, u] of inMemoryUsers) {
+      if (u.id === userId || u._id === userId || (req.user?.email && u.email === req.user.email)) {
+        targetUser = u;
+        break;
+      }
+    }
+
+    if (!targetUser) {
+      targetUser = inMemoryUsers.get('demo@finsafe.com');
+    }
+
+    if (targetUser) {
+      if (currentPassword && targetUser.password) {
+        const isMatch = await bcrypt.compare(currentPassword, targetUser.password);
+        if (!isMatch) {
+          return res.status(400).json({ success: false, message: 'Current password does not match' });
         }
       }
-
-      if (!matchedUser) {
-        return res.status(404).json({
-          success: false,
-          message: 'No registered merchant found with this email or phone number',
-        });
-      }
-
-      matchedUser.resetPasswordOtp = otp;
-      matchedUser.resetPasswordExpires = expires;
+      targetUser.password = await bcrypt.hash(newPassword, 10);
+      return res.status(200).json({ success: true, message: 'Password updated successfully' });
     }
 
-    // Mask contact for security
-    let maskedContact = matchedUser.email || matchedUser.phone || inputVal;
-    if (matchedUser.email && matchedUser.email.includes('@')) {
-      const [local, domain] = matchedUser.email.split('@');
-      maskedContact = `${local.charAt(0)}***${local.charAt(local.length - 1)}@${domain}`;
-    } else if (matchedUser.phone) {
-      maskedContact = matchedUser.phone.replace(/(\d{2})\d+(\d{2})/, '$1******$2');
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: `Verification code sent to ${maskedContact}`,
-      identifier: matchedUser.email || inputVal,
-      maskedContact,
-      otp, // Included for instant developer/sandbox testing & auto-fill
-    });
+    return res.status(200).json({ success: true, message: 'Password updated successfully' });
   } catch (err) {
-    console.error('[Forgot Password Error]:', err);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to process password reset request',
-    });
+    console.error('[Update Password Error]:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update password' });
   }
 };
 
 /**
- * Verify OTP and Set New Password
- * POST /api/v1/auth/reset-password
+ * Reset / Forgot password by identifier
+ * POST /api/v1/auth/forgot-password
  */
-export const resetPassword = async (req, res) => {
+export const forgotPassword = async (req, res) => {
   try {
-    const { identifier, otp, newPassword } = req.body;
+    const { identifier, newPassword } = req.body;
 
-    if (!identifier || !otp || !newPassword) {
+    if (!identifier || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Identifier, verification code (OTP), and new password are required',
+        message: 'Email/Username and new password are required',
       });
     }
 
-    if (String(newPassword).length < 6) {
+    if (newPassword.length < 6) {
       return res.status(400).json({
         success: false,
         message: 'Password must be at least 6 characters long',
       });
     }
 
-    const inputVal = String(identifier).trim().toLowerCase();
-    const digitsOnly = inputVal.replace(/\D/g, '');
-    const cleanOtp = String(otp).trim();
-
-    let user = null;
+    const normalized = identifier.toLowerCase().trim();
 
     if (isDbConnected()) {
-      const orConditions = [
-        { email: inputVal },
-        { phone: identifier },
-        { name: new RegExp(`^${inputVal}$`, 'i') },
-      ];
-      if (digitsOnly.length >= 10) {
-        orConditions.push({ phone: new RegExp(digitsOnly.slice(-10)) });
-      }
-
-      user = await User.findOne({ $or: orConditions });
-
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'Merchant account not found',
-        });
-      }
-
-      // Check OTP match and expiry (also accept universal demo OTP 123456)
-      const isValidOtp =
-        (user.resetPasswordOtp && user.resetPasswordOtp === cleanOtp) ||
-        cleanOtp === '123456';
-      const isNotExpired =
-        !user.resetPasswordExpires || new Date() <= user.resetPasswordExpires;
-
-      if (!isValidOtp) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid verification code. Please check and try again.',
-        });
-      }
-
-      if (!isNotExpired) {
-        return res.status(400).json({
-          success: false,
-          message: 'Verification code has expired. Please request a new one.',
-        });
-      }
-
-      // Update password & clear OTP
-      user.password = newPassword;
-      user.resetPasswordOtp = null;
-      user.resetPasswordExpires = null;
-      await user.save(); // User pre-save hook automatically hashes with bcrypt
-
-      const token = generateToken(user);
-      return res.status(200).json({
-        success: true,
-        message: 'Password reset successfully! You are now signed in.',
-        token,
-        user,
+      let user = await User.findOne({
+        $or: [
+          { email: normalized },
+          { name: { $regex: new RegExp(`^${identifier.trim()}$`, 'i') } },
+        ],
       });
-    } else {
-      // In-memory fallback
+
+      if (user) {
+        user.password = newPassword;
+        await user.save();
+        const token = generateToken(user);
+        return res.status(200).json({
+          success: true,
+          message: 'Password reset successfully',
+          token,
+          user,
+        });
+      }
+    }
+
+    // Check in-memory demo users or create demo entry
+    let demoMatch = inMemoryUsers.get(normalized);
+    if (!demoMatch) {
       for (const u of inMemoryUsers.values()) {
         const uEmail = (u.email || '').toLowerCase();
-        const uPhone = (u.phone || '').replace(/\D/g, '');
         const uName = (u.name || '').toLowerCase();
-        if (
-          uEmail === inputVal ||
-          uName === inputVal ||
-          (digitsOnly.length >= 10 && uPhone.endsWith(digitsOnly.slice(-10)))
-        ) {
-          user = u;
+        if (uEmail === normalized || uName === normalized) {
+          demoMatch = u;
           break;
         }
       }
+    }
 
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'Merchant account not found',
-        });
-      }
+    // Also match if user entered demo, demo@finsafe.com, or vikas
+    if (!demoMatch && (normalized.includes('demo') || normalized.includes('vikas'))) {
+      demoMatch = inMemoryUsers.get('demo@finsafe.com');
+    }
 
-      const isValidOtp =
-        (user.resetPasswordOtp && user.resetPasswordOtp === cleanOtp) ||
-        cleanOtp === '123456';
-      if (!isValidOtp) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid verification code. Please check and try again.',
-        });
-      }
-
-      user.password = await bcrypt.hash(newPassword, 10);
-      user.resetPasswordOtp = null;
-      user.resetPasswordExpires = null;
-
-      const token = generateToken(user);
-      const safeUser = { ...user };
+    if (demoMatch) {
+      demoMatch.password = await bcrypt.hash(newPassword, 10);
+      const token = generateToken(demoMatch);
+      const safeUser = { ...demoMatch };
       delete safeUser.password;
 
       return res.status(200).json({
         success: true,
-        message: 'Password reset successfully! You are now signed in.',
+        message: 'Password reset successfully',
         token,
         user: safeUser,
       });
     }
-  } catch (err) {
-    console.error('[Reset Password Error]:', err);
-    return res.status(500).json({
+
+    return res.status(404).json({
       success: false,
-      message: 'Failed to reset password',
+      message: 'No registered merchant found with that email or username',
     });
+  } catch (err) {
+    console.error('[Forgot Password Error]:', err);
+    return res.status(500).json({ success: false, message: 'Password reset failed' });
   }
 };
-

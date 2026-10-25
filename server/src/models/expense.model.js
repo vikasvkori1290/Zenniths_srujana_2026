@@ -4,8 +4,7 @@ import mongoose from 'mongoose';
 const fixedExpenseSchema = new mongoose.Schema(
   {
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      type: mongoose.Schema.Types.Mixed,
       required: false,
       index: true,
     },
@@ -59,8 +58,7 @@ fixedExpenseSchema.index({ userId: 1, dueDay: 1 });
 const upcomingExpenseSchema = new mongoose.Schema(
   {
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      type: mongoose.Schema.Types.Mixed,
       required: false,
       index: true,
     },
