@@ -1,9 +1,11 @@
 import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
 
 /**
  * Get or create Nodemailer transporter
  */
 const getTransporter = () => {
+  dotenv.config();
   const user = process.env.EMAIL_USER || process.env.SMTP_USER;
   const pass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
 
