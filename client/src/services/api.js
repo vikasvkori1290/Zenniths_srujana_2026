@@ -6,13 +6,19 @@ import {
 } from './expenseSync';
 
 export const API_BASE = (() => {
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL.replace(/\/$/, '') + '/api/v1';
+  let url = import.meta.env.VITE_API_URL;
+  if (!url && typeof window !== 'undefined') {
+    url = localStorage.getItem('aurum_backend_url');
   }
-  if (typeof window !== 'undefined') {
-    const custom = localStorage.getItem('aurum_backend_url');
-    if (custom) return custom.replace(/\/$/, '') + '/api/v1';
 
+  if (url) {
+    const cleanUrl = url.trim().replace(/\/$/, '');
+    if (cleanUrl.endsWith('/api/v1')) return cleanUrl;
+    if (cleanUrl.endsWith('/api')) return cleanUrl + '/v1';
+    return cleanUrl + '/api/v1';
+  }
+
+  if (typeof window !== 'undefined') {
     // If running in Capacitor/native mobile container without local proxy
     const isCapacitor =
       window.location.protocol === 'capacitor:' ||

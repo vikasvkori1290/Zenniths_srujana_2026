@@ -1,24 +1,38 @@
 import mongoose from 'mongoose';
 
+let cachedPromise = null;
+
 /**
  * Connect to MongoDB with retry logic and event listeners
+ * Caches connection for serverless platforms like Vercel
  */
 export const connectDB = async () => {
+  if (mongoose.connection.readyState >= 1) {
+    return mongoose.connection;
+  }
+
+  if (cachedPromise) {
+    return cachedPromise;
+  }
+
   const mongoURI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/mern_starter';
 
-  try {
-    const conn = await mongoose.connect(mongoURI, {
+  cachedPromise = mongoose
+    .connect(mongoURI, {
       serverSelectionTimeoutMS: 8000,
-      family: 4, // Force IPv4 to prevent Windows SSL alert 80 on Atlas
+      family: 4, // Force IPv4 to prevent Windows/cloud SSL alert 80 on Atlas
+    })
+    .then((conn) => {
+      console.log(`[Database] MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
+      return conn;
+    })
+    .catch((error) => {
+      cachedPromise = null;
+      console.error(`[Database Error] Connection failed: ${error.message}`);
+      return null;
     });
 
-    console.log(`[Database] MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
-    return conn;
-  } catch (error) {
-    console.error(`[Database Error] Connection failed: ${error.message}`);
-    console.warn(`[Database Warning] The server will still run in limited mode without an active DB connection. Update MONGO_URI in .env when MongoDB is available.`);
-    return null;
-  }
+  return cachedPromise;
 };
 
 mongoose.connection.on('disconnected', () => {
