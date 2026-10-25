@@ -31,6 +31,9 @@ import {
   CreditCard,
   Send,
   UserPlus,
+  ChevronDown,
+  ChevronUp,
+  MoreHorizontal,
 } from 'lucide-react';
 import { parseLocalSmartIntent, parseWithGroqAI, checkGroqStatus } from '../services/voiceParser';
 import { useBodyScrollLock } from '../services/useBodyScrollLock';
@@ -130,6 +133,21 @@ export default function EKhataPage() {
 
   // Add New Customer Modal states
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+
+  // Mobile customer card dropdown toggle state for non-essential details
+  const [expandedCustomerIds, setExpandedCustomerIds] = useState(() => new Set());
+
+  const toggleCustomerDetails = (id) => {
+    setExpandedCustomerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   // Lock body scroll when any modal is open in eKhata
   useBodyScrollLock(Boolean(isGroqModalOpen || selectedCustomerHistory || editingCustomer || isAddCustomerModalOpen));
@@ -272,6 +290,35 @@ export default function EKhataPage() {
       }
     }
   };
+
+  // Keyboard Shortcut: Alt + V (global) or V (when outside input) to toggle Voice CRUD
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      const isInputFocused =
+        activeTag === 'input' ||
+        activeTag === 'textarea' ||
+        document.activeElement?.isContentEditable;
+
+      // Global shortcut: Alt + V (works anywhere) or single V (when not typing in an input)
+      if (
+        (e.altKey && (e.key === 'v' || e.key === 'V')) ||
+        (!isInputFocused && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'v' || e.key === 'V'))
+      ) {
+        e.preventDefault();
+        toggleListening();
+        showFeedback(
+          isListening
+            ? '🛑 Voice Assistant stopped.'
+            : '🎙️ Voice Assistant active! Speak your command (Alt + V)',
+          'info'
+        );
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isListening]);
 
   const showFeedback = (msg, type = 'success', actionLink = null) => {
     setFeedbackMessage({ text: msg, type, actionLink });
@@ -1057,24 +1104,61 @@ Thank you for your business! 🙏
           </div>
         )}
 
-        {/* COMPACT VOICE CRUD COMMAND BAR (Very Small Mic) */}
-        <div className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/90 shadow-sm space-y-2.5">
-          <form onSubmit={handleManualSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        {/* PROFESSIONAL AI VOICE CRUD ASSISTANT */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-neutral-50/90 border border-neutral-200 shadow-sm space-y-3">
+          {/* Header with status and keyboard shortcut indicator */}
+          <div className="flex items-center justify-between pb-2.5 border-b border-neutral-200/80">
+            <div className="flex items-center space-x-2.5">
+              <div
+                className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all ${
+                  isListening
+                    ? 'bg-amber-400 text-black scale-105 shadow-xs'
+                    : 'bg-black text-yellow-300'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="text-xs font-black text-black font-['Outfit'] tracking-tight block">
+                  AI Voice Ledger Assistant
+                </span>
+                <span className="text-[10px] text-neutral-500 font-medium flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Groq Whisper LPU • Multi-Lingual</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Keyboard shortcut hint */}
+            <div className="flex items-center gap-1.5">
+              <span className="hidden sm:inline-block text-[10px] text-neutral-400 font-medium">Shortcut:</span>
+              <kbd
+                className="px-2 py-0.5 rounded-md bg-neutral-200 text-neutral-800 text-[10px] font-mono font-bold border border-neutral-300 shadow-2xs cursor-pointer hover:bg-neutral-300 transition-colors"
+                title="Press Alt + V (or V when not typing) to toggle microphone"
+                onClick={toggleListening}
+              >
+                Alt + V
+              </kbd>
+            </div>
+          </div>
+
+          {/* Voice Input & Execution Bar */}
+          <form onSubmit={handleManualSubmit} className="flex items-center gap-2">
             <div className="flex items-center gap-2 flex-1">
-              {/* Very Small Mic Button */}
+              {/* Mic Button with Pulsing Ring when Active */}
               <div className="relative shrink-0">
                 {isListening && (
-                  <div className="absolute -inset-1 rounded-full bg-yellow-400 opacity-70 animate-ping"></div>
+                  <div className="absolute -inset-1 rounded-xl bg-amber-400 opacity-75 animate-ping"></div>
                 )}
                 <button
                   type="button"
                   onClick={toggleListening}
-                  className={`relative w-9 h-9 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm min-w-[36px] min-h-[36px] ${
+                  className={`relative w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-2xs ${
                     isListening
-                      ? 'bg-yellow-400 text-black scale-105 border-2 border-black'
+                      ? 'bg-yellow-400 text-black scale-105 border-2 border-black ring-2 ring-yellow-400'
                       : 'bg-black text-yellow-300 hover:bg-neutral-800 border border-yellow-400/80 hover:scale-105'
                   }`}
-                  title={isListening ? 'Listening... click to stop' : 'Tap to speak voice CRUD command'}
+                  title={isListening ? 'Listening... click to stop' : 'Tap to speak voice command (or press Alt + V)'}
                   aria-label="Voice command microphone"
                 >
                   <Mic className={`w-4 h-4 sm:w-3.5 sm:h-3.5 ${isListening ? 'animate-pulse text-black' : 'text-yellow-300'}`} />
@@ -1087,17 +1171,17 @@ Thank you for your business! 🙏
                   type="text"
                   placeholder={
                     isListening
-                      ? 'Listening... say e.g. "remove 20rs from nitish" or "change name from nitish to vikas"'
-                      : 'Say: "add 20rs to nitish" / "remove 20rs from nitish" / "delete nitish"'
+                      ? 'Listening... say e.g. "add 20rs to nitish"'
+                      : 'Say or type: "add 20rs to nitish" / "remove 20rs"...'
                   }
                   value={manualText}
                   onChange={(e) => setManualText(e.target.value)}
-                  className={`w-full pl-3.5 pr-20 py-2.5 sm:py-2 rounded-xl bg-white border text-base sm:text-xs focus:border-yellow-400 outline-none text-black placeholder:text-neutral-400 shadow-sm min-h-[44px] sm:min-h-0 ${
-                    isListening ? 'border-amber-400 bg-amber-50/30' : 'border-neutral-200'
+                  className={`w-full pl-3.5 pr-20 py-2 sm:py-1.5 rounded-xl bg-white border text-xs focus:border-yellow-400 outline-none text-black placeholder:text-neutral-400 shadow-2xs min-h-[40px] sm:min-h-0 transition-colors ${
+                    isListening ? 'border-amber-400 bg-amber-50/40' : 'border-neutral-200'
                   }`}
                 />
                 {isListening && (
-                  <span className="absolute right-3 top-3 sm:top-2.5 flex items-center space-x-1 text-[10px] font-bold text-amber-600 animate-pulse">
+                  <span className="absolute right-3 top-2.5 sm:top-2 flex items-center space-x-1 text-[10px] font-bold text-amber-600 animate-pulse">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                     <span>Listening</span>
                   </span>
@@ -1109,14 +1193,15 @@ Thank you for your business! 🙏
             <button
               type="submit"
               disabled={isProcessing}
-              className="gold-button-gradient px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-black border border-yellow-400/80 cursor-pointer shadow-sm shrink-0 flex items-center justify-center space-x-1 min-h-[44px] w-full sm:w-auto"
+              className="gold-button-gradient px-3.5 py-2 sm:py-1.5 rounded-xl text-xs font-bold text-black border border-yellow-400/80 cursor-pointer shadow-2xs shrink-0 flex items-center justify-center space-x-1 min-h-[40px] sm:min-h-0 hover:scale-[1.02] transition-transform"
+              title="Execute voice command"
             >
               {isProcessing ? (
-                <span>Executing Groq...</span>
+                <span className="text-[11px]">Running...</span>
               ) : (
                 <>
                   <Zap className="w-3.5 h-3.5 text-black fill-black" />
-                  <span>Execute Voice CRUD</span>
+                  <span className="hidden sm:inline">Execute</span>
                 </>
               )}
             </button>
@@ -1124,7 +1209,7 @@ Thank you for your business! 🙏
 
           {/* Transcript & Extracted CRUD Action Indicator */}
           {voiceTranscript && (
-            <div className="px-3 py-2 rounded-xl bg-white border border-neutral-200 text-xs text-neutral-800 flex flex-wrap items-center justify-between gap-2 shadow-inner">
+            <div className="px-3 py-2 rounded-xl bg-white border border-neutral-200 text-xs text-neutral-800 flex flex-wrap items-center justify-between gap-2 shadow-inner animate-in fade-in">
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] font-bold uppercase text-neutral-400">Heard:</span>
                 <span className="font-mono text-xs font-medium text-neutral-800">{voiceTranscript}</span>
@@ -1149,11 +1234,13 @@ Thank you for your business! 🙏
                     </span>
                   )}
                   {lastExtracted.amount !== null && (
-                    <span className={`px-2 py-0.5 rounded font-bold font-mono ${
-                      lastExtracted.action === 'SUBTRACT'
-                        ? 'bg-rose-100 text-rose-900'
-                        : 'bg-emerald-100 text-emerald-900'
-                    }`}>
+                    <span
+                      className={`px-2 py-0.5 rounded font-bold font-mono ${
+                        lastExtracted.action === 'SUBTRACT'
+                          ? 'bg-rose-100 text-rose-900'
+                          : 'bg-emerald-100 text-emerald-900'
+                      }`}
+                    >
                       {lastExtracted.action === 'SUBTRACT' ? '-' : '+'}₹{lastExtracted.amount}
                     </span>
                   )}
@@ -1171,70 +1258,81 @@ Thank you for your business! 🙏
             </div>
           )}
 
-          {/* Direct 1-Click Test Prompts for Each Voice CRUD Operation */}
-          <div className="pt-1">
-            <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-wider block mb-1.5">
-              1-Click Voice CRUD Test Chips:
-            </span>
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          {/* Sleek, Compact Swipeable Quick Command Chips */}
+          <div className="pt-1.5 border-t border-neutral-200/60">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider flex items-center space-x-1">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                <span>1-Click Voice Command Chips:</span>
+              </span>
+              <span className="text-[10px] text-neutral-400 font-medium sm:hidden">Swipe &rarr;</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
               {/* 1. Add by ID */}
               <button
                 type="button"
                 onClick={() => handleQuickCommand('add 20rs to id number 1')}
-                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold text-xs whitespace-nowrap shrink-0 transition-all shadow-2xs cursor-pointer flex items-center space-x-1"
+                title='Try: "add 20rs to id number 1"'
               >
                 <Plus className="w-3 h-3 text-emerald-600" />
-                <span>"add 20rs to id number 1"</span>
+                <span>+ ₹20 to #1</span>
               </button>
 
-              {/* 2. Add / Edit Due Date to ID without changing amount */}
+              {/* 2. Add / Edit Due Date */}
               <button
                 type="button"
                 onClick={() => handleQuickCommand('add 31 november to id number 2')}
-                className="px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-3 py-1.5 rounded-full bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-900 font-semibold text-xs whitespace-nowrap shrink-0 transition-all shadow-2xs cursor-pointer flex items-center space-x-1"
+                title='Try: "add 31 november to id number 2"'
               >
                 <Calendar className="w-3 h-3 text-sky-600" />
-                <span>"add 31 november to id number 2"</span>
+                <span>📅 30 Nov to #2</span>
               </button>
 
               {/* 3. Add to Name */}
               <button
                 type="button"
                 onClick={() => handleQuickCommand('add 20rs to nitish')}
-                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-semibold text-xs whitespace-nowrap shrink-0 transition-all shadow-2xs cursor-pointer flex items-center space-x-1"
+                title='Try: "add 20rs to nitish"'
               >
                 <Plus className="w-3 h-3 text-emerald-600" />
-                <span>"add 20rs to nitish"</span>
+                <span>+ ₹20 to Nitish</span>
               </button>
 
               {/* 4. Subtract from ID */}
               <button
                 type="button"
                 onClick={() => handleQuickCommand('remove 20rs from id number 1')}
-                className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-semibold text-xs whitespace-nowrap shrink-0 transition-all shadow-2xs cursor-pointer flex items-center space-x-1"
+                title='Try: "remove 20rs from id number 1"'
               >
                 <MinusCircle className="w-3 h-3 text-amber-600" />
-                <span>"remove 20rs from id number 1"</span>
+                <span>- ₹20 from #1</span>
               </button>
 
               {/* 5. Rename Person */}
               <button
                 type="button"
                 onClick={() => handleQuickCommand('change name from nitish to vikas')}
-                className="px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-300 text-purple-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-3 py-1.5 rounded-full bg-purple-50 hover:bg-purple-100 border border-purple-300 text-purple-900 font-semibold text-xs whitespace-nowrap shrink-0 transition-all shadow-2xs cursor-pointer flex items-center space-x-1"
+                title='Try: "change name from nitish to vikas"'
               >
                 <Edit3 className="w-3 h-3 text-purple-600" />
-                <span>"change name from nitish to vikas"</span>
+                <span>✏️ Rename to Vikas</span>
               </button>
 
               {/* 6. Complete Remove */}
               <button
                 type="button"
                 onClick={() => handleQuickCommand('remove the complete number from nitish remove the person totally from the list')}
-                className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 font-semibold transition-all shadow-xs cursor-pointer flex items-center space-x-1 min-h-[36px]"
+                className="px-3 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 font-semibold text-xs whitespace-nowrap shrink-0 transition-all shadow-2xs cursor-pointer flex items-center space-x-1"
+                title='Try: "remove nitish totally from list"'
               >
                 <XCircle className="w-3 h-3 text-rose-600" />
-                <span>"remove nitish totally from list"</span>
+                <span>🗑️ Remove Nitish</span>
               </button>
             </div>
           </div>
@@ -1280,141 +1378,175 @@ Thank you for your business! 🙏
             </div>
           </div>
 
-          {/* Mobile Stacked Card View (< md) */}
-          <div className="block md:hidden p-4 space-y-3">
+          {/* Mobile Stacked Card View (< md) - Clean & Organized with Dropdown Toggle */}
+          <div className="block md:hidden p-3.5 space-y-2.5 pb-24">
             {filteredList.length === 0 ? (
               <div className="py-10 text-center text-neutral-400 text-xs bg-neutral-50/50 rounded-2xl border border-dashed border-neutral-200 p-4">
-                No Khata records found. Tap the small microphone above or the yellow + button to record an entry!
+                No Khata records found. Tap the microphone or + button to record an entry!
               </div>
             ) : (
-              filteredList.map((customer) => (
-                <div
-                  key={customer.id}
-                  className="p-4 rounded-2xl bg-neutral-50/80 border border-neutral-200/90 space-y-3"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center space-x-2.5">
-                      <div className="w-9 h-9 rounded-full bg-black text-yellow-300 flex items-center justify-center font-bold text-xs border border-yellow-400 shrink-0">
-                        {customer.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-bold text-black text-sm">{customer.name}</span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-black font-mono bg-yellow-300 text-black border border-yellow-400">
-                            #{customer.idNumber}
+              filteredList.map((customer) => {
+                const isExpanded = expandedCustomerIds.has(customer.id);
+                return (
+                  <div
+                    key={customer.id}
+                    className="p-3.5 rounded-2xl bg-white border border-neutral-200/90 shadow-2xs space-y-2.5 transition-all"
+                  >
+                    {/* Primary Row: Customer Info, Status, Total Due & Dropdown Button */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-black text-yellow-300 flex items-center justify-center font-bold text-xs border border-yellow-400 shrink-0 shadow-2xs">
+                          {customer.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center space-x-1.5">
+                            <span className="font-bold text-black text-sm truncate">{customer.name}</span>
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-black font-mono bg-yellow-300 text-black border border-yellow-400 shrink-0">
+                              #{customer.idNumber}
+                            </span>
+                          </div>
+                          <span
+                            className={`inline-block text-[9px] font-bold uppercase px-1.5 py-0.2 rounded-md border mt-0.5 ${
+                              customer.totalAmount === 0
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-amber-50 text-amber-800 border-amber-200'
+                            }`}
+                          >
+                            {customer.totalAmount === 0 ? 'Settled' : 'Pending'}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-1.5 text-xs text-neutral-600 mt-0.5">
-                          <Phone className="w-3 h-3 text-neutral-400" />
-                          {customer.phone && customer.phone !== 'Not Added' ? (
-                            <span className="font-semibold">{customer.phone}</span>
-                          ) : (
-                            <button
-                              onClick={() => setEditingCustomer(customer)}
-                              className="text-amber-600 underline font-bold cursor-pointer"
-                            >
-                              + Add Phone
-                            </button>
-                          )}
+                      </div>
+
+                      {/* Right: Total Due + Dropdown Details Toggle */}
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <div className="text-right">
+                          <span className="text-[9px] uppercase font-bold text-neutral-400 block">Due</span>
+                          <div className="font-mono text-base font-black text-neutral-900 leading-none">
+                            <span className="text-amber-600 mr-0.5 text-xs">₹</span>
+                            <span className={customer.totalAmount > 0 ? 'text-black font-extrabold' : 'text-neutral-400'}>
+                              {customer.totalAmount.toLocaleString()}
+                            </span>
+                          </div>
                         </div>
+
+                        {/* Dropdown Toggle Button for Non-Essential Details */}
+                        <button
+                          type="button"
+                          onClick={() => toggleCustomerDetails(customer.id)}
+                          className={`min-w-[34px] min-h-[34px] rounded-xl border flex items-center justify-center transition-all cursor-pointer shadow-2xs ${
+                            isExpanded
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-600 border-neutral-200'
+                          }`}
+                          title={isExpanded ? 'Hide Customer Details' : 'Show Customer Details & More Actions'}
+                          aria-label="Toggle customer details"
+                        >
+                          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180 text-amber-700' : ''}`} />
+                        </button>
                       </div>
                     </div>
 
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase border shrink-0 ${
-                        customer.totalAmount === 0
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                          : 'bg-amber-50 text-amber-800 border-amber-300'
-                      }`}
-                    >
-                      {customer.totalAmount === 0 ? 'Settled' : 'Pending'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-neutral-200/60 text-xs">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-neutral-400 block">Due Date</span>
-                      <div className="flex items-center space-x-1 font-medium text-neutral-800 mt-0.5">
-                        <Calendar className="w-3 h-3 text-amber-500" />
-                        <span>{customer.dueDate}</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] uppercase font-bold text-neutral-400 block">Total Due</span>
-                      <div className="font-mono text-base font-black text-neutral-900">
-                        <span className="text-amber-600 mr-0.5">₹</span>
-                        <span className={customer.totalAmount > 0 ? 'text-black font-extrabold' : 'text-neutral-400'}>
-                          {customer.totalAmount.toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions Row */}
-                  <div className="flex flex-wrap items-center justify-between gap-1.5 pt-2 border-t border-neutral-200/60">
-                    <div className="flex items-center space-x-1.5">
+                    {/* Quick Primary Actions: 1-Tap WhatsApp Notify & Settle */}
+                    <div className="flex items-center gap-2 pt-1">
                       <button
                         onClick={() => handleWhatsAppNotify(customer)}
-                        className="min-h-[44px] px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center space-x-1.5 transition-all shadow-2xs cursor-pointer"
+                        className="flex-1 min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center justify-center space-x-1.5 transition-all shadow-2xs cursor-pointer"
                         title={`Fetch WhatsApp application for ${customer.name}`}
                       >
                         <WhatsAppIcon className="w-3.5 h-3.5 text-emerald-600" />
                         <span>Notify</span>
                       </button>
 
-                      <button
-                        onClick={() => {
-                          setEditingCustomer({ ...customer });
-                          setEditTab('TXN');
-                          setNewTxType('ADD');
-                          setNewTxAmount('');
-                          setNewTxNote('');
-                        }}
-                        className="min-h-[44px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs"
-                        style={{
-                          backgroundColor: '#3D2E18',
-                          color: '#F9DEBF',
-                        }}
-                        title={`Edit ${customer.name} & Transactions`}
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>Edit</span>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center space-x-1">
-                      <button
-                        onClick={() => setSelectedCustomerHistory(customer)}
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 hover:text-black transition-colors cursor-pointer"
-                        title="View Audit Logs"
-                        aria-label="View Audit Logs"
-                      >
-                        <History className="w-4 h-4" />
-                      </button>
-
                       {customer.totalAmount > 0 && (
                         <button
                           onClick={() => handleSettle(customer.id)}
-                          className="min-h-[44px] px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center space-x-1 cursor-pointer"
+                          className="flex-1 min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center space-x-1.5 cursor-pointer shadow-2xs transition-all"
                           title="Mark as fully settled"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>Settle</span>
                         </button>
                       )}
-
-                      <button
-                        onClick={() => handleDelete(customer.id, customer.name)}
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl hover:bg-rose-50 text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer"
-                        title="Delete customer"
-                        aria-label="Delete customer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
                     </div>
+
+                    {/* Dropdown Section: Secondary Details (Due Date, Phone, Edit, History, Delete) */}
+                    {isExpanded && (
+                      <div className="pt-2.5 mt-1 border-t border-neutral-100 bg-neutral-50/80 -mx-3.5 -mb-3.5 p-3.5 rounded-b-2xl space-y-2.5 animate-in fade-in slide-in-from-top-1">
+                        {/* Due Date & Phone Details */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="p-2 rounded-xl bg-white border border-neutral-200/80">
+                            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Due Date</span>
+                            <div className="flex items-center space-x-1 font-medium text-neutral-800 mt-0.5">
+                              <Calendar className="w-3 h-3 text-amber-500 shrink-0" />
+                              <span className="truncate">{customer.dueDate}</span>
+                            </div>
+                          </div>
+
+                          <div className="p-2 rounded-xl bg-white border border-neutral-200/80">
+                            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Phone Number</span>
+                            <div className="flex items-center space-x-1 font-medium text-neutral-800 mt-0.5">
+                              <Phone className="w-3 h-3 text-neutral-400 shrink-0" />
+                              {customer.phone && customer.phone !== 'Not Added' ? (
+                                <a href={`tel:${customer.phone}`} className="truncate font-semibold text-neutral-800 hover:underline">
+                                  {customer.phone}
+                                </a>
+                              ) : (
+                                <button
+                                  onClick={() => setEditingCustomer(customer)}
+                                  className="text-amber-600 underline font-bold cursor-pointer text-[11px]"
+                                >
+                                  + Add Phone
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Secondary Actions: Edit Customer, View History, Delete */}
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-neutral-200/60">
+                          <button
+                            onClick={() => {
+                              setEditingCustomer({ ...customer });
+                              setEditTab('TXN');
+                              setNewTxType('ADD');
+                              setNewTxAmount('');
+                              setNewTxNote('');
+                            }}
+                            className="flex-1 min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer shadow-2xs"
+                            style={{
+                              backgroundColor: '#3D2E18',
+                              color: '#F9DEBF',
+                            }}
+                            title={`Edit ${customer.name} & Transactions`}
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit Customer</span>
+                          </button>
+
+                          <button
+                            onClick={() => setSelectedCustomerHistory(customer)}
+                            className="min-w-[38px] min-h-[38px] px-3 rounded-xl bg-white hover:bg-neutral-100 text-neutral-700 border border-neutral-200 text-xs font-bold flex items-center justify-center space-x-1 transition-colors cursor-pointer shadow-2xs"
+                            title="View Audit Logs"
+                            aria-label="View Audit Logs"
+                          >
+                            <History className="w-3.5 h-3.5 text-neutral-500" />
+                            <span className="text-[11px]">History</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(customer.id, customer.name)}
+                            className="min-w-[38px] min-h-[38px] p-2 rounded-xl bg-white hover:bg-rose-50 text-neutral-400 hover:text-rose-600 border border-neutral-200 hover:border-rose-300 transition-colors cursor-pointer shadow-2xs flex items-center justify-center"
+                            title="Delete customer"
+                            aria-label="Delete customer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 

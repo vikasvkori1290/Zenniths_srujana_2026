@@ -275,32 +275,36 @@ export default function ProfilePage() {
 
       {/* Top Banner / Breadcrumb */}
       <div className="border-b border-neutral-200/80 bg-neutral-50/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center space-x-2 text-xs text-neutral-500 overflow-x-auto no-scrollbar whitespace-nowrap py-1">
-            <Link to="/" className="font-semibold text-neutral-700 hover:text-black transition-colors shrink-0">
-              Home
-            </Link>
-            <span className="shrink-0">/</span>
-            <span className="text-black font-bold shrink-0">Profile & Financial Overview</span>
-            <span className="bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded-full text-[10px] border border-yellow-300 shrink-0">
-              Executive Overview & Settings
-            </span>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center space-x-2 text-xs text-neutral-500">
+              <Link to="/" className="font-semibold text-neutral-700 hover:text-black transition-colors shrink-0">
+                Home
+              </Link>
+              <span className="shrink-0">/</span>
+              <span className="text-black font-bold">Profile & Financial Overview</span>
+            </div>
+            <div>
+              <span className="inline-flex items-center bg-yellow-100 text-yellow-800 font-bold px-2.5 py-0.5 rounded-full text-[10px] border border-yellow-300 shadow-2xs">
+                Executive Overview & Settings
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center space-x-2 shrink-0">
+          <div className="flex items-center space-x-2 w-full sm:w-auto">
             <button
               onClick={() => {
                 setProfileForm(profile);
                 setIsEditProfileOpen(true);
               }}
-              className="flex-1 sm:flex-none px-3.5 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold text-black bg-yellow-300 hover:bg-yellow-400 border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
+              className="flex-1 sm:flex-none px-4 py-2 sm:py-1.5 min-h-[42px] sm:min-h-0 rounded-xl text-xs font-bold text-black bg-yellow-300 hover:bg-yellow-400 border border-yellow-400 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
             >
               <Edit3 className="w-3.5 h-3.5" />
               <span>Edit Profile</span>
             </button>
             <button
               onClick={handleLogout}
-              className="flex-1 sm:flex-none px-3.5 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
+              className="flex-1 sm:flex-none px-4 py-2 sm:py-1.5 min-h-[42px] sm:min-h-0 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Sign Out</span>
@@ -309,7 +313,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8 sm:space-y-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-10">
         {/* ========================================================= */}
         {/* 1. USER PROFILE HEADER CARD                               */}
         {/* ========================================================= */}

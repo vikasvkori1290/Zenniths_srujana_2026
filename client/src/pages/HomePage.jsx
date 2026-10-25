@@ -20,22 +20,22 @@ export default function HomePage() {
             </span>
           </div>
 
-          <div className="flex items-center space-x-2 text-xs overflow-x-auto pb-1 sm:pb-0 max-w-full">
+          <div className="flex flex-wrap items-center gap-2 text-xs w-full sm:w-auto">
             <Link
               to="/profile"
-              className="min-h-[44px] px-3.5 py-2 rounded-xl font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs whitespace-nowrap flex items-center shrink-0"
+              className="min-h-[40px] px-3 py-2 rounded-xl font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs flex items-center shrink-0"
             >
               Profile & Overview &rarr;
             </Link>
             <Link
               to="/income"
-              className="min-h-[44px] px-3.5 py-2 rounded-xl font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-emerald-400 hover:text-black transition-all shadow-2xs whitespace-nowrap flex items-center shrink-0"
+              className="min-h-[40px] px-3 py-2 rounded-xl font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-emerald-400 hover:text-black transition-all shadow-2xs flex items-center shrink-0"
             >
               Today's Income &rarr;
             </Link>
             <Link
               to="/fixed-expenses"
-              className="min-h-[44px] px-3.5 py-2 rounded-xl font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs whitespace-nowrap flex items-center shrink-0"
+              className="min-h-[40px] px-3 py-2 rounded-xl font-bold text-neutral-700 bg-white border border-neutral-200 hover:border-yellow-400 hover:text-black transition-all shadow-2xs flex items-center shrink-0"
             >
               Fixed Commitments &rarr;
             </Link>

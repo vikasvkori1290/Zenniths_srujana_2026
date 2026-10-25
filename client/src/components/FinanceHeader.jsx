@@ -48,7 +48,8 @@ export default function FinanceHeader() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-xl border-b border-neutral-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] font-['Plus_Jakarta_Sans']">
+    <>
+      <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-xl border-b border-neutral-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] font-['Plus_Jakarta_Sans']">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Left: Brand Logo & Title */}
         <div className="flex items-center space-x-6">
@@ -269,132 +270,134 @@ export default function FinanceHeader() {
           </NavLink>
         </div>
       )}
-
-      {/* Sticky Bottom Navigation Bar for Mobile and Tablet (< 1024px) */}
-      <nav
-        aria-label="Mobile Navigation"
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-neutral-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom,0px)]"
-      >
-        <div className="grid grid-cols-5 h-16 max-w-lg mx-auto px-1 items-center">
-          {/* 1. Home */}
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) =>
-              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
-                isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div
-                  className={`w-9 h-7 rounded-full flex items-center justify-center transition-all ${
-                    isActive ? 'bg-amber-100 text-amber-900 border border-amber-300' : ''
-                  }`}
-                >
-                  <TrendingUp className="w-4 h-4 stroke-[2.2]" />
-                </div>
-                <span className="text-[10px] mt-0.5 tracking-tight font-medium">Home</span>
-              </>
-            )}
-          </NavLink>
-
-          {/* 2. Income */}
-          <NavLink
-            to="/income"
-            className={({ isActive }) =>
-              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
-                isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div
-                  className={`w-9 h-7 rounded-full flex items-center justify-center transition-all ${
-                    isActive ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : ''
-                  }`}
-                >
-                  <ArrowUpRight className="w-4 h-4 stroke-[2.2]" />
-                </div>
-                <span className="text-[10px] mt-0.5 tracking-tight font-medium">Income</span>
-              </>
-            )}
-          </NavLink>
-
-          {/* 3. eKhata (Special Gold Highlighted Center Tab) */}
-          <NavLink
-            to="/ekhata"
-            className={({ isActive }) =>
-              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
-                isActive ? 'text-black font-extrabold' : 'text-neutral-600'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div
-                  className={`w-10 h-8 rounded-xl flex items-center justify-center transition-all shadow-xs border ${
-                    isActive
-                      ? 'bg-black text-yellow-300 border-black ring-2 ring-yellow-400'
-                      : 'bg-yellow-300 text-black border-yellow-400'
-                  }`}
-                >
-                  <BookOpen className="w-4 h-4 stroke-[2.2]" />
-                </div>
-                <span className="text-[10px] mt-0.5 font-bold tracking-tight">eKhata</span>
-              </>
-            )}
-          </NavLink>
-
-          {/* 4. Prediction */}
-          <NavLink
-            to="/prediction"
-            className={({ isActive }) =>
-              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
-                isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div
-                  className={`w-9 h-7 rounded-full flex items-center justify-center transition-all ${
-                    isActive ? 'bg-purple-100 text-purple-900 border border-purple-300' : ''
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4 stroke-[2.2]" />
-                </div>
-                <span className="text-[10px] mt-0.5 tracking-tight font-medium">AI CFO</span>
-              </>
-            )}
-          </NavLink>
-
-          {/* 5. Profile */}
-          <NavLink
-            to="/profile"
-            className={({ isActive }) =>
-              `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
-                isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div
-                  className={`w-9 h-7 rounded-full flex items-center justify-center transition-all ${
-                    isActive ? 'bg-neutral-100 text-black border border-neutral-300' : ''
-                  }`}
-                >
-                  <UserIcon className="w-4 h-4 stroke-[2.2]" />
-                </div>
-                <span className="text-[10px] mt-0.5 tracking-tight font-medium">Profile</span>
-              </>
-            )}
-          </NavLink>
-        </div>
-      </nav>
     </header>
-  );
+
+    {/* Sticky Bottom Navigation Bar for Mobile and Tablet (< 1024px) */}
+    {/* Cleanly placed outside <header> so fixed bottom-0 attaches to the viewport */}
+    <nav
+      aria-label="Mobile Navigation"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-neutral-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] pb-[env(safe-area-inset-bottom,0px)]"
+    >
+      <div className="grid grid-cols-5 h-16 max-w-lg mx-auto px-1 items-center">
+        {/* 1. Home */}
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) =>
+            `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
+              isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <div
+                className={`w-9 h-7 rounded-full flex items-center justify-center transition-all ${
+                  isActive ? 'bg-amber-100 text-amber-900 border border-amber-300' : ''
+                }`}
+              >
+                <TrendingUp className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <span className="text-[10px] mt-0.5 tracking-tight font-medium">Home</span>
+            </>
+          )}
+        </NavLink>
+
+        {/* 2. Income */}
+        <NavLink
+          to="/income"
+          className={({ isActive }) =>
+            `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
+              isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <div
+                className={`w-9 h-7 rounded-full flex items-center justify-center transition-all ${
+                  isActive ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : ''
+                }`}
+              >
+                <ArrowUpRight className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <span className="text-[10px] mt-0.5 tracking-tight font-medium">Income</span>
+            </>
+          )}
+        </NavLink>
+
+        {/* 3. eKhata (Special Gold Highlighted Center Tab) */}
+        <NavLink
+          to="/ekhata"
+          className={({ isActive }) =>
+            `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
+              isActive ? 'text-black font-extrabold' : 'text-neutral-600'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <div
+                className={`w-10 h-8 rounded-xl flex items-center justify-center transition-all shadow-xs border ${
+                  isActive
+                    ? 'bg-black text-yellow-300 border-black ring-2 ring-yellow-400'
+                    : 'bg-yellow-300 text-black border-yellow-400'
+                }`}
+              >
+                <BookOpen className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <span className="text-[10px] mt-0.5 font-bold tracking-tight">eKhata</span>
+            </>
+          )}
+        </NavLink>
+
+        {/* 4. Prediction */}
+        <NavLink
+          to="/prediction"
+          className={({ isActive }) =>
+            `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
+              isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <div
+                className={`w-9 h-7 rounded-full flex items-center justify-center transition-all ${
+                  isActive ? 'bg-purple-100 text-purple-900 border border-purple-300' : ''
+                }`}
+              >
+                <Sparkles className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <span className="text-[10px] mt-0.5 tracking-tight font-medium">AI CFO</span>
+            </>
+          )}
+        </NavLink>
+
+        {/* 5. Profile */}
+        <NavLink
+          to="/profile"
+          className={({ isActive }) =>
+            `flex flex-col items-center justify-center h-full transition-all py-1 cursor-pointer min-h-[44px] ${
+              isActive ? 'text-black font-extrabold' : 'text-neutral-400 hover:text-neutral-700'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <div
+                className={`w-9 h-7 rounded-full flex items-center justify-center transition-all ${
+                  isActive ? 'bg-neutral-100 text-black border border-neutral-300' : ''
+                }`}
+              >
+                <UserIcon className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <span className="text-[10px] mt-0.5 tracking-tight font-medium">Profile</span>
+            </>
+          )}
+        </NavLink>
+      </div>
+    </nav>
+  </>
+);
 }
