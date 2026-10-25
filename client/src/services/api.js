@@ -8,6 +8,20 @@ import {
 export const PROD_BACKEND_URL = 'https://zenniths-srujana-2026.vercel.app/api/v1';
 
 export const API_BASE = (() => {
+  // If running on Netlify in a browser, use the same-origin proxy /api/v1 to avoid all CORS/CORP browser blocks
+  if (typeof window !== 'undefined') {
+    const isCapacitor =
+      window.location.protocol === 'capacitor:' ||
+      window.location.protocol === 'file:' ||
+      (window.Capacitor?.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+      navigator.userAgent.includes('wv') ||
+      navigator.userAgent.includes('Capacitor');
+
+    if (!isCapacitor && window.location.hostname.includes('netlify.app')) {
+      return '/api/v1';
+    }
+  }
+
   let url = import.meta.env?.VITE_API_URL;
   if (!url && typeof window !== 'undefined') {
     const stored = localStorage.getItem('aurum_backend_url');

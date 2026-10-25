@@ -252,11 +252,27 @@ export default function PredictionPage() {
     };
 
     try {
-      const res = await fetch(`${API_BASE || PROD_BACKEND_URL}/prediction/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const primaryUrl = `${API_BASE || PROD_BACKEND_URL}/prediction/analyze`;
+      let res;
+      try {
+        res = await fetch(primaryUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch (fetchErr) {
+        // Fallback retry directly against Vercel production backend if primary URL was proxied or failed
+        if (primaryUrl !== `${PROD_BACKEND_URL}/prediction/analyze`) {
+          console.warn('[Prediction Fallback]: Retrying directly against Vercel backend...', fetchErr);
+          res = await fetch(`${PROD_BACKEND_URL}/prediction/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        } else {
+          throw fetchErr;
+        }
+      }
 
       const json = await res.json();
       if (!res.ok || !json.success) {
@@ -267,7 +283,7 @@ export default function PredictionPage() {
       setPredictionMeta(json.meta);
     } catch (err) {
       console.error('[Nemotron Error]:', err);
-      setErrorMsg(err.message || 'Error communicating with AI service');
+      setErrorMsg(err.message === 'Failed to fetch' ? 'Unable to reach AI prediction service. Please check your internet connection or retry in a moment.' : (err.message || 'Error communicating with AI service'));
     } finally {
       setIsLoading(false);
     }

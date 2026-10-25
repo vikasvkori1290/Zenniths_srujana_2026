@@ -234,6 +234,7 @@ router.post('/analyze', async (req, res) => {
 
         const nvResponse = await fetch(NVIDIA_API_URL, {
           method: 'POST',
+          signal: AbortSignal.timeout(6500),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${nvidiaKey}`,
