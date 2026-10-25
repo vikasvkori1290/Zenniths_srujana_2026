@@ -1647,9 +1647,24 @@ export default function PredictiveCashRunwayCard() {
 
                 {/* Khata expected collection if present */}
                 {hoveredPoint.hasKhata && (
-                  <div className={`text-[11px] ${timelineMode === 'reality' ? 'text-sky-400' : 'text-emerald-400'} flex items-center gap-1 font-mono`}>
-                    <span>Expected Khata Collection:</span>
-                    <strong>+₹{hoveredPoint.dayRecv.toLocaleString()}</strong>
+                  <div className={`p-2.5 rounded-xl ${timelineMode === 'reality' ? 'bg-sky-950/40 border border-sky-500/30 text-sky-300' : 'bg-emerald-950/40 border border-emerald-500/30 text-emerald-300'} space-y-1`}>
+                    <div className="flex items-center justify-between text-[11px] font-mono">
+                      <span className="font-semibold flex items-center gap-1.5">
+                        <span>📥</span>
+                        <span>Expected Khata Collection:</span>
+                      </span>
+                      <strong className="text-emerald-400 font-bold text-xs">+₹{hoveredPoint.dayRecv.toLocaleString()}</strong>
+                    </div>
+                    {hoveredPoint.dayRecvDetails?.length > 0 && (
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-neutral-300 font-sans pt-1 border-t border-emerald-500/20">
+                        {hoveredPoint.dayRecvDetails.map((item, idx) => (
+                          <span key={idx} className="flex items-center gap-1">
+                            <span className="text-neutral-400">{item.name}:</span>
+                            <strong className="font-mono text-emerald-400 font-bold">₹{item.amount.toLocaleString()}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 

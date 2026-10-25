@@ -19,6 +19,20 @@ import { getDueEvents } from './expenseSync.js';
 
 export { getDueEvents };
 
+/**
+ * Timezone-safe local YYYY-MM-DD formatter (avoids UTC date shift in IST/non-UTC timezones)
+ */
+export function toLocalDateString(d = new Date()) {
+  if (!d) return '';
+  const dateObj = typeof d === 'string'
+    ? (() => { const [y, m, day] = d.split('-').map(Number); return new Date(y, m - 1, day); })()
+    : new Date(d);
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export const DEFAULT_MARGINS_BY_TYPE = {
   kirana: 20,           // Kirana / Provisions: 15–20% (default 20%, 25% for worked example)
   grocery: 20,
@@ -89,7 +103,7 @@ export function saveCashflowSettings(settings) {
 export function calculateBaselineSales({
   salesHistory = [],
   ownerTargetDailySales = 8000,
-  todayDateStr = new Date().toISOString().split('T')[0],
+  todayDateStr = toLocalDateString(),
 }) {
   const completeDays = (salesHistory || []).filter((entry) => {
     const entryDate = (entry.date || '').split('T')[0];
@@ -125,6 +139,90 @@ export function calculateBaselineSales({
 }
 
 /**
+ * Robust parser for eKhata due dates:
+ * Supports ISO (YYYY-MM-DD), natural text ("26 October", "26th October", "October 26"), and relative strings.
+ */
+export function parseKhataDueDate(dueDateStr, today = new Date()) {
+  if (!dueDateStr || typeof dueDateStr !== 'string') return null;
+  const clean = dueDateStr.trim();
+  const lower = clean.toLowerCase();
+  if (
+    !clean ||
+    lower === 'not specified' ||
+    lower === 'null' ||
+    lower === 'undefined' ||
+    lower === 'none' ||
+    lower.includes('undated') ||
+    lower.includes('on-demand')
+  ) {
+    return null;
+  }
+
+  const tObj = typeof today === 'string'
+    ? (() => { const [y, m, d] = today.split('-').map(Number); return new Date(y, m - 1, d); })()
+    : new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  // ISO Format YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    const [y, m, d] = clean.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  const monthNames = {
+    jan: 0, january: 0,
+    feb: 1, february: 1,
+    mar: 2, march: 2,
+    apr: 3, april: 3,
+    may: 4,
+    jun: 5, june: 5,
+    jul: 6, july: 6,
+    aug: 7, august: 7,
+    sep: 8, sept: 8, september: 8,
+    oct: 9, october: 9,
+    nov: 10, november: 10,
+    dec: 11, december: 11,
+  };
+
+  // e.g. "26 October", "26th October", "26 October 2026"
+  const dayMonthMatch = clean.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([a-zA-Z]+)(?:\s+(\d{4}))?$/i);
+  if (dayMonthMatch) {
+    const day = parseInt(dayMonthMatch[1], 10);
+    const mStr = dayMonthMatch[2].toLowerCase();
+    const year = dayMonthMatch[3] ? parseInt(dayMonthMatch[3], 10) : tObj.getFullYear();
+    if (monthNames[mStr] !== undefined) {
+      let candidate = new Date(year, monthNames[mStr], day);
+      if (!dayMonthMatch[3] && candidate.getTime() < tObj.getTime() - 1000 * 60 * 60 * 24 * 300) {
+        candidate = new Date(year + 1, monthNames[mStr], day);
+      }
+      return candidate;
+    }
+  }
+
+  // e.g. "October 26", "October 26, 2026"
+  const monthDayMatch = clean.match(/^([a-zA-Z]+)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?$/i);
+  if (monthDayMatch) {
+    const mStr = monthDayMatch[1].toLowerCase();
+    const day = parseInt(monthDayMatch[2], 10);
+    const year = monthDayMatch[3] ? parseInt(monthDayMatch[3], 10) : tObj.getFullYear();
+    if (monthNames[mStr] !== undefined) {
+      let candidate = new Date(year, monthNames[mStr], day);
+      if (!monthDayMatch[3] && candidate.getTime() < tObj.getTime() - 1000 * 60 * 60 * 24 * 300) {
+        candidate = new Date(year + 1, monthNames[mStr], day);
+      }
+      return candidate;
+    }
+  }
+
+  // General fallback
+  const parsed = new Date(clean);
+  if (!isNaN(parsed.getTime())) {
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+
+  return null;
+}
+
+/**
  * Calculate Expected Khata Receipt Date:
  * expected_date = max(due_date + avg_delay, today).
  * NEVER before the due date! (Requirement 6)
@@ -134,7 +232,9 @@ export function calculateExpectedKhataDate(dueDateStr, avgDelayDays = 0, today =
     ? (() => { const [y, m, d] = today.split('-').map(Number); return new Date(y, m - 1, d); })()
     : new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-  if (!dueDateStr || dueDateStr === 'Not Specified' || dueDateStr === 'null' || dueDateStr === 'none') {
+  const dueObj = parseKhataDueDate(dueDateStr, tObj);
+
+  if (!dueObj) {
     const delayDays = Math.max(0, Number(avgDelayDays || 3));
     const target = new Date(tObj.getFullYear(), tObj.getMonth(), tObj.getDate() + delayDays);
     const y = target.getFullYear();
@@ -143,8 +243,6 @@ export function calculateExpectedKhataDate(dueDateStr, avgDelayDays = 0, today =
     return `${y}-${m}-${d}`;
   }
 
-  const [dy, dm, dd] = dueDateStr.split('-').map(Number);
-  const dueObj = new Date(dy, dm - 1, dd);
   const delayDays = Math.max(0, Number(avgDelayDays || 0));
   const delayedObj = new Date(dueObj.getFullYear(), dueObj.getMonth(), dueObj.getDate() + delayDays);
 
@@ -249,6 +347,7 @@ export function buildTimelineReceivables({
   startDate = new Date(),
 }) {
   const recvByDay = {}; // dayIndex -> total expected on that day
+  const recvDetailsByDay = {}; // dayIndex -> array of { name, amount, dueDate }
   const today = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
 
   let totalUdhar = 0;
@@ -263,7 +362,8 @@ export function buildTimelineReceivables({
     const avgDelay = Number(c.avgDelayDays ?? c.delayDays ?? 0);
     let scheduledDay = null;
 
-    if (dueStr && dueStr.toLowerCase() !== 'not specified' && dueStr.toLowerCase() !== 'null' && dueStr.toLowerCase() !== 'none') {
+    const parsedDue = parseKhataDueDate(dueStr, today);
+    if (parsedDue) {
       const expDateStr = calculateExpectedKhataDate(dueStr, avgDelay, today);
       const [y, m, d] = expDateStr.split('-').map(Number);
       const expDateObj = new Date(y, m - 1, d);
@@ -275,22 +375,34 @@ export function buildTimelineReceivables({
 
     if (scheduledDay !== null && scheduledDay <= horizonDays) {
       recvByDay[scheduledDay] = (recvByDay[scheduledDay] || 0) + amt;
+      if (!recvDetailsByDay[scheduledDay]) recvDetailsByDay[scheduledDay] = [];
+      recvDetailsByDay[scheduledDay].push({
+        name: c.name || 'Customer',
+        amount: amt,
+        dueDate: dueStr,
+      });
     } else if (scheduledDay === null) {
-      undatedList.push(amt);
+      undatedList.push({ name: c.name || 'Customer', amount: amt });
     }
   }
 
   // For undated customer udhar, spread expected recovery across a 15-day curve (day 3, 7, 11, 15)
-  const undatedTotal = undatedList.reduce((s, a) => s + a, 0);
+  const undatedTotal = undatedList.reduce((s, a) => s + a.amount, 0);
   if (undatedTotal > 0) {
     const spreadDays = [3, 7, 11, 15];
     const portion = Math.round(undatedTotal / spreadDays.length);
     spreadDays.forEach((d) => {
       recvByDay[d] = (recvByDay[d] || 0) + portion;
+      if (!recvDetailsByDay[d]) recvDetailsByDay[d] = [];
+      recvDetailsByDay[d].push({
+        name: 'Undated Credit (Spread)',
+        amount: portion,
+        dueDate: 'On-Demand',
+      });
     });
   }
 
-  return { recvByDay, totalUdhar };
+  return { recvByDay, recvDetailsByDay, totalUdhar };
 }
 
 /**
@@ -368,7 +480,7 @@ export function calculateTimelineCashflow({
     startDate,
   });
 
-  const { recvByDay, totalUdhar } = buildTimelineReceivables({
+  const { recvByDay = {}, recvDetailsByDay = {}, totalUdhar = 0 } = buildTimelineReceivables({
     eKhataCustomersList,
     horizonDays,
     startDate,
@@ -404,7 +516,7 @@ export function calculateTimelineCashflow({
 
   for (let d = 1; d <= horizonDays; d++) {
     const dDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + d);
-    const dateStr = dDate.toISOString().split('T')[0];
+    const dateStr = toLocalDateString(dDate);
 
     // Day-of-week baseline sales from shop history (fallback to baselineSales, NOT hardcoded 8000)
     const dayBaselineSales = getBaselineSalesForDate(dDate, salesHistory, baselineSales);
@@ -444,6 +556,7 @@ export function calculateTimelineCashflow({
 
     // eKhata expected collections weighted by scenario
     const dayRecv = recvByDay[d] || 0;
+    const dayRecvDetails = recvDetailsByDay[d] || [];
     const dayRecvBase = Math.round(dayRecv * 0.8);
     const dayRecvLow = Math.round(dayRecv * 0.4);
     const dayRecvHigh = Math.round(dayRecv * 1.0);
@@ -550,6 +663,7 @@ export function calculateTimelineCashflow({
       cumRecv: cumRecvBase,
       dayRecv,
       dayRecvBase,
+      dayRecvDetails,
       dayDues,
       dayDuesTotal,
       cumDues,
