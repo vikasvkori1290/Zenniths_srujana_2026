@@ -20,6 +20,7 @@ import {
   Target,
   Briefcase,
   ArrowRight,
+  ShieldCheck,
 } from 'lucide-react';
 import FirstTimeOnboardingModal from '../components/FirstTimeOnboardingModal';
 import { useAuth } from '../context/AuthContext';

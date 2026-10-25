@@ -563,8 +563,8 @@ export default function PredictiveCashRunwayCard() {
               <span>Assumptions</span>
             </button>
           </div>
-          <p className="text-xs text-neutral-500 mt-1">
-            Tracks real retained cash (margin after restocking & running costs) with AI Festival & Context Multipliers against dated obligations.
+          <p className="text-xs text-neutral-500 mt-0.5">
+            Predictive 60-day cash runway and liquidity horizon.
           </p>
         </div>
 
@@ -587,8 +587,8 @@ export default function PredictiveCashRunwayCard() {
                 {analytics.headlineMetric}
               </span>
             </div>
-            <span className="text-[10px] text-neutral-400 block">
-              Buffer: ₹{analytics.safetyBuffer.toLocaleString()} (3d running cost)
+            <span className="text-[10px] text-neutral-400 block font-medium">
+              Safety Buffer: ₹{analytics.safetyBuffer.toLocaleString()}
             </span>
           </div>
 
@@ -639,16 +639,16 @@ export default function PredictiveCashRunwayCard() {
               <span>⚡ Reality (Until Today)</span>
             </button>
           </div>
-          <div className="text-xs text-neutral-300">
+          <div className="text-xs text-neutral-400 font-medium">
             {timelineMode === 'expected' ? (
-              <span>Pure statistical forecast target (₹{analytics.expectedTodaySales?.toLocaleString()}/d)</span>
+              <span>Target: ₹{analytics.expectedTodaySales?.toLocaleString()} /day</span>
             ) : hasEnteredTodayGrossProfit ? (
               <span className="text-emerald-300 font-semibold">
-                Actual entered gross profit (₹{analytics.actualGrossProfit?.toLocaleString()}) calculated until today
+                Gross Profit: ₹{analytics.actualGrossProfit?.toLocaleString()}
               </span>
             ) : (
               <span className="text-amber-300 font-medium">
-                Awaiting today's sales/gross profit entry in Income section
+                Awaiting today's sales entry
               </span>
             )}
           </div>
@@ -734,15 +734,8 @@ export default function PredictiveCashRunwayCard() {
             {timelineMode === 'reality'
               ? hasEnteredTodayGrossProfit
                 ? `Gross Profit: ₹${analytics.actualGrossProfit.toLocaleString()} (sales ₹${analytics.actualTodaySales.toLocaleString()})`
-                : 'Enter today\'s sales to calculate gross profit'
-              : `Expected sales: ₹${analytics.expectedTodaySales.toLocaleString()} · Margin: ${analytics.grossMarginPct}%`}
-          </span>
-          <span className="text-[9px] text-neutral-400 block">
-            {timelineMode === 'reality'
-              ? hasEnteredTodayGrossProfit
-                ? `After ₹${analytics.dailyRunningCost}/d running costs`
-                : 'Reality requires today\'s gross profit'
-              : 'Target baseline projection'}
+                : 'Enter today\'s sales to view reality'
+              : `Sales Target ₹${analytics.expectedTodaySales.toLocaleString()} · ${analytics.grossMarginPct}% Margin`}
           </span>
         </div>
 
@@ -758,14 +751,10 @@ export default function PredictiveCashRunwayCard() {
             ₹{(timelineMode === 'reality' ? (hasEnteredTodayGrossProfit ? (analytics.freeCashToday || 43495) : yesterdayBalance) : (analytics.expectedModeStart || 41100)).toLocaleString()}
           </div>
           <span className="text-[10px] text-neutral-500 block">
-            {timelineMode === 'reality'
-              ? hasEnteredTodayGrossProfit
-                ? `Opening (₹${yesterdayBalance.toLocaleString()}) + Σ retained (+₹${(analytics.actualRetainedCash || 0).toLocaleString()})`
-                : `Opening cash only (₹${yesterdayBalance.toLocaleString()})`
-              : `Opening (₹${yesterdayBalance.toLocaleString()}) + expected retained (+₹${(analytics.expectedRetainedCash || 0).toLocaleString()})`}
+            Available working liquidity
           </span>
-          <span className="text-[9px] text-neutral-500 block border-t border-neutral-200/60 pt-1 mt-1">
-            <strong>Till / Bank:</strong> ₹{(analytics.tillBankTotal ?? (yesterdayBalance + (analytics.actualTodaySales || 0))).toLocaleString()} <span className="text-neutral-400 font-normal">(informational only)</span>
+          <span className="text-[9px] text-neutral-400 block border-t border-neutral-200/60 pt-1 mt-1 font-medium">
+            Cash in Bank & Till: ₹{(analytics.tillBankTotal ?? (yesterdayBalance + (analytics.actualTodaySales || 0))).toLocaleString()}
           </span>
         </div>
 
@@ -783,8 +772,8 @@ export default function PredictiveCashRunwayCard() {
           <span className="text-[10px] text-neutral-500 block">
             Customer Udhar in eKhata
           </span>
-          <span className="text-[9px] text-amber-800 block font-semibold">
-            Timeline weighted · Not cash in hand
+          <span className="text-[9px] text-amber-700 block font-medium">
+            Pending collection
           </span>
         </div>
 
@@ -802,8 +791,8 @@ export default function PredictiveCashRunwayCard() {
           <span className="text-[10px] text-neutral-500 block">
             Rent, EMI & vendor payables
           </span>
-          <span className="text-[9px] text-neutral-400 block">
-            Deducted on exact dates (no double count)
+          <span className="text-[9px] text-neutral-400 block font-medium">
+            Due within next 15 days
           </span>
         </div>
       </div>
@@ -830,7 +819,7 @@ export default function PredictiveCashRunwayCard() {
           <div>
             <div className="flex items-center space-x-2">
               <span className="text-xs font-black tracking-wide uppercase font-['Outfit'] text-white">
-                Festival adjustment {isFestivalAdjustmentOn ? 'ON' : 'OFF'}
+                Festival & Demand Adjustment
               </span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
@@ -839,13 +828,13 @@ export default function PredictiveCashRunwayCard() {
                     : 'bg-neutral-800 text-neutral-400 border border-neutral-700'
                 }`}
               >
-                {isFestivalAdjustmentOn ? 'AI Bounded Multipliers Active' : 'Baseline 1.0 Only'}
+                {isFestivalAdjustmentOn ? 'Active' : 'Off'}
               </span>
             </div>
             <p className="text-[11px] text-neutral-400 mt-0.5">
               {isFestivalAdjustmentOn
-                ? 'Applies calendar windows with code-bounded multipliers [0.6 - 1.6] and 1.8 overlap cap.'
-                : 'Showing unadjusted baseline sales forecast exactly matching historical day-of-week.'}
+                ? 'Accounts for local festival demand surge and market holidays.'
+                : 'Standard baseline projection without seasonal adjustments.'}
             </p>
           </div>
         </div>
@@ -879,9 +868,9 @@ export default function PredictiveCashRunwayCard() {
             <p className="text-[11px] text-neutral-500 mt-0.5">
               {timelineMode === 'reality'
                 ? hasEnteredTodayGrossProfit
-                  ? 'Reality (solid emerald) is calculated only until today from entered sales & gross profit; dashed amber line shows expected 60-day forecast.'
-                  : 'Awaiting today\'s gross profit entry. Log today\'s sales in Income section to calculate reality.'
-                : 'Showing pure statistical forecast baseline trajectory against dated obligations.'}
+                  ? 'Tracking verified revenue up to today, plus 60-day projected trajectory.'
+                  : 'Awaiting today\'s sales entry to plot reality vs forecast.'
+                : 'Projected 60-day cash trajectory against scheduled obligations.'}
             </p>
           </div>
 

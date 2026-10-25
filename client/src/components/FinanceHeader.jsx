@@ -21,13 +21,26 @@ import { useAuth } from '../context/AuthContext';
 export default function FinanceHeader() {
   const { user, isAuthenticated, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Close mobile menu on route change
+  // Close menus on route change or click outside
   useEffect(() => {
     setIsMobileMenuOpen(false);
+    setIsDropdownOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   if (location.pathname === '/login') {
     return null;
@@ -159,20 +172,49 @@ export default function FinanceHeader() {
         {/* Right Info / User context */}
         <div className="flex items-center space-x-3 text-xs">
           {isAuthenticated ? (
-            /* Direct Profile Link without dropdown */
-            <NavLink
-              to="/profile"
-              title={`${user?.name || 'Merchant'} • Profile`}
-              className={({ isActive }) =>
-                `min-h-[44px] min-w-[44px] px-3 rounded-xl font-black text-xs flex items-center justify-center transition-all cursor-pointer shadow-xs ${
-                  isActive
-                    ? 'bg-black text-yellow-300 ring-2 ring-yellow-400 shadow-md scale-102'
-                    : 'bg-black text-yellow-300 border-2 border-yellow-400 hover:scale-105'
-                }`
-              }
-            >
-              <span>{initials}</span>
-            </NavLink>
+            /* User Avatar & Dropdown */
+            <div className="relative" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                title={`${user?.name || 'Merchant'} • Profile & Logout`}
+                className={`min-h-[44px] min-w-[44px] px-2.5 rounded-xl font-black text-xs flex items-center justify-center space-x-1.5 transition-all cursor-pointer shadow-xs ${
+                  location.pathname === '/profile' || isDropdownOpen
+                    ? 'bg-black text-yellow-300 ring-2 ring-yellow-400 shadow-md'
+                    : 'bg-black text-yellow-300 border-2 border-yellow-400 hover:scale-102'
+                }`}
+              >
+                <span>{initials}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-yellow-400" />
+              </button>
+
+              {/* Dropdown Menu - Profile directing to /profile and Logout */}
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl border border-neutral-200 shadow-xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2">
+                  <Link
+                    to="/profile"
+                    onClick={() => setIsDropdownOpen(false)}
+                    className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-neutral-800 hover:text-black hover:bg-neutral-100 flex items-center space-x-2 cursor-pointer transition-colors"
+                  >
+                    <UserIcon className="w-3.5 h-3.5 text-neutral-600" />
+                    <span>Profile</span>
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      logout();
+                      navigate('/login');
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center space-x-2 cursor-pointer transition-colors mt-0.5"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Log Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             /* Sign In Button */
             <Link
