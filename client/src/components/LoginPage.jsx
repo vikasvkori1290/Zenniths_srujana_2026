@@ -74,11 +74,32 @@ export default function LoginPage({ onLoginSuccess }) {
     dailyGoal: 20000,
   });
 
+  const [demoLoading, setDemoLoading] = useState(false);
+
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     const res = await login(loginEmail.trim(), loginPassword);
     if (res.success && onLoginSuccess) {
       onLoginSuccess();
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    setAuthError(null);
+    setDemoLoading(true);
+    const demoEmail = 'nin46642@gmail.com';
+    const demoPassword = '123456';
+    setLoginEmail(demoEmail);
+    setLoginPassword(demoPassword);
+    try {
+      const res = await login(demoEmail, demoPassword);
+      if (res.success && onLoginSuccess) {
+        onLoginSuccess();
+      }
+    } catch (err) {
+      setAuthError('Demo login failed. Please try again.');
+    } finally {
+      setDemoLoading(false);
     }
   };
 
@@ -386,11 +407,30 @@ export default function LoginPage({ onLoginSuccess }) {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || demoLoading}
               className="w-full py-3 sm:py-2.5 min-h-11.5 rounded-xl bg-black hover:bg-neutral-800 text-yellow-300 font-bold text-sm sm:text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5 mt-2"
             >
-              <span>{loading ? 'Authenticating...' : 'Sign In to Dashboard'}</span>
+              <span>{loading && !demoLoading ? 'Authenticating...' : 'Sign In to Dashboard'}</span>
               <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+            </button>
+
+            <div className="relative flex items-center justify-center pt-1.5">
+              <div className="border-t border-neutral-200 w-full"></div>
+              <span className="bg-white px-2.5 text-[10px] uppercase font-bold tracking-wider text-neutral-400">
+                Or Quick Access
+              </span>
+            </div>
+
+            <button
+              type="button"
+              disabled={loading || demoLoading}
+              onClick={handleDemoLogin}
+              className="w-full py-2.5 sm:py-2 min-h-11 rounded-xl bg-amber-50 hover:bg-amber-100/90 border border-amber-300 text-amber-950 font-bold text-xs shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-2"
+            >
+              <Sparkles className="w-4 h-4 text-amber-600 fill-amber-300" />
+              <span>
+                {demoLoading ? 'Logging into Demo...' : 'Demo Login (nin46642@gmail.com)'}
+              </span>
             </button>
           </form>
         ) : (
