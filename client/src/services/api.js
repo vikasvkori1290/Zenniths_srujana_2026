@@ -18,7 +18,10 @@ export const API_BASE = (() => {
   }
 
   if (url) {
-    const cleanUrl = url.trim().replace(/\/$/, '');
+    let cleanUrl = url.trim().replace(/\/$/, '');
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://') && !cleanUrl.startsWith('/')) {
+      cleanUrl = `https://${cleanUrl}`;
+    }
     if (cleanUrl.endsWith('/api/v1')) return cleanUrl;
     if (cleanUrl.endsWith('/api')) return cleanUrl + '/v1';
     return cleanUrl + '/api/v1';
