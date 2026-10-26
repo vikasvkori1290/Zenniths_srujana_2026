@@ -189,9 +189,12 @@ export default function EKhataPage() {
     };
   }, []);
 
+  const isSelfDispatchRef = useRef(false);
+
   // Listen to external updates (e.g. from MongoDB Atlas load or other tabs)
   useEffect(() => {
     const handleSync = () => {
+      if (isSelfDispatchRef.current) return;
       try {
         const saved = localStorage.getItem('aurum_ekhata_data') || localStorage.getItem('aurum_ekhata_customers');
         if (saved) {
@@ -226,8 +229,12 @@ export default function EKhataPage() {
     if (localStorage.getItem('aurum_ekhata_data') !== serialized) {
       localStorage.setItem('aurum_ekhata_data', serialized);
       localStorage.setItem('aurum_ekhata_customers', serialized);
-      window.dispatchEvent(new Event('aurum_ekhata_updated'));
-      window.dispatchEvent(new Event('storage'));
+      try {
+        isSelfDispatchRef.current = true;
+        window.dispatchEvent(new Event('aurum_ekhata_updated'));
+      } finally {
+        isSelfDispatchRef.current = false;
+      }
     }
     syncEKhataListToDb(cleanList).catch(() => {});
   }, [khataList, isLoadingDb]);

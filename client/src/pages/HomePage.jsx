@@ -21,12 +21,10 @@ export default function HomePage() {
     window.addEventListener('aurum_stock_reserve_updated', handleSync);
     window.addEventListener('aurum_expenses_updated', handleSync);
     window.addEventListener('aurum_fixed_expenses_updated', handleSync);
-    window.addEventListener('storage', handleSync);
     return () => {
       window.removeEventListener('aurum_stock_reserve_updated', handleSync);
       window.removeEventListener('aurum_expenses_updated', handleSync);
       window.removeEventListener('aurum_fixed_expenses_updated', handleSync);
-      window.removeEventListener('storage', handleSync);
     };
   }, []);
 
@@ -85,7 +83,7 @@ export default function HomePage() {
     };
 
     runEvaluation();
-  }, [stockSyncKey]);
+  }, []);
 
   const [showSetupBanner, setShowSetupBanner] = useState(() => {
     // Only show if user just registered for the first time AND hasn't pressed "Launch My Financial Runway"

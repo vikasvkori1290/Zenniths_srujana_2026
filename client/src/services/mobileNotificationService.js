@@ -186,13 +186,17 @@ export function getStoredTomorrowBillAlert() {
  */
 export function saveTomorrowBillAlert(alertData) {
   if (typeof window === 'undefined') return alertData;
+  const current = localStorage.getItem('aurum_tomorrow_bill_alert');
+  const serialized = alertData ? JSON.stringify(alertData) : null;
+  if (current === serialized) {
+    return alertData;
+  }
   if (!alertData) {
     localStorage.removeItem('aurum_tomorrow_bill_alert');
   } else {
-    localStorage.setItem('aurum_tomorrow_bill_alert', JSON.stringify(alertData));
+    localStorage.setItem('aurum_tomorrow_bill_alert', serialized);
   }
   window.dispatchEvent(new Event('aurum_tomorrow_bill_updated'));
-  window.dispatchEvent(new Event('storage'));
   return alertData;
 }
 
