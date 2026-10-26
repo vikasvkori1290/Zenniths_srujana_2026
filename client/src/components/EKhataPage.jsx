@@ -431,39 +431,6 @@ export default function EKhataPage() {
   const handleClickMicRef = useRef(handleClickMic);
   handleClickMicRef.current = handleClickMic;
 
-  // Keyboard shortcut for mic on/off (Spacebar or Alt+M or Ctrl+M or 'M')
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // 1. Alt+M, Ctrl+M, or Meta+M shortcut (works globally anywhere)
-      if ((e.altKey || e.ctrlKey || e.metaKey) && (e.key === 'm' || e.key === 'M')) {
-        e.preventDefault();
-        if (handleClickMicRef.current) handleClickMicRef.current();
-        return;
-      }
-
-      // Check if typing inside input, textarea, or contentEditable
-      const activeEl = document.activeElement;
-      const tag = activeEl?.tagName?.toLowerCase();
-      const isTyping =
-        tag === 'input' ||
-        tag === 'textarea' ||
-        tag === 'select' ||
-        activeEl?.isContentEditable;
-
-      // 2. Spacebar or 'm'/'M' key (works when not actively typing in an input field)
-      if (!isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (e.code === 'Space' || e.key === ' ' || e.key === 'm' || e.key === 'M') {
-          e.preventDefault();
-          if (handleClickMicRef.current) handleClickMicRef.current();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
 
   const toggleSpeechOutput = () => {
     const next = !isSpeechOutputEnabled;
@@ -745,14 +712,6 @@ export default function EKhataPage() {
           `⚡ [${engineLabel}] Added ₹${addVal} to ${displayTarget}. New Total: ₹${updatedTotal.toLocaleString()}${newDueDate && newDueDate !== 'Not Specified' ? ` (Due: ${newDueDate})` : ''}`,
           'success'
         );
-        speechService.speakCrudConfirmation({
-          action: 'ADD',
-          name: existing.name,
-          amount: addVal,
-          totalAmount: updatedTotal,
-          dueDate: newDueDate,
-          lang: voiceLanguage,
-        });
         return updatedList;
       } else {
         // Calculate next ID number
@@ -781,14 +740,6 @@ export default function EKhataPage() {
           `⚡ [${engineLabel}] Created ID #${assignedIdNumber} (${customerName}) with ₹${addVal} (Due: ${dueDate || 'Not Specified'})`,
           'success'
         );
-        speechService.speakCrudConfirmation({
-          action: 'ADD',
-          name: customerName,
-          amount: addVal,
-          totalAmount: addVal,
-          dueDate: dueDate || 'Not Specified',
-          lang: voiceLanguage,
-        });
         return [newCustomer, ...prevList];
       }
     });
@@ -1108,10 +1059,6 @@ Thank you for your business! 🙏
       }));
 
       showFeedback(`✅ Auto-filled from voice: "${rawTranscript}"! You can edit details manually and click Create.`, 'success');
-      speechService.speak(
-        `Recorded customer ${formattedName || 'details'} with ${amountFound || 0} rupees.`,
-        { lang: voiceLanguage }
-      );
     };
 
     if (isDictatingCustomer) {
@@ -1394,8 +1341,8 @@ Thank you for your business! 🙏
                   ? 'bg-neutral-800 text-amber-400 cursor-not-allowed opacity-80'
                   : 'bg-neutral-800 text-yellow-300 hover:text-yellow-200 hover:bg-neutral-700 hover:scale-105 border border-yellow-400/40'
               }`}
-              title="Hold to speak (or tap to toggle). Shortcut: Spacebar or Alt+M"
-              aria-label="Voice microphone (Shortcut: Space or Alt+M)"
+              title="Hold to listen"
+              aria-label="Hold to listen"
             >
               {isListening && (
                 <span className="absolute -inset-1 rounded-full bg-yellow-400/30 animate-ping pointer-events-none" />
@@ -1414,10 +1361,7 @@ Thank you for your business! 🙏
                   <div className="flex items-center space-x-1.5">
                     <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping shrink-0" />
                     <span className="text-xs font-bold text-yellow-300">
-                      Listening... Release or tap when done
-                    </span>
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-yellow-400 text-black border border-yellow-500 animate-pulse">
-                      Space / Alt+M to stop
+                      Listening... Release when done
                     </span>
                   </div>
                   <p className="text-[11px] text-neutral-300 font-mono truncate">
@@ -1432,17 +1376,8 @@ Thank you for your business! 🙏
               ) : (
                 <div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold text-white">Hold or tap mic to speak</span>
+                    <span className="text-xs font-bold text-white">Hold to listen</span>
                     <span className="text-[10px] text-neutral-400 hidden md:inline">· Voice CRUD</span>
-                    <span
-                      className="inline-flex items-center space-x-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-neutral-800 text-yellow-300 border border-neutral-700 shadow-2xs"
-                      title="Shortcut key: Press Space or Alt+M to toggle mic ON/OFF"
-                    >
-                      <span className="text-neutral-400">Shortcut:</span>
-                      <kbd className="text-white bg-neutral-900 px-1 py-0.2 rounded border border-neutral-700">Space</kbd>
-                      <span>/</span>
-                      <kbd className="text-white bg-neutral-900 px-1 py-0.2 rounded border border-neutral-700">Alt+M</kbd>
-                    </span>
                   </div>
                   <p className="text-[11px] text-neutral-400 truncate">
                     e.g. &ldquo;Add 500 to Ramesh&rdquo; · &ldquo;Remove 200 from ID 1&rdquo; · &ldquo;Delete Nitish&rdquo;

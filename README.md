@@ -3,6 +3,7 @@
 [![Hackathon Problem Statement](https://img.shields.io/badge/Hackathon%20Track-F--03%20Predictive%20Cash--Flow%20Management-amber.svg)](PROJECT_REPORT.md)
 [![Team](https://img.shields.io/badge/Team-Zenith%20%7C%20Zenniths%20Srujana%202026-black.svg)](PROJECT_REPORT.md)
 [![Tests Passing](https://img.shields.io/badge/Unit%20Tests-36%2F36%20Passing-emerald.svg)](client/src/services/__tests__/cashFlow.test.js)
+[![Android APK](https://img.shields.io/badge/Android%20APK-Download%20v1.0.0-brightgreen.svg?logo=android)](https://github.com/vikasvkori1290/Zenniths_srujana_2026/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A production-grade, full-stack predictive financial platform designed specifically for Indian Retailers, Kiranas, and SMBs to eliminate cash-flow blind spots. It bridges real-time revenue collection, multilingual voice-powered credit bookkeeping (**eKhata**), automated 15-day liability tracking, native Android push notifications, and an **AI-driven 60-Day Predictive Cash Runway Engine**.
@@ -229,9 +230,11 @@ cd client && npm run dev
 
 ## 📱 Mobile APK Download
 
-A pre-compiled native Android APK is included directly in the root repository:
-* [**`FinSafe-mobile-app.apk`**](FinSafe-mobile-app.apk) (4.6 MB)
-* Features native hardware back button support, offline caching, and automated local push notifications for upcoming bills.
+A pre-compiled native Android APK is available via GitHub Releases and directly in the repository:
+* 📥 **GitHub Release**: [**FinSafe v1.0.0 APK on GitHub Releases**](https://github.com/vikasvkori1290/Zenniths_srujana_2026/releases/latest)
+* ⬇️ **Direct Release Asset Download**: [**Download FinSafe-mobile-app.apk**](https://github.com/vikasvkori1290/Zenniths_srujana_2026/releases/download/v1.0.0/FinSafe-mobile-app.apk)
+* 📦 **Local Repository File**: [**`FinSafe-mobile-app.apk`**](FinSafe-mobile-app.apk) (Root directory)
+* ✨ **Key Mobile Features**: Native hardware back button navigation, offline caching, voice ledger microphone integration, and automated local push notifications for tomorrow's upcoming liabilities.
 
 ---
 

@@ -177,13 +177,8 @@ class SpeechService {
 
     switch (action?.toUpperCase()) {
       case 'ADD':
-        message = amount
-          ? `Added ${amount} rupees credit for ${person}. New balance is ${totalAmount || amount} rupees.`
-          : `Updated credit for ${person}. Balance is ${totalAmount || 0} rupees.`;
-        if (dueDate && dueDate !== 'Not Specified') {
-          message += ` Due on ${dueDate}.`;
-        }
-        break;
+        // Voice speech feedback disabled when adding rupees
+        return;
 
       case 'SUBTRACT':
         message = amount
