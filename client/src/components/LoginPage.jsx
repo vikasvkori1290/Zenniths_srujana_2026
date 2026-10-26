@@ -27,6 +27,7 @@ export default function LoginPage({ onLoginSuccess }) {
   const {
     login,
     register,
+    demoLogin,
     sendPasswordResetOtp,
     verifyPasswordResetOtp,
     resetPasswordWithOtp,
@@ -94,8 +95,8 @@ export default function LoginPage({ onLoginSuccess }) {
     setLoginEmail(demoEmail);
     setLoginPassword(demoPassword);
     try {
-      const res = await login(demoEmail, demoPassword);
-      if (res.success && onLoginSuccess) {
+      const res = await demoLogin();
+      if (res && res.success && onLoginSuccess) {
         onLoginSuccess();
       }
     } catch (err) {

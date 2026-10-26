@@ -3,16 +3,37 @@ import { loadUserDataFromDb, API_BASE } from '../services/api';
 
 const AuthContext = createContext(null);
 
+const parseJsonResponse = async (res) => {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(
+      res.ok
+        ? 'Invalid response from server'
+        : `Server returned status ${res.status}. Please check your connection or try again.`
+    );
+  }
+};
+
 const DEFAULT_DEMO_USER = {
-  id: 'user-demo-1',
-  name: 'Vikas Kori',
-  email: 'demo@finsafe.com',
-  businessName: 'FinSafe Enterprise Hub',
-  businessType: 'Retail & Wholesale',
-  dailyGoal: 10000,
-  phone: '9876543210',
-  upiId: 'demo.store@okhdfcbank',
+  _id: '6adda75cd78674ff94fa96a3',
+  id: '6adda75cd78674ff94fa96a3',
+  name: 'nitishkumar',
+  email: 'nin46642@gmail.com',
+  businessName: 'nivika',
+  businessType: 'Sweets',
+  dailyGoal: 20000,
+  phone: '+91 98765 43210',
+  upiId: 'nitish.sweets@okhdfcbank',
   role: 'merchant',
+  cashflowSettings: {
+    openingCash: 30000,
+    grossMarginPct: 30,
+    dailyRunningCost: 0,
+    ownerTargetDailySales: 10000,
+    openingDate: '2026-10-25',
+  },
 };
 
 export function AuthProvider({ children }) {
@@ -71,7 +92,7 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email?.trim(), password }),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res);
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Login failed');
       }
@@ -103,7 +124,7 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res);
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Registration failed');
       }
@@ -156,30 +177,47 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 1-Click Instant Demo Login
+  // 1-Click Instant Demo Login (Nitish Kumar: nin46642@gmail.com)
   const demoLogin = async () => {
     setLoading(true);
     setAuthError(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/demo`, { method: 'POST' });
-      const data = await res.json();
-      if (data.success && data.token) {
-        setToken(data.token);
-        setUser(data.user);
-        localStorage.setItem('aurum_auth_token', data.token);
-        localStorage.setItem('aurum_auth_user', JSON.stringify(data.user));
-        await loadUserDataFromDb();
-        return { success: true, user: data.user };
+      const res = await login('nin46642@gmail.com', '123456');
+      if (res && res.success) {
+        return res;
       }
     } catch (err) {
-      // Local fallback
+      console.warn('Live demo login fallback triggered:', err);
     }
-    setUser(DEFAULT_DEMO_USER);
-    setToken('demo-jwt-token-local');
-    localStorage.setItem('aurum_auth_user', JSON.stringify(DEFAULT_DEMO_USER));
-    localStorage.setItem('aurum_auth_token', 'demo-jwt-token-local');
+
+    // Instant zero-lag fallback for Nitish Kumar
+    const demoUser = DEFAULT_DEMO_USER;
+    const demoToken = 'demo-jwt-token-nitish';
+    setUser(demoUser);
+    setToken(demoToken);
+    localStorage.setItem('aurum_auth_user', JSON.stringify(demoUser));
+    localStorage.setItem('aurum_auth_token', demoToken);
+
+    const userProfile = {
+      name: demoUser.name,
+      initials: 'NK',
+      businessName: demoUser.businessName,
+      businessType: demoUser.businessType,
+      phone: '9876543210',
+      email: demoUser.email,
+      upiId: demoUser.upiId,
+      role: 'Owner & Primary Operator',
+      currency: '₹',
+      dailyGoal: demoUser.dailyGoal,
+      joinedDate: 'October 2026',
+    };
+    localStorage.setItem('aurum_profile_info', JSON.stringify(userProfile));
+    localStorage.setItem('aurum_business_type', demoUser.businessType);
+    window.dispatchEvent(new Event('aurum_business_type_updated'));
+    window.dispatchEvent(new Event('storage'));
+
     setLoading(false);
-    return { success: true, user: DEFAULT_DEMO_USER };
+    return { success: true, user: demoUser };
   };
 
   // Logout
@@ -220,7 +258,7 @@ export function AuthProvider({ children }) {
           newPassword,
         }),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res);
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to update password');
       }
@@ -246,7 +284,7 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: identifier?.trim(), newPassword }),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res);
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Password reset failed');
       }
@@ -283,7 +321,7 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: identifier?.trim() }),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res);
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to send OTP code');
       }
@@ -311,7 +349,7 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: identifier?.trim(), otp: otp?.trim() }),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res);
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Invalid verification code');
       }
@@ -333,7 +371,7 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: identifier?.trim(), otp: otp?.trim(), newPassword }),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res);
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Password reset failed');
       }
@@ -364,7 +402,7 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res);
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to send registration OTP');
       }
@@ -393,7 +431,7 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email?.trim(), otp: otp?.trim() }),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse(res);
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Verification failed');
       }
